@@ -1,4 +1,4 @@
-const CACHE='north-terrace-v1-1-ui';
+const CACHE='north-terrace-v1-2-full-data';
 const SHELL=['./','./index.html','./login.html','./staff.html','./manager.html','./css/style.css','./js/ui.js','./js/general.js','./js/login.js','./js/staff.js','./js/manager.js','./js/store.js','./js/auth.js','./js/firebase.js','./js/firebase-config.js','./js/seed.js','./manifest.json'];
 
 self.addEventListener('install',event=>{

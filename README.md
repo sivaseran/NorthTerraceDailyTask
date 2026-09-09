@@ -1,40 +1,59 @@
-# North Terrace Operations — V1.1 UI/UX Polish
+# North Terrace Daily Task App — V1.2 Full Schedule
 
-Firebase-connected daily task management app for North Terrace Service Station.
+## What changed
+This build replaces the 10-task starter template with the complete task rows transcribed from the two supplied North Terrace master sheets:
 
-## V1.1 improvements
-- Charcoal + electric-blue visual system across Staff, General and Manager views
-- Clear loading, success, warning and error feedback
-- Toast notifications for completed/saved/reassigned actions
-- Saving/loading button states to prevent double clicks
-- Staff completion feedback with timestamp and 8-second Undo option
-- Task reassignment validation and Undo option
-- Whole-shift cover validation + confirmation dialog showing how many tasks will move
-- Unique Staff ID and PIN validation before saving a user
-- Staff PIN exactly 4 digits; manager PIN 4–8 digits
-- Create/edit users from Manager → Staff & PINs
-- Dedicated Manager Settings screen to change the current manager PIN
-- Empty states instead of blank screens
-- Skeleton loading states
-- Online/offline indicator in the header
-- Improved mobile task cards and touch targets
-- Accessible focus states and status labels that do not rely on colour alone
-- Updated PWA/service-worker behaviour with an update notification for future releases
+- AM work list: 05:30–14:00
+- PM work list: 14:00–22:00
+- 46 master task rows in total
+- Monday–Sunday assignment/timing data
+- Photo reminder flags
+- The AM "Cooking and check temperature every Hour" task generates hourly daily checkpoints
 
-## Existing Firebase collections
+## Loading the full schedule
+1. Upload/replace the V1.2 files in GitHub.
+2. Open the deployed app and log in as Manager.
+3. Open **Setup**.
+4. Click **Load Full North Terrace Schedule**.
+5. Confirm the warning.
+
+The setup will:
+- replace the old `weeklyTemplates` starter records,
+- rebuild today's `dailyTasks`,
+- keep all `users` and PINs unchanged.
+
+Current test completions/reassignments for today will be cleared when today's tasks are rebuilt.
+
+## Assignment labels preserved from the AM sheet
+The AM sheet uses operational labels rather than numeric staff IDs:
+- `WHO OPEN`
+- `FLOOR`
+- `DONNA`
+- `PARTH`
+
+These are intentionally preserved rather than guessed. They appear in General/Manager views. They are not yet mapped to a PIN staff account, so those AM role-labelled tasks will not appear under a numbered staff login until a mapping rule is added.
+
+## Source details preserved
+- PM tasks retain their day-specific staff numbers and day-specific times.
+- Inactive/black cells are not generated on that day.
+- Friday pump-cleaning assignment shown as `1-D` in the supplied sheet is preserved as `1-D`.
+- Friday/Saturday closing rows shown as 20:00–23:00 are preserved even though the PM sheet heading says 14:00–22:00.
+
+## Expected daily task count
+Because inactive tasks vary by weekday and the hourly AM task expands into checkpoints:
+- Mon: 50 daily checkpoints
+- Tue: 53
+- Wed: 49
+- Thu: 50
+- Fri: 50
+- Sat: 53
+- Sun: 46
+
+## Firebase collections
 - `users`
 - `weeklyTemplates`
 - `dailyTasks`
 - `shiftCover`
 
-No database migration is required for this UI update.
-
-## Important current scope
-The Firebase workflow is live and working, but the weekly template still contains the temporary starter tasks. The complete AM + PM North Terrace master schedule will be loaded separately after this UI version is tested.
-
-## GitHub update
-Replace the existing project files with the files from this package. Two files are new and must also be added:
-- `js/ui.js`
-- `js/login.js`
-
-After deploying, close all open North Terrace app tabs and reopen the site. If an older cached V1 remains visible, use a hard refresh (`Ctrl + Shift + R`) and close/reopen the tab so the new service worker can activate.
+## Development security
+Firestore rules are currently open for V1 testing. Tighten them before routine operational use.
