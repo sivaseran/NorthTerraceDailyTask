@@ -1,1 +1,131 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="css/style.css"><title>Manager</title></head><body><header class="topbar"><div><h1>Manager Control</h1><p>North Terrace Service Station</p></div><button id="logout" class="btn ghost">Logout</button></header><main class="container"><nav class="manager-nav"><button class="active" data-section="dashboard">Dashboard</button><button data-section="tasks">Task Adjustments</button><button data-section="cover">Shift Cover</button><button data-section="staffmanage">Staff & PINs</button><button data-section="reports">Reports</button><button data-section="setup">Setup</button></nav><section id="dashboard" class="manager-section"><div class="stats-grid"><article class="stat-card"><span>Overall</span><strong id="mgrOverall">0%</strong></article><article class="stat-card"><span>Completed</span><strong id="mgrCompleted">0</strong></article><article class="stat-card"><span>Pending</span><strong id="mgrPending">0</strong></article><article class="stat-card"><span>Overdue</span><strong id="mgrOverdue">0</strong></article></div><div class="card"><h2>Today's Tasks</h2><div class="table-wrap"><table><thead><tr><th>Time</th><th>Task</th><th>Original</th><th>Assigned</th><th>Status</th></tr></thead><tbody id="managerRows"></tbody></table></div></div></section><section id="tasks" class="manager-section" hidden><div class="card"><h2>Individual Task Reassignment</h2><div class="form-grid"><label>Task<select id="taskSelect"></select></label><label>Reassign to<select id="reassignStaff"></select></label></div><button id="reassignBtn" class="btn">Reassign Today Only</button></div></section><section id="cover" class="manager-section" hidden><div class="card"><h2>Whole-Shift Cover</h2><div class="form-grid"><label>Staff off<select id="offStaff"></select></label><label>Shift<select id="offShift"><option>AM</option><option>PM</option></select></label><label>Covered by<select id="coverStaff"></select></label></div><button id="coverBtn" class="btn">Transfer Whole Shift</button><p id="coverResult" class="success"></p></div></section><section id="staffmanage" class="manager-section" hidden><div class="card"><h2>Staff & PIN Management</h2><div class="form-grid"><label>Document ID<input id="userDocId" placeholder="staff2"></label><label>Name<input id="userName" placeholder="Staff 2"></label><label>Staff ID<input id="userStaffId" placeholder="2"></label><label>PIN<input id="userPin" inputmode="numeric" maxlength="6"></label><label>Role<select id="userRole"><option value="staff">staff</option><option value="manager">manager</option></select></label><label>Active<select id="userActive"><option value="true">true</option><option value="false">false</option></select></label></div><button id="saveUserBtn" class="btn">Create / Update User</button><p id="userResult" class="success"></p></div><div class="card"><h2>Current Users</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Name</th><th>Staff ID</th><th>Role</th><th>PIN</th><th>Active</th></tr></thead><tbody id="usersRows"></tbody></table></div></div></section><section id="reports" class="manager-section" hidden><div class="card"><h2>Today's Staff Completion</h2><div class="table-wrap"><table><thead><tr><th>Staff</th><th>Assigned</th><th>Completed</th><th>Completion</th></tr></thead><tbody id="reportRows"></tbody></table></div></div></section><section id="setup" class="manager-section" hidden><div class="card"><h2>Initial V1 Setup</h2><p>Create the starter weekly template in Firestore.</p><button id="seedBtn" class="btn">Create Starter Weekly Template</button><p id="seedResult" class="success"></p></div></section></main><script type="module" src="js/manager.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#20252b">
+  <title>North Terrace - Manager</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">NT</div>
+    <div class="brand-text"><div class="brand-kicker">North Terrace</div><h1>Manager Control</h1><p>Live operations and task control.</p></div>
+  </div>
+  <div class="top-actions">
+    <span id="connectionStatus" class="connection-pill"><span class="connection-dot"></span>Checking…</span>
+    <a class="btn ghost" href="index.html">General View</a>
+    <button id="logout" class="btn ghost" type="button">Logout</button>
+  </div>
+</header>
+
+<main class="container">
+  <nav class="manager-nav" aria-label="Manager sections">
+    <button class="active" data-section="dashboard" type="button">Dashboard</button>
+    <button data-section="tasks" type="button">Task Adjustments</button>
+    <button data-section="cover" type="button">Shift Cover</button>
+    <button data-section="staffmanage" type="button">Staff & PINs</button>
+    <button data-section="reports" type="button">Reports</button>
+    <button data-section="settings" type="button">Settings</button>
+    <button data-section="setup" type="button">Setup</button>
+  </nav>
+
+  <section id="dashboard" class="manager-section">
+    <div class="page-heading">
+      <div><span class="eyebrow">Live manager view</span><h2>Today's operation</h2><p id="managerDate" class="muted"></p></div>
+    </div>
+    <div class="stats-grid">
+      <article class="stat-card primary"><span>Overall</span><strong id="mgrOverall">0%</strong><small>completion</small></article>
+      <article class="stat-card good"><span>Completed</span><strong id="mgrCompleted">0</strong><small>tasks finished</small></article>
+      <article class="stat-card"><span>Pending</span><strong id="mgrPending">0</strong><small>tasks remaining</small></article>
+      <article class="stat-card alert"><span>Overdue</span><strong id="mgrOverdue">0</strong><small>needs attention</small></article>
+    </div>
+    <div class="card elevated">
+      <div class="card-head"><div><h2>Today's tasks</h2><div class="card-subtitle">Original assignment is always preserved when a task is moved.</div></div></div>
+      <div class="table-wrap" style="margin-top:14px">
+        <table><thead><tr><th>Time</th><th>Task</th><th>Original</th><th>Assigned</th><th>Status</th></tr></thead><tbody id="managerRows"></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tasks" class="manager-section" hidden>
+    <div class="card elevated">
+      <div class="section-intro"><div><span class="eyebrow">Today only</span><h2>Individual task reassignment</h2><p class="muted">Move one task without changing the permanent weekly template.</p></div></div>
+      <div class="form-grid">
+        <div class="field"><label class="field-label" for="taskSelect">Task <span class="required">*</span></label><select id="taskSelect"></select></div>
+        <div class="field"><label class="field-label" for="reassignStaff">Reassign to <span class="required">*</span></label><select id="reassignStaff"></select></div>
+      </div>
+      <div id="reassignPreview" class="preview-card"></div>
+      <div class="form-actions"><button id="reassignBtn" class="btn" type="button">Reassign Today Only</button></div>
+      <div id="reassignResult" class="inline-message" hidden role="status"></div>
+    </div>
+  </section>
+
+  <section id="cover" class="manager-section" hidden>
+    <div class="card elevated">
+      <div class="section-intro"><div><span class="eyebrow">Today only</span><h2>Whole-shift cover</h2><p class="muted">Move every current assignment for an AM or PM shift to the covering staff member.</p></div></div>
+      <div class="form-grid">
+        <div class="field"><label class="field-label" for="offStaff">Staff off <span class="required">*</span></label><select id="offStaff"></select></div>
+        <div class="field"><label class="field-label" for="offShift">Shift <span class="required">*</span></label><select id="offShift"><option>AM</option><option>PM</option></select></div>
+        <div class="field"><label class="field-label" for="coverStaff">Covered by <span class="required">*</span></label><select id="coverStaff"></select></div>
+      </div>
+      <div id="coverPreview" class="preview-card"></div>
+      <div class="form-actions"><button id="coverBtn" class="btn" type="button">Apply Shift Cover</button></div>
+      <div id="coverResult" class="inline-message" hidden role="status"></div>
+    </div>
+  </section>
+
+  <section id="staffmanage" class="manager-section" hidden>
+    <div class="card elevated">
+      <div class="section-intro"><div><span class="eyebrow">Access management</span><h2>Create or edit a user</h2><p class="muted">Staff IDs and PINs must be unique. Staff PINs must contain exactly 4 digits.</p></div><button id="clearUserForm" class="btn secondary small" type="button">Clear form</button></div>
+      <div class="form-grid">
+        <div class="field"><label class="field-label" for="userDocId">Document ID <span class="required">*</span></label><input id="userDocId" placeholder="staff2" autocomplete="off"><div class="field-error" hidden></div></div>
+        <div class="field"><label class="field-label" for="userName">Name <span class="required">*</span></label><input id="userName" placeholder="Staff 2" autocomplete="off"><div class="field-error" hidden></div></div>
+        <div class="field"><label class="field-label" for="userStaffId">Staff ID</label><input id="userStaffId" inputmode="numeric" placeholder="2" autocomplete="off"><div class="field-error" hidden></div></div>
+        <div class="field"><label class="field-label" for="userPin">PIN <span class="required">*</span></label><input id="userPin" type="password" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="new-password"><div class="field-error" hidden></div></div>
+        <div class="field"><label class="field-label" for="userPinConfirm">Confirm PIN <span class="required">*</span></label><input id="userPinConfirm" type="password" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="new-password"><div class="field-error" hidden></div></div>
+        <div class="field"><label class="field-label" for="userRole">Role <span class="required">*</span></label><select id="userRole"><option value="staff">Staff</option><option value="manager">Manager</option></select><div class="field-error" hidden></div></div>
+        <div class="field"><label class="field-label" for="userActive">Status</label><select id="userActive"><option value="true">Active</option><option value="false">Inactive</option></select></div>
+      </div>
+      <div class="form-actions"><button id="saveUserBtn" class="btn" type="button">Save User</button></div>
+      <div id="userResult" class="inline-message" hidden role="status"></div>
+    </div>
+
+    <div class="card elevated">
+      <div class="card-head"><div><h2>Current users</h2><div class="card-subtitle">Choose Edit to load a user into the form above.</div></div></div>
+      <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>ID</th><th>Name</th><th>Staff ID</th><th>Role</th><th>PIN</th><th>Status</th><th></th></tr></thead><tbody id="usersRows"></tbody></table></div>
+    </div>
+  </section>
+
+  <section id="reports" class="manager-section" hidden>
+    <div class="card elevated">
+      <div class="card-head"><div><h2>Today's staff completion</h2><div class="card-subtitle">Individual reporting is manager-only.</div></div></div>
+      <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Staff</th><th>Assigned</th><th>Completed</th><th>Completion</th></tr></thead><tbody id="reportRows"></tbody></table></div>
+    </div>
+  </section>
+
+  <section id="settings" class="manager-section" hidden>
+    <div class="card elevated">
+      <div class="section-intro"><div><span class="eyebrow">Manager security</span><h2>Change my manager PIN</h2><p class="muted">This changes the PIN for the manager account currently signed in.</p></div></div>
+      <div class="form-grid">
+        <div class="field"><label class="field-label" for="managerNewPin">New PIN <span class="required">*</span></label><input id="managerNewPin" type="password" inputmode="numeric" maxlength="8" placeholder="4–8 digits" autocomplete="new-password"><div class="field-error" hidden></div></div>
+        <div class="field"><label class="field-label" for="managerConfirmPin">Confirm new PIN <span class="required">*</span></label><input id="managerConfirmPin" type="password" inputmode="numeric" maxlength="8" placeholder="Repeat PIN" autocomplete="new-password"><div class="field-error" hidden></div></div>
+      </div>
+      <div class="form-actions"><button id="changeManagerPinBtn" class="btn" type="button">Change Manager PIN</button></div>
+      <div id="managerPinResult" class="inline-message" hidden role="status"></div>
+    </div>
+  </section>
+
+  <section id="setup" class="manager-section" hidden>
+    <div class="card elevated">
+      <div class="section-intro"><div><span class="eyebrow">System setup</span><h2>Weekly template setup</h2><p class="muted">The current button creates the temporary starter task list used for testing.</p></div></div>
+      <button id="seedBtn" class="btn" type="button">Create Starter Weekly Template</button>
+      <div id="seedResult" class="inline-message" hidden role="status"></div>
+    </div>
+  </section>
+</main>
+<script type="module" src="js/manager.js"></script>
+</body>
+</html>

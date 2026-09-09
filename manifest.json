@@ -1,9 +1,11 @@
 {
-  "name": "North Terrace Daily Task App",
+  "name": "North Terrace Operations",
   "short_name": "North Terrace",
+  "description": "Live daily task management for North Terrace Service Station.",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#f4f7f9",
-  "theme_color": "#0f3d63",
+  "background_color": "#f3f6f8",
+  "theme_color": "#20252b",
   "icons": []
 }

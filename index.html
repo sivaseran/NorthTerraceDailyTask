@@ -1,1 +1,83 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="css/style.css"><title>North Terrace</title></head><body><header class="topbar"><div><h1>North Terrace Service Station</h1><p>Daily Task Management</p></div><a class="btn" href="login.html">Staff / Manager Login</a></header><main class="container"><section class="toolbar"><div class="segmented"><button id="todayTab" class="active">Today</button><button id="weekTab">Week</button></div><div id="dateLabel" class="muted"></div></section><section id="todayView"><div class="stats-grid"><article class="stat-card"><span>Overall</span><strong id="overallPct">0%</strong></article><article class="stat-card"><span>AM</span><strong id="amPct">0%</strong></article><article class="stat-card"><span>PM</span><strong id="pmPct">0%</strong></article><article class="stat-card"><span>Overdue</span><strong id="overdueCount">0</strong></article></div><div class="card"><h2>Today's Schedule</h2><div class="table-wrap"><table><thead><tr><th>Time</th><th>Task</th><th>Staff</th><th>Shift</th><th>Status</th></tr></thead><tbody id="todayRows"></tbody></table></div></div></section><section id="weekView" hidden><div class="card"><h2>Weekly Schedule</h2><div class="table-wrap"><table><thead><tr><th>Task / Time</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th></tr></thead><tbody id="weekRows"></tbody></table></div></div></section></main><script type="module" src="js/general.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#20252b">
+  <title>North Terrace Operations</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">NT</div>
+    <div class="brand-text">
+      <div class="brand-kicker">North Terrace</div>
+      <h1>Operations</h1>
+      <p>One team. One live plan.</p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <span id="connectionStatus" class="connection-pill"><span class="connection-dot"></span>Checking…</span>
+    <span id="liveClock" class="clock"></span>
+    <a class="btn" href="login.html">Staff / Manager Login</a>
+  </div>
+</header>
+
+<main class="container">
+  <div class="page-heading">
+    <div>
+      <span class="eyebrow">Live store view</span>
+      <h2>Today at a glance</h2>
+      <p id="dateLabel"></p>
+    </div>
+    <div class="segmented" role="tablist" aria-label="Schedule view">
+      <button id="todayTab" class="active" type="button" aria-selected="true">Today</button>
+      <button id="weekTab" type="button" aria-selected="false">Week</button>
+    </div>
+  </div>
+
+  <section id="todayView">
+    <div class="stats-grid">
+      <article class="stat-card primary"><span>Overall progress</span><strong id="overallPct">0%</strong><small id="overallCount">Loading tasks…</small></article>
+      <article class="stat-card good"><span>AM progress</span><strong id="amPct">0%</strong><small id="amCount">—</small></article>
+      <article class="stat-card"><span>PM progress</span><strong id="pmPct">0%</strong><small id="pmCount">—</small></article>
+      <article class="stat-card alert"><span>Needs attention</span><strong id="overdueCount">0</strong><small>overdue task(s)</small></article>
+    </div>
+
+    <div class="card elevated">
+      <div class="card-head">
+        <div><h2>Today's schedule</h2><div class="card-subtitle">Updates automatically when staff complete or managers reassign tasks.</div></div>
+        <span class="badge upcoming"><span aria-hidden="true">●</span>Live Firestore</span>
+      </div>
+      <div class="progress-block">
+        <div class="progress-header"><span>Store completion</span><strong id="progressText">0 of 0 completed</strong></div>
+        <div class="progress-track" aria-label="Today's completion"><div id="overallProgress" class="progress-fill"></div></div>
+      </div>
+      <div class="table-wrap" style="margin-top:16px">
+        <table>
+          <thead><tr><th>Time</th><th>Task</th><th>Staff</th><th>Shift</th><th>Status</th></tr></thead>
+          <tbody id="todayRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="weekView" hidden>
+    <div class="card elevated">
+      <div class="card-head">
+        <div><h2>Weekly master schedule</h2><div class="card-subtitle">The permanent Monday–Sunday template used to generate each day.</div></div>
+      </div>
+      <div class="table-wrap" style="margin-top:16px">
+        <table>
+          <thead><tr><th>Task / Time</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th></tr></thead>
+          <tbody id="weekRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+<script type="module" src="js/general.js"></script>
+</body>
+</html>
