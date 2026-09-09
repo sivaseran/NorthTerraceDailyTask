@@ -1,3 +1,4 @@
+
 import {db,collection,doc,getDocs,setDoc,updateDoc,query,where,onSnapshot,serverTimestamp,writeBatch} from './firebase.js';
 
 const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -14,13 +15,31 @@ function parseMinutes(text=''){
   return Number(matches[0][1])*60+Number(matches[0][2]);
 }
 
+function minutesToTime(total){
+  const h=Math.floor(total/60)%24;
+  const m=total%60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+
+function parseRange(text=''){
+  const matches=[...String(text).matchAll(/(\d{1,2}):(\d{2})/g)];
+  if(matches.length<2) return null;
+  const start=Number(matches[0][1])*60+Number(matches[0][2]);
+  const end=Number(matches[1][1])*60+Number(matches[1][2]);
+  if(end<=start) return null;
+  return {start,end};
+}
+
 function deriveStatus(t){
   if(t.status==='completed') return 'completed';
   const x=t.time||'';
-  if(!x||x.toLowerCase().includes('min')) return 'upcoming';
+  const lower=x.toLowerCase();
+  if(!x||lower.includes('min')||lower.includes('any ')) return 'upcoming';
+
   const n=new Date(),m=n.getHours()*60+n.getMinutes();
   let a=null,b=null;
-  if(x.toLowerCase().startsWith('after ')){
+
+  if(lower.startsWith('after ')){
     const r=x.match(/(\d{1,2}):(\d{2})/);
     if(r) a=Number(r[1])*60+Number(r[2]);
   }else{
@@ -28,8 +47,10 @@ function deriveStatus(t){
     if(r[0]) a=Number(r[0][1])*60+Number(r[0][2]);
     if(r[1]) b=Number(r[1][1])*60+Number(r[1][2]);
   }
+
   if(a===null) return 'upcoming';
   if(b!==null&&m>b) return 'overdue';
+  if(b===null&&m>a+60) return 'overdue';
   if(m>=a) return 'due';
   return 'upcoming';
 }
@@ -64,23 +85,77 @@ export async function validateUserUniqueness(documentId,{pin,staffId,role}){
 
 export async function getWeeklyTemplate(){
   const s=await getDocs(collection(db,'weeklyTemplates'));
-  return s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>parseMinutes(a.time)-parseMinutes(b.time));
+  return s.docs
+    .map(d=>({id:d.id,...d.data()}))
+    .sort((a,b)=>(Number(a.sortOrder)||9999)-(Number(b.sortOrder)||9999)||String(a.taskName||'').localeCompare(String(b.taskName||'')));
 }
 
-export async function ensureTodayTasks(){
-  const date=isoDate();
-  const q=query(collection(db,'dailyTasks'),where('date','==',date));
-  const existing=await getDocs(q);
-  if(!existing.empty) return {created:false,count:existing.size};
+function dailyRecordsFromTemplateTask(t,day,date){
+  // New full-schedule schema
+  if(t.schedule){
+    const slot=t.schedule?.[day];
+    if(!slot||slot.active===false) return [];
+    const assignee=String(slot.assignee||'');
+    const time=String(slot.time||'');
 
-  const template=await getWeeklyTemplate();
-  if(!template.length) return {created:false,count:0};
+    if(t.recurring&&t.frequencyMinutes){
+      const range=parseRange(time);
+      if(range){
+        const rows=[];
+        for(let start=range.start;start<range.end;start+=Number(t.frequencyMinutes)){
+          const end=Math.min(start+Number(t.frequencyMinutes),range.end);
+          const checkpoint=minutesToTime(start);
+          rows.push({
+            id:`${date}_${t.id}_${checkpoint.replace(':','')}`,
+            data:{
+              date,
+              templateTaskId:t.id,
+              taskName:t.taskName,
+              shift:t.shift,
+              section:t.section||'',
+              time:`${minutesToTime(start)}-${minutesToTime(end)}`,
+              checkpoint,
+              recurring:true,
+              originalStaff:assignee,
+              assignedStaff:assignee,
+              status:'pending',
+              photoRequired:Boolean(t.photoRequired),
+              completedAt:null,
+              completedBy:null,
+              createdAt:serverTimestamp()
+            }
+          });
+        }
+        return rows;
+      }
+    }
 
-  const day=days[new Date().getDay()];
-  const batch=writeBatch(db);
-  template.forEach(t=>{
-    const original=t.assignments?.[day]||'';
-    batch.set(doc(db,'dailyTasks',`${date}_${t.id}`),{
+    return [{
+      id:`${date}_${t.id}`,
+      data:{
+        date,
+        templateTaskId:t.id,
+        taskName:t.taskName,
+        shift:t.shift,
+        section:t.section||'',
+        time,
+        originalStaff:assignee,
+        assignedStaff:assignee,
+        status:'pending',
+        photoRequired:Boolean(t.photoRequired),
+        completedAt:null,
+        completedBy:null,
+        createdAt:serverTimestamp()
+      }
+    }];
+  }
+
+  // Compatibility with the earlier starter schema.
+  const original=t.assignments?.[day]||'';
+  if(!original) return [];
+  return [{
+    id:`${date}_${t.id}`,
+    data:{
       date,
       templateTaskId:t.id,
       taskName:t.taskName,
@@ -93,10 +168,39 @@ export async function ensureTodayTasks(){
       completedAt:null,
       completedBy:null,
       createdAt:serverTimestamp()
-    });
-  });
+    }
+  }];
+}
+
+export async function ensureTodayTasks(){
+  const date=isoDate();
+  const q=query(collection(db,'dailyTasks'),where('date','==',date));
+  const existing=await getDocs(q);
+  if(!existing.empty) return {created:false,count:existing.size};
+
+  const template=await getWeeklyTemplate();
+  if(!template.length) return {created:false,count:0};
+
+  const day=days[new Date().getDay()];
+  const rows=template.flatMap(t=>dailyRecordsFromTemplateTask(t,day,date));
+  if(!rows.length) return {created:false,count:0};
+
+  const batch=writeBatch(db);
+  rows.forEach(row=>batch.set(doc(db,'dailyTasks',row.id),row.data));
   await batch.commit();
-  return {created:true,count:template.length};
+  return {created:true,count:rows.length};
+}
+
+export async function resetTodayTasks(){
+  const date=isoDate();
+  const q=query(collection(db,'dailyTasks'),where('date','==',date));
+  const existing=await getDocs(q);
+  if(!existing.empty){
+    const batch=writeBatch(db);
+    existing.docs.forEach(d=>batch.delete(d.ref));
+    await batch.commit();
+  }
+  return ensureTodayTasks();
 }
 
 export async function getTodayTasks(){

@@ -1,6 +1,6 @@
 import {getSession,clearSession,saveSession} from './auth.js';
-import {ensureTodayTasks,watchTodayTasks,getUsers,getWeeklyTemplate,reassignTask,coverShift,percent,saveUser,validateUserUniqueness,formatDate} from './store.js';
-import {seedStarterTemplate} from './seed.js';
+import {ensureTodayTasks,resetTodayTasks,watchTodayTasks,getUsers,getWeeklyTemplate,reassignTask,coverShift,percent,saveUser,validateUserUniqueness,formatDate} from './store.js';
+import {seedFullTemplate} from './seed.js';
 import {escapeHtml,statusView,setButtonLoading,setInlineMessage,setFieldError,clearFieldError,showToast,confirmAction,tableSkeleton,initNetworkStatus,registerAppServiceWorker} from './ui.js';
 
 const $=s=>document.querySelector(s);
@@ -282,22 +282,25 @@ $('#seedBtn').addEventListener('click',async()=>{
   setInlineMessage($('#seedResult'),'');
   try{
     const existing=await getWeeklyTemplate();
-    if(existing.length){
-      const confirmed=await confirmAction({
-        title:'Update starter template?',
-        message:'A weekly template already exists.',
-        details:'Running this setup again will update the starter template records. Existing daily tasks for today will not be replaced.',
-        confirmText:'Update Template'
-      });
-      if(!confirmed) return;
-    }
-    setButtonLoading(button,true,'Creating…');
-    await seedStarterTemplate();
-    setInlineMessage($('#seedResult'),'✓ Starter weekly template saved successfully.','success');
-    showToast('Weekly template saved successfully.','success',{title:'Setup complete'});
+    const confirmed=await confirmAction({
+      title:'Load full North Terrace schedule?',
+      message:existing.length
+        ? `Replace the current weekly template (${existing.length} records) with the full AM + PM master schedule?`
+        : 'Create the full AM + PM North Terrace weekly schedule?',
+      details:'This will also rebuild today’s task list so you can immediately see the complete app. Current test completions and reassignments for today will be cleared. User/PIN records are not changed.',
+      confirmText:'Load Full Schedule'
+    });
+    if(!confirmed) return;
+
+    setButtonLoading(button,true,'Loading full schedule…');
+    const count=await seedFullTemplate();
+    const today=await resetTodayTasks();
+    setInlineMessage($('#seedResult'),`✓ Full weekly schedule saved: ${count} master tasks. Today rebuilt with ${today.count} task checkpoints.`,'success');
+    showToast(`${count} master tasks loaded. Today’s schedule is ready.`,'success',{title:'Full schedule loaded'});
   }catch(error){
-    setInlineMessage($('#seedResult'),'Could not save the weekly template. Check your connection and try again.','error');
-    showToast('Could not save the weekly template.','error',{title:'Setup failed'});
+    console.error(error);
+    setInlineMessage($('#seedResult'),'Could not load the full schedule. Check your connection and try again.','error');
+    showToast('Could not load the full weekly schedule.','error',{title:'Setup failed'});
   }finally{setButtonLoading(button,false);}
 });
 

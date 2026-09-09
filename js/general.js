@@ -1,3 +1,4 @@
+
 import {ensureTodayTasks,watchTodayTasks,getWeeklyTemplate,percent,formatDate} from './store.js';
 import {escapeHtml,statusView,tableSkeleton,showToast,initNetworkStatus,registerAppServiceWorker} from './ui.js';
 
@@ -27,11 +28,24 @@ function renderToday(tasks){
 
   $('#todayRows').innerHTML=tasks.map(t=>`<tr>
     <td><strong>${escapeHtml(t.time||'—')}</strong></td>
-    <td>${escapeHtml(t.taskName||'Untitled task')}${t.photoRequired?' <span title="Photo reminder">📷</span>':''}</td>
+    <td>
+      ${escapeHtml(t.taskName||'Untitled task')}${t.photoRequired?' <span title="Photo reminder">📷</span>':''}
+      ${t.recurring?'<br><span class="muted">Hourly checkpoint</span>':''}
+    </td>
     <td><span class="staff-chip">${escapeHtml(t.assignedStaff||'—')}</span></td>
     <td>${escapeHtml(t.shift||'—')}</td>
     <td>${statusView(t.status)}</td>
   </tr>`).join('');
+}
+
+function weekCell(t,day){
+  if(t.schedule){
+    const slot=t.schedule?.[day];
+    if(!slot||slot.active===false) return '<span class="muted">—</span>';
+    return `<span class="staff-chip">${escapeHtml(slot.assignee||'—')}</span><br><span class="muted">${escapeHtml(slot.time||'')}</span>`;
+  }
+  const assignee=t.assignments?.[day]||'';
+  return assignee?`<span class="staff-chip">${escapeHtml(assignee)}</span>`:'<span class="muted">—</span>';
 }
 
 async function renderWeek(){
@@ -44,8 +58,13 @@ async function renderWeek(){
       return;
     }
     $('#weekRows').innerHTML=rows.map(t=>`<tr>
-      <td><strong>${escapeHtml(t.taskName||'')}</strong><br><span class="muted">${escapeHtml(t.time||'')} · ${escapeHtml(t.shift||'')}</span></td>
-      ${days.map(d=>`<td><span class="staff-chip">${escapeHtml(t.assignments?.[d]||'—')}</span></td>`).join('')}
+      <td>
+        <strong>${escapeHtml(t.taskName||'')}</strong>
+        <br><span class="muted">${escapeHtml(t.shift||'')} · ${escapeHtml(t.section||t.time||'')}</span>
+        ${t.photoRequired?' <span title="Photo reminder">📷</span>':''}
+        ${t.recurring?' <span class="muted">· hourly</span>':''}
+      </td>
+      ${days.map(d=>`<td>${weekCell(t,d)}</td>`).join('')}
     </tr>`).join('');
   }catch(error){
     $('#weekRows').innerHTML='<tr><td colspan="8" class="error">Could not load the weekly schedule.</td></tr>';
