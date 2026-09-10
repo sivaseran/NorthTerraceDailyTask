@@ -57,3 +57,18 @@ Because inactive tasks vary by weekday and the hourly AM task expands into check
 
 ## Development security
 Firestore rules are currently open for V1 testing. Tighten them before routine operational use.
+
+
+## V1.3 — Weekly planning experience
+- Dynamic page heading: Today at a glance / Week at a glance
+- Correct Monday–Sunday date range in Week view
+- Seven-day workload summary cards with AM/PM counts
+- All / AM / PM filters
+- Separate collapsible AM and PM operational sections
+- Tasks grouped into source time blocks
+- Today's day/column highlighted
+- Sticky day header and sticky task column
+- Numeric assignments displayed as Staff 1, Staff 2, etc.
+- Repeated day times hidden when they match the usual task time
+- Day-specific time differences remain visible
+- Clear Photo and Hourly badges

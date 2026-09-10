@@ -29,7 +29,7 @@
   <div class="page-heading">
     <div>
       <span class="eyebrow">Live store view</span>
-      <h2>Today at a glance</h2>
+      <h2 id="pageTitle">Today at a glance</h2>
       <p id="dateLabel"></p>
     </div>
     <div class="segmented" role="tablist" aria-label="Schedule view">
@@ -65,15 +65,24 @@
   </section>
 
   <section id="weekView" hidden>
-    <div class="card elevated">
-      <div class="card-head">
-        <div><h2>Weekly master schedule</h2><div class="card-subtitle">The permanent Monday–Sunday template used to generate each day.</div></div>
+    <div id="weekSummary" class="week-summary-grid" aria-label="Weekly schedule summary"></div>
+
+    <div class="week-toolbar">
+      <div>
+        <span class="eyebrow">Planning view</span>
+        <h3>Weekly master schedule</h3>
+        <p>See who normally owns each task. Times are only repeated in a day when they differ from the usual time.</p>
       </div>
-      <div class="table-wrap" style="margin-top:16px">
-        <table>
-          <thead><tr><th>Task / Time</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th></tr></thead>
-          <tbody id="weekRows"></tbody>
-        </table>
+      <div class="segmented week-filter" role="group" aria-label="Filter weekly schedule">
+        <button type="button" class="active" data-week-filter="ALL">All</button>
+        <button type="button" data-week-filter="AM">AM</button>
+        <button type="button" data-week-filter="PM">PM</button>
+      </div>
+    </div>
+
+    <div id="weekSchedule">
+      <div class="card elevated">
+        <div class="empty-state"><h3>Loading weekly schedule…</h3><p>Preparing the planning view.</p></div>
       </div>
     </div>
   </section>
