@@ -272,17 +272,97 @@ $('#pageTitle').textContent='Today at a glance';
 $('#dateLabel').textContent=formatDate();
 $('#todayRows').innerHTML=tableSkeleton(5,6);
 
-try{
-  await ensureTodayTasks();
-  watchTodayTasks(renderToday,()=>{
-    $('#todayRows').innerHTML='<tr><td colspan="5" class="error">Live updates are temporarily unavailable.</td></tr>';
-    showToast('Live task updates are unavailable. Check your internet connection.','error');
-  });
-}catch(error){
-  $('#todayRows').innerHTML='<tr><td colspan="5" class="error">Could not load today\\'s tasks.</td></tr>';
-  showToast('Could not load today\\'s tasks. Check your connection and refresh.','error');
+let preparingToday=true;
+let lastTodayTasks=[];
+
+function setTodayLoading(message='Preparing today\'s schedule…'){
+  $('#overallCount').textContent=message;
+  $('#amCount').textContent='Loading…';
+  $('#pmCount').textContent='Loading…';
+  $('#progressText').textContent='Preparing…';
 }
 
+function setFirestoreState(state){
+  const pill=$('#connectionStatus');
+  if(!pill) return;
+  if(state==='live'){
+    pill.className='connection-pill online';
+    pill.innerHTML='<span class="connection-dot" aria-hidden="true"></span>Live';
+    pill.title='Connected to Firebase';
+  }else if(state==='problem'){
+    pill.className='connection-pill offline';
+    pill.innerHTML='<span class="connection-dot" aria-hidden="true"></span>Connection problem';
+    pill.title='Firebase is taking longer than expected';
+  }
+}
+
+function renderTodaySafe(tasks){
+  lastTodayTasks=tasks;
+  if(preparingToday && tasks.length===0){
+    setTodayLoading();
+    return;
+  }
+  setFirestoreState('live');
+  renderToday(tasks);
+}
+
+async function prepareTodayWithTimeout(){
+  setTodayLoading();
+  const ensurePromise=ensureTodayTasks();
+
+  const timeoutPromise=new Promise((_,reject)=>{
+    setTimeout(()=>reject(new Error('TODAY_PREP_TIMEOUT')),8000);
+  });
+
+  try{
+    await Promise.race([ensurePromise,timeoutPromise]);
+    preparingToday=false;
+    renderToday(lastTodayTasks);
+  }catch(error){
+    if(error?.message==='TODAY_PREP_TIMEOUT'){
+      setFirestoreState('problem');
+      $('#overallCount').textContent='Still connecting…';
+      $('#todayRows').innerHTML=`<tr><td colspan="5">
+        <div class="empty-state">
+          <div class="empty-icon">!</div>
+          <h3>Firebase is taking longer than expected</h3>
+          <p>The app will keep listening in the background. You can also retry now.</p>
+          <button id="retryTodayBtn" class="btn" type="button">Retry connection</button>
+        </div>
+      </td></tr>`;
+      showToast('Firebase is taking longer than expected. The app is still listening for updates.','warning');
+      $('#retryTodayBtn')?.addEventListener('click',async()=>{
+        const btn=$('#retryTodayBtn');
+        if(btn){ btn.disabled=true; btn.textContent='Retrying…'; }
+        try{
+          await ensureTodayTasks();
+          preparingToday=false;
+          renderToday(lastTodayTasks);
+          showToast('Firebase connection restored.','success');
+        }catch{
+          if(btn){ btn.disabled=false; btn.textContent='Retry connection'; }
+          showToast('Could not connect to Firebase. Check your internet connection and try again.','error');
+        }
+      });
+    }else{
+      preparingToday=false;
+      setFirestoreState('problem');
+      $('#todayRows').innerHTML='<tr><td colspan="5" class="error">Could not prepare today\'s tasks.</td></tr>';
+      showToast('Could not prepare today\'s tasks. Check your connection and refresh.','error');
+    }
+  }
+
+  // Important: even if the 8-second UI timeout fires, allow the real
+  // Firestore request to finish. The live listener below will update the page.
+  ensurePromise.then(()=>{
+    preparingToday=false;
+    if(lastTodayTasks.length) renderToday(lastTodayTasks);
+  }).catch(()=>{});
+}
+
+/* Start basic app UI immediately.
+   V1.3 waited for Firestore before showing Live/clock, which could leave
+   the header stuck on "Checking…". */
 function clock(){
   const el=$('#liveClock');
   if(el) el.textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
@@ -291,3 +371,20 @@ clock();
 setInterval(clock,30000);
 initNetworkStatus();
 registerAppServiceWorker();
+
+/* Start Firestore listener immediately instead of waiting for task generation. */
+try{
+  watchTodayTasks(renderTodaySafe,()=>{
+    setFirestoreState('problem');
+    if(!preparingToday){
+      $('#todayRows').innerHTML='<tr><td colspan="5" class="error">Live updates are temporarily unavailable.</td></tr>';
+    }
+    showToast('Live task updates are unavailable. Check your internet connection.','error');
+  });
+}catch{
+  setFirestoreState('problem');
+}
+
+/* Generate/verify today's records in the background. */
+prepareTodayWithTimeout();
+
