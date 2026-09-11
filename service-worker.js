@@ -1,36 +1,11 @@
-const CACHE='north-terrace-v1-3-1-boot-fix';
-const SHELL=['./','./index.html','./login.html','./staff.html','./manager.html','./css/style.css','./js/ui.js','./js/general.js','./js/login.js','./js/staff.js','./js/manager.js','./js/store.js','./js/auth.js','./js/firebase.js','./js/firebase-config.js','./js/seed.js','./manifest.json'];
-
-self.addEventListener('install',event=>{
-  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)));
-});
-
-self.addEventListener('activate',event=>{
-  event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));
-});
-
-self.addEventListener('message',event=>{
-  if(event.data?.type==='SKIP_WAITING') self.skipWaiting();
-});
-
-self.addEventListener('fetch',event=>{
-  if(event.request.method!=='GET') return;
-  const url=new URL(event.request.url);
-  if(url.origin!==self.location.origin) return;
-
-  const isPage=event.request.mode==='navigate';
-  if(isPage){
-    event.respondWith(fetch(event.request).then(response=>{
-      const copy=response.clone();
-      caches.open(CACHE).then(cache=>cache.put(event.request,copy));
-      return response;
-    }).catch(()=>caches.match(event.request).then(r=>r||caches.match('./index.html'))));
-    return;
-  }
-
-  event.respondWith(fetch(event.request).then(response=>{
-    const copy=response.clone();
-    caches.open(CACHE).then(cache=>cache.put(event.request,copy));
-    return response;
-  }).catch(()=>caches.match(event.request)));
-});
+const CACHE='north-terrace-v2-beta';
+const ASSETS=[
+  './','./index.html','./login.html','./staff.html','./manager.html','./css/style.css',
+  './js/firebase-config.js','./js/firebase.js','./js/auth.js','./js/store.js','./js/ui.js',
+  './js/general.js','./js/staff.js','./js/manager.js','./js/reports.js','./js/seed.js',
+  './js/login.js','./manifest.json'
+];
+self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS))));
+self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
+self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))));
+self.addEventListener('message',e=>{if(e.data?.type==='SKIP_WAITING')self.skipWaiting();});

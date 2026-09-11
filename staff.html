@@ -1,45 +1,6 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#20252b">
-  <title>North Terrace - My Tasks</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="css/style.css">
-</head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#20252b"><title>North Terrace - My Tasks</title><link rel="manifest" href="manifest.json"><link rel="stylesheet" href="css/style.css"></head>
 <body>
-<header class="topbar">
-  <div class="brand">
-    <div class="brand-mark" aria-hidden="true">NT</div>
-    <div class="brand-text"><div class="brand-kicker">North Terrace</div><h1>My Tasks</h1><p>Clear, simple, live.</p></div>
-  </div>
-  <div class="top-actions">
-    <span id="connectionStatus" class="connection-pill"><span class="connection-dot"></span>Checking…</span>
-    <button id="logout" class="btn ghost" type="button">Logout</button>
-  </div>
-</header>
-
-<main class="container narrow">
-  <section class="staff-summary">
-    <div class="staff-summary-main">
-      <span class="eyebrow">Today's shift</span>
-      <h2 id="staffTitle">Loading…</h2>
-      <p id="staffDate" class="muted"></p>
-    </div>
-    <div class="staff-summary-progress">
-      <div class="progress-number"><strong id="staffPct">0%</strong><span>complete</span></div>
-      <div class="progress-track"><div id="staffProgress" class="progress-fill"></div></div>
-      <div id="remainingText" class="remaining-text">Loading today's tasks…</div>
-    </div>
-  </section>
-
-  <div id="staffLoading" class="task-list" aria-label="Loading tasks">
-    <article class="task-item"><div class="skeleton-line"></div><div><div class="skeleton-line"></div><div class="skeleton-line" style="width:55%;margin-top:8px"></div></div></article>
-    <article class="task-item"><div class="skeleton-line"></div><div><div class="skeleton-line"></div><div class="skeleton-line" style="width:65%;margin-top:8px"></div></div></article>
-  </div>
-  <div id="staffTasks"></div>
-</main>
-<script type="module" src="js/staff.js"></script>
-</body>
-</html>
+<header class="topbar"><div class="brand"><div class="brand-mark">NT</div><div class="brand-text"><div class="brand-kicker">North Terrace</div><h1>My Tasks</h1><p>Focus on what needs doing now.</p></div></div><div class="top-actions"><span id="connectionStatus" class="connection-pill"><span class="connection-dot"></span>Checking…</span><button id="logout" class="btn ghost">Logout</button></div></header>
+<main class="container narrow"><div class="staff-summary"><div><span class="eyebrow">Today</span><h2 id="staffTitle"></h2><p id="staffDate" class="muted"></p></div><div class="staff-summary-progress"><strong id="staffPct">0%</strong><span>complete</span></div></div><div id="staffTasks"></div></main>
+<script type="module" src="js/staff.js"></script></body></html>

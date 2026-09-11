@@ -1,6 +1,6 @@
 {
   "name": "North Terrace Operations",
-  "short_name": "North Terrace",
+  "short_name": "NT Operations",
   "description": "Live daily task management for North Terrace Service Station.",
   "start_url": "./index.html",
   "scope": "./",

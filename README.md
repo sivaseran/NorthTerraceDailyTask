@@ -1,74 +1,49 @@
-# North Terrace Daily Task App — V1.2 Full Schedule
+# North Terrace Operations — V2 Beta
 
-## What changed
-This build replaces the 10-task starter template with the complete task rows transcribed from the two supplied North Terrace master sheets:
+This is the upgraded schedule/workload/reporting build.
 
-- AM work list: 05:30–14:00
-- PM work list: 14:00–22:00
-- 46 master task rows in total
-- Monday–Sunday assignment/timing data
-- Photo reminder flags
-- The AM "Cooking and check temperature every Hour" task generates hourly daily checkpoints
+## Confirmed fixed slots
+- 05:30–09:00
+- 09:00–14:00
+- 14:00–18:00
+- 18:00–20:00
+- 20:00–22:00 Sunday–Thursday
+- 20:00–23:00 Friday–Saturday
 
-## Loading the full schedule
-1. Upload/replace the V1.2 files in GitHub.
-2. Open the deployed app and log in as Manager.
-3. Open **Setup**.
-4. Click **Load Full North Terrace Schedule**.
-5. Confirm the warning.
+## New in V2
+- Day and week date navigation in General View.
+- General View task completion using a staff/assignee PIN.
+- Keeps Assigned to and Completed by separately.
+- Manager Schedule Editor is inline — no separate edit page.
+- Change task name, slot, effort, assignee and photo requirement directly in the schedule.
+- Slot changes move the row immediately on screen, then Save confirms it.
+- Save this date only OR every matching weekday going forward.
+- Create new tasks directly inside any slot.
+- Cancel this date / stop future recurrence.
+- Named assignee management.
+- Assignee-only people can exist without a PIN.
+- Capacity warnings use Task Effort; blank effort is allowed and ignored.
+- Whole-slot cover.
+- Detailed management reports: Today / Week / Month / Custom range.
+- Staff, Task, Slot and Exceptions report tables.
+- CSV export.
+- Historical records are never rewritten when future template rules change.
 
-The setup will:
-- replace the old `weeklyTemplates` starter records,
-- rebuild today's `dailyTasks`,
-- keep all `users` and PINs unchanged.
+## V2 migration
+After deploying, login as Manager → Setup → **Upgrade Schedule to V2**.
 
-Current test completions/reassignments for today will be cleared when today's tasks are rebuilt.
+This keeps:
+- users and PINs
+- historical `dailyTasks`
 
-## Assignment labels preserved from the AM sheet
-The AM sheet uses operational labels rather than numeric staff IDs:
-- `WHO OPEN`
-- `FLOOR`
-- `DONNA`
-- `PARTH`
-
-These are intentionally preserved rather than guessed. They appear in General/Manager views. They are not yet mapped to a PIN staff account, so those AM role-labelled tasks will not appear under a numbered staff login until a mapping rule is added.
-
-## Source details preserved
-- PM tasks retain their day-specific staff numbers and day-specific times.
-- Inactive/black cells are not generated on that day.
-- Friday pump-cleaning assignment shown as `1-D` in the supplied sheet is preserved as `1-D`.
-- Friday/Saturday closing rows shown as 20:00–23:00 are preserved even though the PM sheet heading says 14:00–22:00.
-
-## Expected daily task count
-Because inactive tasks vary by weekday and the hourly AM task expands into checkpoints:
-- Mon: 50 daily checkpoints
-- Tue: 53
-- Wed: 49
-- Thu: 50
-- Fri: 50
-- Sat: 53
-- Sun: 46
-
-## Firebase collections
-- `users`
+It replaces:
 - `weeklyTemplates`
-- `dailyTasks`
-- `shiftCover`
 
-## Development security
-Firestore rules are currently open for V1 testing. Tighten them before routine operational use.
+It rebuilds:
+- today's `dailyTasks`
 
+Donna and Parth are created as named Assignee records if they do not already exist.
+Legacy WHO OPEN / FLOOR assignments become Unassigned for management to allocate to real people.
 
-## V1.3 — Weekly planning experience
-- Dynamic page heading: Today at a glance / Week at a glance
-- Correct Monday–Sunday date range in Week view
-- Seven-day workload summary cards with AM/PM counts
-- All / AM / PM filters
-- Separate collapsible AM and PM operational sections
-- Tasks grouped into source time blocks
-- Today's day/column highlighted
-- Sticky day header and sticky task column
-- Numeric assignments displayed as Staff 1, Staff 2, etc.
-- Repeated day times hidden when they match the usual task time
-- Day-specific time differences remain visible
-- Clear Photo and Hourly badges
+## Important reporting note
+Because this version uses free client-side schedule generation, reports cover dates where a daily schedule record exists. The app does not fabricate historical task records for days that were never generated.
