@@ -19,7 +19,10 @@ export function statusView(status='upcoming') {
     completed: {icon:'✓', label:'Completed'},
     overdue: {icon:'!', label:'Overdue'},
     due: {icon:'●', label:'Due now'},
-    upcoming: {icon:'○', label:'Upcoming'}
+    upcoming: {icon:'○', label:'Upcoming'},
+    missed: {icon:'!', label:'Missed'},
+    cancelled: {icon:'×', label:'Cancelled'},
+    planned: {icon:'○', label:'Planned'}
   };
   const item = map[status] || map.upcoming;
   return `<span class="badge ${escapeHtml(status)}"><span aria-hidden="true">${item.icon}</span>${item.label}</span>`;
@@ -252,4 +255,55 @@ export function registerAppServiceWorker() {
       });
     });
   }).catch(() => {});
+}
+
+
+export function promptPin({title='Complete task',message='Enter your 4-digit staff PIN.'}={}){
+  let overlay=document.getElementById('pinOverlay');
+  if(!overlay){
+    overlay=document.createElement('div');
+    overlay.id='pinOverlay';
+    overlay.className='modal-overlay';
+    overlay.hidden=true;
+    overlay.innerHTML=`
+      <div class="modal pin-modal" role="dialog" aria-modal="true" aria-labelledby="pinTitle">
+        <div class="modal-icon" aria-hidden="true">#</div>
+        <h2 id="pinTitle"></h2>
+        <p id="pinMessage" class="modal-message"></p>
+        <input id="pinActionInput" class="pin-action-input" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="••••">
+        <div id="pinActionError" class="field-error" hidden></div>
+        <div class="modal-actions">
+          <button id="pinCancel" class="btn secondary" type="button">Cancel</button>
+          <button id="pinOk" class="btn" type="button">Continue</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+  }
+  const input=overlay.querySelector('#pinActionInput');
+  const error=overlay.querySelector('#pinActionError');
+  overlay.querySelector('#pinTitle').textContent=title;
+  overlay.querySelector('#pinMessage').textContent=message;
+  input.value=''; error.hidden=true; error.textContent='';
+  overlay.hidden=false; document.body.classList.add('modal-open');
+
+  return new Promise(resolve=>{
+    const ok=overlay.querySelector('#pinOk'), cancel=overlay.querySelector('#pinCancel');
+    const finish=v=>{
+      overlay.hidden=true; document.body.classList.remove('modal-open');
+      ok.removeEventListener('click',onOk); cancel.removeEventListener('click',onCancel);
+      input.removeEventListener('keydown',onKey); overlay.removeEventListener('click',onOverlay);
+      resolve(v);
+    };
+    const onOk=()=>{
+      const pin=input.value.trim();
+      if(!pin){error.textContent='Enter a PIN.';error.hidden=false;return;}
+      finish(pin);
+    };
+    const onCancel=()=>finish('');
+    const onKey=e=>{if(e.key==='Enter')onOk();if(e.key==='Escape')onCancel();};
+    const onOverlay=e=>{if(e.target===overlay)onCancel();};
+    ok.addEventListener('click',onOk); cancel.addEventListener('click',onCancel);
+    input.addEventListener('keydown',onKey); overlay.addEventListener('click',onOverlay);
+    setTimeout(()=>input.focus(),0);
+  });
 }

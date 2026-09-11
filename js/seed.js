@@ -1,2040 +1,5054 @@
-import {db,collection,doc,getDocs,writeBatch} from "./firebase.js";
+import {db,collection,doc,getDocs,setDoc,writeBatch,serverTimestamp} from "./firebase.js";
 
-export const fullNorthTerraceTasks = [
+export const v2NorthTerraceTasks = [
   {
     "id": "am01",
     "taskName": "Cooking and check temperature every Hour",
-    "shift": "AM",
-    "section": "05:30-09:00",
     "photoRequired": false,
     "recurring": true,
+    "frequencyMinutes": 60,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-14:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "AUTO",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-14:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-14:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "AUTO",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-14:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "DONNA",
-        "time": "05:30-14:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "AUTO",
+            "assigneeId": "",
+            "assigneeKey": "person:Donna",
+            "legacyAssignee": "DONNA",
+            "effortMinutes": null,
+            "sourceTime": "05:30-14:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "DONNA",
-        "time": "05:30-14:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "AUTO",
+            "assigneeId": "",
+            "assigneeKey": "person:Donna",
+            "legacyAssignee": "DONNA",
+            "effortMinutes": null,
+            "sourceTime": "05:30-14:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-14:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "AUTO",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-14:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-14:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "AUTO",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-14:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-14:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "AUTO",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-14:00"
+          }
+        ]
       }
     },
-    "frequencyMinutes": 60
+    "schemaVersion": 2,
+    "sortOrder": 1
   },
   {
     "id": "am02",
     "taskName": "Temperature check, Daily Check",
-    "shift": "AM",
-    "section": "05:30-09:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "DONNA",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "person:Donna",
+            "legacyAssignee": "DONNA",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "DONNA",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "person:Donna",
+            "legacyAssignee": "DONNA",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 2
   },
   {
     "id": "am03",
     "taskName": "Fill up and tidy vape and Spirits Shelve",
-    "shift": "AM",
-    "section": "05:30-09:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "DONNA",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "person:Donna",
+            "legacyAssignee": "DONNA",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "DONNA",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "person:Donna",
+            "legacyAssignee": "DONNA",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 3
   },
   {
     "id": "am04",
     "taskName": "Write the Cigarette, Spirit list, papers AND FILL",
-    "shift": "AM",
-    "section": "05:30-09:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Wed": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "DONNA",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "person:Donna",
+            "legacyAssignee": "DONNA",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Fri": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "PARTH",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "person:Parth",
+            "legacyAssignee": "PARTH",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Sun": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 4
   },
   {
     "id": "am05",
     "taskName": "Check VR light in the pump (all)",
-    "shift": "AM",
-    "section": "05:30-09:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "DONNA",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "person:Donna",
+            "legacyAssignee": "DONNA",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "DONNA",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "person:Donna",
+            "legacyAssignee": "DONNA",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "WHO OPEN",
-        "time": "05:30-09:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "WHO OPEN",
+            "effortMinutes": null,
+            "sourceTime": "05:30-09:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 5
   },
   {
     "id": "am06",
     "taskName": "Sweep the floor, Tidy Coffee machine as when needed",
-    "shift": "AM",
-    "section": "08:00-08:45",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 6
   },
   {
     "id": "am07",
     "taskName": "Check out of date (Sandwich chiller, Eggs, Bread)",
-    "shift": "AM",
-    "section": "08:00-08:45",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 7
   },
   {
     "id": "am08",
     "taskName": "Wipe and tidy coffee machine (fill up if necessary)",
-    "shift": "AM",
-    "section": "08:00-08:45",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 8
   },
   {
     "id": "am09",
     "taskName": "Just face up Drinks, Crisps, Milk, Sandwiches",
-    "shift": "AM",
-    "section": "08:00-08:45",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 9
   },
   {
     "id": "am10",
     "taskName": "Wash - trays, Tongues, Probe (Photo)",
-    "shift": "AM",
-    "section": "08:00-08:45",
     "photoRequired": true,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "08:00-08:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S1",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "08:00-08:45"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 10
   },
   {
     "id": "am11",
     "taskName": "Fill-up (Drinks, beer, wines)",
-    "shift": "AM",
-    "section": "08:45-13:30",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 11
   },
   {
     "id": "am12",
     "taskName": "Full filling of chocolate from back stock",
-    "shift": "AM",
-    "section": "08:45-13:30",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Wed": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Thu": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Fri": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Sun": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 12
   },
   {
     "id": "am13",
     "taskName": "Full filling of crisps from back Stock",
-    "shift": "AM",
-    "section": "08:45-13:30",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Wed": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Thu": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Fri": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Sun": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 13
   },
   {
     "id": "am14",
     "taskName": "Full filling of car care and engine oil from Upstairs",
-    "shift": "AM",
-    "section": "08:45-13:30",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Tue": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Wed": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Thu": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Fri": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Sat": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 14
   },
   {
     "id": "am15",
     "taskName": "Fill up other department from upstairs",
-    "shift": "AM",
-    "section": "08:45-13:30",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 15
   },
   {
     "id": "am16",
     "taskName": "Sweep the floor, Tidy Coffee machine as when needed",
-    "shift": "AM",
-    "section": "08:45-13:30",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 16
   },
   {
     "id": "am17",
     "taskName": "FILL UP COFFEE INGREDIENTS",
-    "shift": "AM",
-    "section": "08:45-13:30",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 17
   },
   {
     "id": "am18",
     "taskName": "Face up - Coal Bunker, Adblue, Screenwash",
-    "shift": "AM",
-    "section": "08:45-13:30",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 18
   },
   {
     "id": "am19",
     "taskName": "Need Gas-Stock Check",
-    "shift": "AM",
-    "section": "08:45-13:30",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "09:30-12:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "09:30-12:30"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 19
   },
   {
     "id": "am20",
     "taskName": "Clear Firex exit rubbish",
-    "shift": "AM",
-    "section": "08:45-13:30",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "12:30-13:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "12:30-13:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "12:30-13:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "12:30-13:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "12:30-13:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "12:30-13:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "12:30-13:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "12:30-13:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "12:30-13:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "12:30-13:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "12:30-13:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "12:30-13:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "12:30-13:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "12:30-13:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 20
   },
   {
     "id": "am21",
     "taskName": "Face up entire shop - Send photo",
-    "shift": "AM",
-    "section": "08:45-13:30",
     "photoRequired": true,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "12:30-13:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "12:30-13:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "12:30-13:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "12:30-13:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "12:30-13:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "12:30-13:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "12:30-13:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "12:30-13:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "12:30-13:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "12:30-13:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "12:30-13:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "12:30-13:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "12:30-13:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "12:30-13:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 21
   },
   {
     "id": "am22",
     "taskName": "Send photo of this signed sheet",
-    "shift": "AM",
-    "section": "08:45-13:30",
     "photoRequired": true,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "13:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "13:30"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "13:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "13:30"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "13:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "13:30"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "13:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "13:30"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "13:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "13:30"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "13:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "13:30"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "FLOOR",
-        "time": "13:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S2",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "FLOOR",
+            "effortMinutes": null,
+            "sourceTime": "13:30"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 22
   },
   {
     "id": "pm01",
     "taskName": "Paper Works - Office work (A)",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "3",
-        "time": "13:30-14:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "13:30-14:30"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "3",
-        "time": "13:30-14:15"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "13:30-14:15"
+          }
+        ]
       },
       "Wed": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "3",
-        "time": "Any 1 hr"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "Any 1 hr"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:00-14:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:00-14:45"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:00-14:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:00-14:45"
+          }
+        ]
       },
       "Sun": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 23
   },
   {
     "id": "pm02",
     "taskName": "Afternoon shift / Hot food unit cleaning, check oven for clean, oven floor",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:30-15:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:30-15:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:15-14:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:15-14:45"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "4",
-        "time": "14:00-14:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "14:00-14:30"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "1",
-        "time": "14:00-14:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "14:00-14:30"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:45-15:15"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:45-15:15"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:45-15:15"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:45-15:15"
+          }
+        ]
       },
       "Sun": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 24
   },
   {
     "id": "pm03",
     "taskName": "Sweep the floor, then as when needed",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:30-15:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:30-15:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:15-14:45"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:15-14:45"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "4",
-        "time": "14:00-14:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "14:00-14:30"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "1",
-        "time": "14:00-14:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "14:00-14:30"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:45-15:15"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:45-15:15"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:45-15:15"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:45-15:15"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "2",
-        "time": "14:00-16:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:2",
+            "legacyAssignee": "2",
+            "effortMinutes": null,
+            "sourceTime": "14:00-16:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 25
   },
   {
     "id": "pm04",
     "taskName": "Follow the cleaning schedule and face up drinks/crisps; print missing label",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:45-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:45-19:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "4",
-        "time": "14:30-16:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "14:30-16:00"
+          }
+        ]
       },
       "Thu": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "3",
-        "time": "15:15-16:30"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "15:15-16:30"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:15-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:15-19:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "2",
-        "time": "14:00-16:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:2",
+            "legacyAssignee": "2",
+            "effortMinutes": null,
+            "sourceTime": "14:00-16:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 26
   },
   {
     "id": "pm05",
     "taskName": "Fill up (Drinks, Beers, Wine - chiller)",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:00-19:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:45-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:45-19:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:00-19:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "1",
-        "time": "14:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "14:30-19:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:30-19:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:15-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:15-19:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "4",
-        "time": "16:00-18:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "16:00-18:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 27
   },
   {
     "id": "pm06",
     "taskName": "Full filling of crisps from back Stock",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:00-19:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:45-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:45-19:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:00-19:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "1",
-        "time": "14:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "14:30-19:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:30-19:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:15-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:15-19:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "4",
-        "time": "16:00-18:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "16:00-18:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 28
   },
   {
     "id": "pm07",
     "taskName": "Face up Crisps and Chocolate",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:00-19:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:45-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:45-19:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:00-19:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "1",
-        "time": "14:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "14:30-19:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:30-19:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:15-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:15-19:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "4",
-        "time": "16:00-18:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "16:00-18:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 29
   },
   {
     "id": "pm08",
     "taskName": "Fill up coffee items in the cabinet",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:00-19:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:45-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:45-19:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:00-19:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:30-19:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "3",
-        "time": "16:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "16:30-19:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:15-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:15-19:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "4",
-        "time": "16:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "16:00-22:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 30
   },
   {
     "id": "pm09",
     "taskName": "Cleaning the coffee machine and Tango machine, empty coffee bin",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:00-19:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:45-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:45-19:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:00-19:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:30-19:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "3",
-        "time": "16:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "16:30-19:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:15-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:15-19:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "4",
-        "time": "16:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "16:00-22:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 31
   },
   {
     "id": "pm10",
     "taskName": "Clean the Kitchen Sink",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:00-19:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:45-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:45-19:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:00-19:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:30-19:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "3",
-        "time": "16:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "16:30-19:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:15-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:15-19:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "4",
-        "time": "16:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "16:00-22:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 32
   },
   {
     "id": "pm11",
     "taskName": "Top up Gloves, Towel, Check Bins (forecourt)",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:00-19:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "7",
-        "time": "14:45-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:7",
+            "legacyAssignee": "7",
+            "effortMinutes": null,
+            "sourceTime": "14:45-19:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:00-19:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "1",
-        "time": "14:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "14:30-19:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:30-19:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:15-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:15-19:00"
+          }
+        ]
       },
       "Sun": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 33
   },
   {
     "id": "pm12",
     "taskName": "Pump Cleaning, pick up litter (Coal Area as well)",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:00-19:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "7",
-        "time": "14:45-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:7",
+            "legacyAssignee": "7",
+            "effortMinutes": null,
+            "sourceTime": "14:45-19:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:00-19:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "1",
-        "time": "14:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "14:30-19:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "1-D",
-        "time": "16:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "1-D",
+            "effortMinutes": null,
+            "sourceTime": "16:30-19:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:15-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:15-19:00"
+          }
+        ]
       },
       "Sun": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 34
   },
   {
     "id": "pm13",
     "taskName": "Send photo to Vijay (after forecourt cleaning)",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": true,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:00-19:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "7",
-        "time": "14:45-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:7",
+            "legacyAssignee": "7",
+            "effortMinutes": null,
+            "sourceTime": "14:45-19:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:00-19:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "1",
-        "time": "14:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "14:30-19:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:30-19:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:15-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:15-19:00"
+          }
+        ]
       },
       "Sun": {
-        "active": false
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": false,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "",
+            "legacyAssignee": "",
+            "effortMinutes": null,
+            "sourceTime": ""
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 35
   },
   {
     "id": "pm14",
     "taskName": "Hoover the front door Mat (must Hoover)",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:00-19:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "7",
-        "time": "14:45-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:7",
+            "legacyAssignee": "7",
+            "effortMinutes": null,
+            "sourceTime": "14:45-19:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:00-19:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "1",
-        "time": "14:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "14:30-19:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:30-19:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:15-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:15-19:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "4",
-        "time": "16:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "16:00-22:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 36
   },
   {
     "id": "pm15",
     "taskName": "Toilet Cleaning - should send photo in floor group",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": true,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "3",
-        "time": "15 min"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "15 min"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "7",
-        "time": "15 min"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:7",
+            "legacyAssignee": "7",
+            "effortMinutes": null,
+            "sourceTime": "15 min"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "1",
-        "time": "15 min"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15 min"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "5",
-        "time": "15 min"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:5",
+            "legacyAssignee": "5",
+            "effortMinutes": null,
+            "sourceTime": "15 min"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "6",
-        "time": "15 min"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:6",
+            "legacyAssignee": "6",
+            "effortMinutes": null,
+            "sourceTime": "15 min"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "4",
-        "time": "15 min"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "15 min"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "2",
-        "time": "15 min"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:2",
+            "legacyAssignee": "2",
+            "effortMinutes": null,
+            "sourceTime": "15 min"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 37
   },
   {
     "id": "pm16",
     "taskName": "Go to storage once (Follow list) - Top up Back Stock",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:00-19:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "4",
-        "time": "14:45-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "14:45-19:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:00-19:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "1",
-        "time": "14:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "14:30-19:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:30-19:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "1",
-        "time": "15:15-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "15:15-19:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "4",
-        "time": "16:00-18:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S3",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "16:00-18:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 38
   },
   {
     "id": "pm17",
     "taskName": "Face-up the entire shop after coming from storage - Send Photo",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": true,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "1",
-        "time": "After 20:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "After 20:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:45-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:45-19:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:00-19:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "1",
-        "time": "14:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "14:30-19:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "3",
-        "time": "19:00-20:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "19:00-20:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "3",
-        "time": "19:00-20:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "19:00-20:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "4",
-        "time": "16:00-18:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "16:00-18:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 39
   },
   {
     "id": "pm18",
     "taskName": "Check out of date",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "3",
-        "time": "After 20:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "After 20:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:45-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:45-19:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:00-19:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:30-19:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "3",
-        "time": "19:00-20:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "19:00-20:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "3",
-        "time": "19:00-20:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "19:00-20:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "4",
-        "time": "16:00-18:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "16:00-18:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 40
   },
   {
     "id": "pm19",
     "taskName": "Temperature check, Daily Check",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "3",
-        "time": "After 20:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "After 20:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:45-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:45-19:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "1",
-        "time": "16:00-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "16:00-19:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "3",
-        "time": "14:30-19:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "14:30-19:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "3",
-        "time": "19:00-20:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "19:00-20:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "3",
-        "time": "19:00-20:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "19:00-20:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "4",
-        "time": "16:00-18:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S4",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "16:00-18:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 41
   },
   {
     "id": "pm20",
     "taskName": "TOP UP DRINKS IF NEEDED",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "3",
-        "time": "After 20:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "After 20:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "4",
-        "time": "19:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "19:00-22:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "4",
-        "time": "19:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "19:00-22:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "3",
-        "time": "20:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "20:00-22:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "1",
-        "time": "20:00-23:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "20:00-23:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "1",
-        "time": "20:00-23:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "20:00-23:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "4",
-        "time": "18:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "18:00-22:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 42
   },
   {
     "id": "pm21",
     "taskName": "Clear up the newspapers",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "3",
-        "time": "After 20:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "After 20:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "4",
-        "time": "19:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "19:00-22:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "4",
-        "time": "19:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "19:00-22:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "3",
-        "time": "20:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "20:00-22:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "1",
-        "time": "20:00-23:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "20:00-23:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "1",
-        "time": "20:00-23:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "20:00-23:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "4",
-        "time": "18:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "18:00-22:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 43
   },
   {
     "id": "pm22",
     "taskName": "Sweep the floor",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "3",
-        "time": "After 20:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "After 20:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "4",
-        "time": "19:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "19:00-22:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "4",
-        "time": "19:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "19:00-22:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "3",
-        "time": "20:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "20:00-22:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "1",
-        "time": "20:00-23:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "20:00-23:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "1",
-        "time": "20:00-23:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "20:00-23:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "4",
-        "time": "18:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "18:00-22:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 44
   },
   {
     "id": "pm23",
     "taskName": "Mop the floor",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "3",
-        "time": "After 20:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "After 20:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "4",
-        "time": "19:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "19:00-22:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "4",
-        "time": "19:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "19:00-22:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "3",
-        "time": "20:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "20:00-22:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "1",
-        "time": "20:00-23:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "20:00-23:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "1",
-        "time": "20:00-23:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "20:00-23:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "4",
-        "time": "18:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "18:00-22:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 45
   },
   {
     "id": "pm24",
     "taskName": "Wipe shelf strips with hot water (Entire Shop) - Must do job",
-    "shift": "PM",
-    "section": "14:00-22:00",
     "photoRequired": false,
     "recurring": false,
+    "frequencyMinutes": null,
     "schedule": {
       "Mon": {
-        "active": true,
-        "assignee": "3",
-        "time": "After 20:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "After 20:00"
+          }
+        ]
       },
       "Tue": {
-        "active": true,
-        "assignee": "4",
-        "time": "19:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "19:00-22:00"
+          }
+        ]
       },
       "Wed": {
-        "active": true,
-        "assignee": "4",
-        "time": "19:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "19:00-22:00"
+          }
+        ]
       },
       "Thu": {
-        "active": true,
-        "assignee": "3",
-        "time": "20:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:3",
+            "legacyAssignee": "3",
+            "effortMinutes": null,
+            "sourceTime": "20:00-22:00"
+          }
+        ]
       },
       "Fri": {
-        "active": true,
-        "assignee": "1",
-        "time": "20:00-23:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "20:00-23:00"
+          }
+        ]
       },
       "Sat": {
-        "active": true,
-        "assignee": "1",
-        "time": "20:00-23:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:1",
+            "legacyAssignee": "1",
+            "effortMinutes": null,
+            "sourceTime": "20:00-23:00"
+          }
+        ]
       },
       "Sun": {
-        "active": true,
-        "assignee": "4",
-        "time": "18:00-22:00"
+        "versions": [
+          {
+            "effectiveFrom": "2026-01-01",
+            "active": true,
+            "slotId": "S5",
+            "assigneeId": "",
+            "assigneeKey": "staffId:4",
+            "legacyAssignee": "4",
+            "effortMinutes": null,
+            "sourceTime": "18:00-22:00"
+          }
+        ]
       }
-    }
+    },
+    "schemaVersion": 2,
+    "sortOrder": 46
   }
 ];
 
-export async function seedFullTemplate() {
-  const existing = await getDocs(collection(db,"weeklyTemplates"));
-  const batch = writeBatch(db);
+async function ensureNamedAssignee(id,name){
+  const users=await getDocs(collection(db,"users"));
+  const existing=users.docs.map(d=>({id:d.id,...d.data()}))
+    .find(u=>String(u.name||"").trim().toLowerCase()===name.toLowerCase());
+  if(existing) return existing.id;
+  await setDoc(doc(db,"users",id),{
+    name,
+    pin:"",
+    staffId:"",
+    role:"assignee",
+    active:true,
+    createdAt:serverTimestamp()
+  },{merge:true});
+  return id;
+}
 
-  existing.docs.forEach(d => batch.delete(d.ref));
+export async function seedV2Template(){
+  await ensureNamedAssignee("person_donna","Donna");
+  await ensureNamedAssignee("person_parth","Parth");
 
-  fullNorthTerraceTasks.forEach((task,index) => {
-    const {id,...data} = task;
-    batch.set(doc(db,"weeklyTemplates",id), {
-      ...data,
-      sortOrder:index+1,
-      source:"North Terrace AM/PM master sheets"
-    });
+  const existing=await getDocs(collection(db,"weeklyTemplates"));
+  if(!existing.empty){
+    const clear=writeBatch(db);
+    existing.docs.forEach(d=>clear.delete(d.ref));
+    await clear.commit();
+  }
+
+  const batch=writeBatch(db);
+  v2NorthTerraceTasks.forEach(t=>{
+    const {id,...data}=t;
+    batch.set(doc(db,"weeklyTemplates",id),{...data,updatedAt:serverTimestamp()});
   });
-
   await batch.commit();
-  return fullNorthTerraceTasks.length;
+  return v2NorthTerraceTasks.length;
 }
