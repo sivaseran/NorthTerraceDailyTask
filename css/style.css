@@ -283,3 +283,113 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
   .system-init-banner{grid-template-columns:1fr}
   .system-init-banner .btn{width:100%}
 }
+
+
+/* V2.3 Reports — tabs + shared filters */
+.report-shell{padding:0;overflow:hidden}
+.report-title-row{padding:20px 20px 14px;margin:0}
+.report-tabs{
+  display:flex;
+  gap:4px;
+  padding:0 14px;
+  overflow-x:auto;
+  border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  background:#fbfcfd;
+  scrollbar-width:thin
+}
+.report-tabs button{
+  appearance:none;border:0;background:transparent;color:#60727f;cursor:pointer;
+  padding:13px 15px 11px;font-weight:850;font-size:13px;white-space:nowrap;
+  border-bottom:3px solid transparent;transition:.15s ease
+}
+.report-tabs button:hover{color:var(--text);background:#f3f7f9}
+.report-tabs button.active{color:var(--blue-dark);border-bottom-color:var(--blue);background:#fff}
+
+.report-filter-panel{padding:14px 18px 16px;background:#fff}
+.report-period-pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:13px}
+.report-period-pills button{
+  border:1px solid var(--border);background:#f6f8fa;color:#526572;border-radius:999px;
+  padding:7px 12px;font-size:12px;font-weight:850;cursor:pointer
+}
+.report-period-pills button:hover{border-color:#b9c8d2;background:#eef3f6}
+.report-period-pills button.active{background:var(--charcoal);border-color:var(--charcoal);color:#fff}
+
+.report-filter-grid{
+  display:flex;align-items:end;gap:11px;flex-wrap:wrap
+}
+.report-filter-field{display:flex;flex-direction:column;gap:5px;min-width:190px}
+.report-filter-field>span{font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:850;color:var(--muted)}
+.report-filter-field select,.report-filter-field input{
+  margin:0;min-height:39px;padding:8px 10px;border-radius:9px
+}
+.report-custom-dates{display:flex;align-items:end;gap:9px;flex-wrap:wrap}
+.report-custom-dates[hidden],#reportInvolvementField[hidden]{display:none!important}
+.report-apply-btn,.report-reset-btn{margin-bottom:0;min-height:39px}
+.report-reset-btn{margin-left:auto}
+
+.report-scope-line{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  margin-top:12px;padding-top:11px;border-top:1px solid var(--border);
+  font-size:12px
+}
+.report-scope-line strong{font-size:12px;color:#354954}
+.report-scope-line span{color:var(--muted);font-size:11px}
+
+.report-panel[hidden]{display:none!important}
+.report-panel.active{animation:reportFade .16s ease}
+@keyframes reportFade{from{opacity:.7;transform:translateY(2px)}to{opacity:1;transform:none}}
+
+.report-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.report-overview-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.report-insight-card{margin-top:0}
+.report-panel-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.report-panel-heading h2,.report-panel-heading h3{margin:3px 0 4px}
+.report-panel-heading p{margin:0}
+
+.report-kpi-list{display:grid;gap:0;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.report-kpi-item{
+  display:flex;align-items:center;justify-content:space-between;gap:15px;
+  padding:11px 12px;border-bottom:1px solid var(--border);background:#fff
+}
+.report-kpi-item:last-child{border-bottom:0}
+.report-kpi-item div{min-width:0}
+.report-kpi-item span{display:block;font-size:13px;font-weight:800}
+.report-kpi-item small{display:block;color:var(--muted);margin-top:2px;font-size:11px}
+.report-kpi-item strong{font-size:20px;letter-spacing:-.03em;white-space:nowrap}
+.report-kpi-item.good strong{color:var(--green)}
+.report-kpi-item.alert strong{color:var(--red)}
+.report-kpi-item.warning strong{color:#9b6300}
+
+.report-count-badge{
+  display:inline-flex;align-items:center;padding:6px 9px;border-radius:999px;
+  background:#eef3f6;color:#536a78;font-size:11px;font-weight:850
+}
+.report-exception-type{
+  display:inline-flex;padding:4px 7px;border-radius:7px;background:#f3f6f8;font-size:11px;font-weight:800
+}
+.report-empty-cell{text-align:center;padding:26px!important}
+.report-panel .table-wrap{margin-top:10px}
+.report-panel table{min-width:850px}
+
+@media(max-width:900px){
+  .report-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .report-overview-grid{grid-template-columns:1fr}
+  .report-reset-btn{margin-left:0}
+}
+@media(max-width:640px){
+  .report-title-row{padding:16px}
+  .report-title-row .btn{width:100%}
+  .report-filter-panel{padding:12px}
+  .report-period-pills{display:grid;grid-template-columns:1fr 1fr}
+  .report-period-pills button{border-radius:9px}
+  .report-filter-grid{display:grid;grid-template-columns:1fr}
+  .report-filter-field{min-width:0;width:100%}
+  .report-custom-dates{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .report-apply-btn{grid-column:1/-1;width:100%}
+  .report-reset-btn{width:100%}
+  .report-scope-line{align-items:flex-start;flex-direction:column}
+  .report-summary-grid{grid-template-columns:1fr 1fr}
+  .report-summary-grid .stat-card{padding:13px}
+  .report-summary-grid .stat-card strong{font-size:24px}
+}
