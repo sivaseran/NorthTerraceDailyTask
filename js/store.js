@@ -74,6 +74,11 @@ export async function getUsers(){
   const s=await getDocs(collection(db,'users'));
   return s.docs.map(d=>({id:d.id,...d.data()}));
 }
+
+export async function getSystemState(){
+  const s=await getDoc(doc(db,'system','app'));
+  return s.exists()?s.data():null;
+}
 export async function getAssignableUsers(){
   const users=await getUsers();
   return users.filter(u=>u.active!==false&&(u.role==='staff'||u.role==='assignee'))
@@ -141,7 +146,8 @@ async function resolveAssignee(rule,users){
   }
   if(key.startsWith('person:')){
     const name=key.split(':').slice(1).join(':');
-    const u=users.find(x=>String(x.name||'').toLowerCase()===name.toLowerCase());
+    const wanted=name.toLowerCase()==='parth'?'parthy':name.toLowerCase();
+    const u=users.find(x=>String(x.name||'').toLowerCase()===wanted);
     return u?{id:u.id,name:u.name}:{id:'',name:'Unassigned'};
   }
   return {id:'',name:'Unassigned'};

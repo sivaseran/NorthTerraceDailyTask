@@ -1,5 +1,80 @@
 import {db,collection,doc,getDocs,setDoc,writeBatch,serverTimestamp} from "./firebase.js";
 
+export const northTerraceRoster = [
+  {
+    "id": "staff1",
+    "name": "Parthy",
+    "staffId": "1",
+    "pin": "1111",
+    "role": "staff",
+    "active": true
+  },
+  {
+    "id": "staff2",
+    "name": "Uday",
+    "staffId": "2",
+    "pin": "2222",
+    "role": "staff",
+    "active": true
+  },
+  {
+    "id": "staff3",
+    "name": "Prashanthy",
+    "staffId": "3",
+    "pin": "3333",
+    "role": "staff",
+    "active": true
+  },
+  {
+    "id": "staff4",
+    "name": "Suku",
+    "staffId": "4",
+    "pin": "4444",
+    "role": "staff",
+    "active": true
+  },
+  {
+    "id": "staff5",
+    "name": "Donna",
+    "staffId": "5",
+    "pin": "5555",
+    "role": "staff",
+    "active": true
+  },
+  {
+    "id": "staff6",
+    "name": "Moon",
+    "staffId": "6",
+    "pin": "6666",
+    "role": "staff",
+    "active": true
+  },
+  {
+    "id": "staff7",
+    "name": "Himmo",
+    "staffId": "7",
+    "pin": "7777",
+    "role": "staff",
+    "active": true
+  },
+  {
+    "id": "staff8",
+    "name": "Rishi",
+    "staffId": "8",
+    "pin": "8888",
+    "role": "staff",
+    "active": true
+  },
+  {
+    "id": "staff9",
+    "name": "Pragash",
+    "staffId": "9",
+    "pin": "9999",
+    "role": "staff",
+    "active": true
+  }
+];
+
 export const v2NorthTerraceTasks = [
   {
     "id": "am01",
@@ -412,7 +487,7 @@ export const v2NorthTerraceTasks = [
             "active": true,
             "slotId": "S1",
             "assigneeId": "",
-            "assigneeKey": "person:Parth",
+            "assigneeKey": "person:Parthy",
             "legacyAssignee": "PARTH",
             "effortMinutes": null,
             "sourceTime": "05:30-09:00"
@@ -5017,38 +5092,122 @@ export const v2NorthTerraceTasks = [
   }
 ];
 
-async function ensureNamedAssignee(id,name){
-  const users=await getDocs(collection(db,"users"));
-  const existing=users.docs.map(d=>({id:d.id,...d.data()}))
-    .find(u=>String(u.name||"").trim().toLowerCase()===name.toLowerCase());
-  if(existing) return existing.id;
-  await setDoc(doc(db,"users",id),{
-    name,
-    pin:"",
-    staffId:"",
-    role:"assignee",
-    active:true,
-    createdAt:serverTimestamp()
-  },{merge:true});
-  return id;
+
+
+async function commitUpdates(items, updater){
+  const chunkSize=400;
+  for(let i=0;i<items.length;i+=chunkSize){
+    const batch=writeBatch(db);
+    items.slice(i,i+chunkSize).forEach(item=>updater(batch,item));
+    await batch.commit();
+  }
 }
 
-export async function seedV2Template(){
-  await ensureNamedAssignee("person_donna","Donna");
-  await ensureNamedAssignee("person_parth","Parth");
-
-  const existing=await getDocs(collection(db,"weeklyTemplates"));
-  if(!existing.empty){
-    const clear=writeBatch(db);
-    existing.docs.forEach(d=>clear.delete(d.ref));
-    await clear.commit();
+async function seedPeopleRoster(){
+  for(const person of northTerraceRoster){
+    await setDoc(doc(db,"users",person.id),{
+      ...person,
+      updatedAt:serverTimestamp()
+    },{merge:true});
   }
 
-  const batch=writeBatch(db);
-  v2NorthTerraceTasks.forEach(t=>{
-    const {id,...data}=t;
-    batch.set(doc(db,"weeklyTemplates",id),{...data,updatedAt:serverTimestamp()});
-  });
-  await batch.commit();
-  return v2NorthTerraceTasks.length;
+  await setDoc(doc(db,"users","manager1"),{
+    name:"Manager",
+    pin:"0000",
+    role:"manager",
+    active:true,
+    updatedAt:serverTimestamp()
+  },{merge:true});
+
+  // Hide earlier prototype duplicates if they are still present.
+  const users=await getDocs(collection(db,"users"));
+  const oldIds=["staff","person_donna","person_parth","person_parthy"];
+  const oldDocs=users.docs.filter(d=>oldIds.includes(d.id));
+  if(oldDocs.length){
+    await commitUpdates(oldDocs,(batch,d)=>{
+      batch.set(d.ref,{active:false,updatedAt:serverTimestamp()},{merge:true});
+    });
+  }
+}
+
+function localTodayISO(){
+  const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+export async function initializeV22(){
+  await seedPeopleRoster();
+
+  const templateSnap=await getDocs(collection(db,"weeklyTemplates"));
+  const existingTemplates=templateSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const templateAlreadyV2=
+    existingTemplates.length>0 &&
+    existingTemplates.every(t=>Number(t.schemaVersion)===2);
+
+  let templateMigrated=false;
+
+  if(!templateAlreadyV2){
+    // Old V1 / partial data: replace the weekly template once.
+    if(!templateSnap.empty){
+      await commitUpdates(templateSnap.docs,(batch,d)=>batch.delete(d.ref));
+    }
+
+    const templateItems=v2NorthTerraceTasks.map(t=>t);
+    await commitUpdates(templateItems,(batch,t)=>{
+      const {id,...data}=t;
+      batch.set(doc(db,"weeklyTemplates",id),{
+        ...data,
+        updatedAt:serverTimestamp()
+      });
+    });
+    templateMigrated=true;
+  }
+
+  const today=localTodayISO();
+  const rosterMap=new Map(northTerraceRoster.map(p=>[p.id,p]));
+
+  const dailySnap=await getDocs(collection(db,"dailyTasks"));
+  const currentAndFuture=dailySnap.docs.filter(d=>String(d.data().date||"")>=today);
+
+  if(templateMigrated){
+    // Old daily snapshots do not contain V2 slot/assignee fields.
+    // Clear only today/future so the app can regenerate them correctly.
+    if(currentAndFuture.length){
+      await commitUpdates(currentAndFuture,(batch,d)=>batch.delete(d.ref));
+    }
+  }else{
+    // Already-V2: preserve completions/reassignments and refresh roster names only.
+    const patchable=currentAndFuture.filter(d=>{
+      const x=d.data();
+      return rosterMap.has(x.assignedTo) || rosterMap.has(x.originalAssignedTo);
+    });
+    if(patchable.length){
+      await commitUpdates(patchable,(batch,d)=>{
+        const x=d.data(),patch={updatedAt:serverTimestamp()};
+        if(rosterMap.has(x.assignedTo)) patch.assignedName=rosterMap.get(x.assignedTo).name;
+        if(rosterMap.has(x.originalAssignedTo)) patch.originalAssignedName=rosterMap.get(x.originalAssignedTo).name;
+        batch.update(d.ref,patch);
+      });
+    }
+  }
+
+  await setDoc(doc(db,"system","app"),{
+    v22Ready:true,
+    schemaVersion:"2.2",
+    rosterVersion:"2026-09-12",
+    initializedAt:serverTimestamp(),
+    templateMigrated
+  },{merge:true});
+
+  return {
+    templateMigrated,
+    masterTasks:v2NorthTerraceTasks.length,
+    rosterCount:northTerraceRoster.length
+  };
+}
+
+// Backward-compatible export for any stale cached page.
+export async function seedV2Template(){
+  const result=await initializeV22();
+  return result.masterTasks;
 }
