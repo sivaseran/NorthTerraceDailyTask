@@ -32,8 +32,16 @@
     <button id="initializeV2Btn" class="btn" type="button">Finish V2 Setup</button>
     <div id="systemInitResult" class="inline-message" hidden></div>
   </div>
+  <div id="historicalReadOnlyBanner" class="historical-readonly-banner" hidden>
+    <div>
+      <strong>Historical schedule — read only</strong>
+      <span>This saved date is available for review and audit. Past tasks cannot be edited, skipped, removed or recreated.</span>
+    </div>
+    <button id="historicalGoToday" class="btn secondary small" type="button">Go to Today</button>
+  </div>
+
   <div class="schedule-mode-bar">
-    <div><strong>Schedule view</strong><span>Compact by default. Edit one task at a time.</span></div>
+    <div><strong>Schedule view</strong><span id="scheduleModeHelp">Compact by default. Edit one task at a time.</span></div>
     <button id="toggleAdvancedEdit" class="btn secondary small" type="button">▾ Advanced: Edit all tasks</button>
   </div>
   <div class="manager-tip"><strong>How editing works:</strong> edit directly in the schedule. <b>Save this date only</b> changes only the selected day. <b>Every weekday going forward</b> changes that weekday from this date onward; historical dates stay unchanged.</div>
@@ -85,9 +93,84 @@
 </section>
 
 <section id="cover" class="manager-section" hidden>
-  <div class="card elevated"><span class="eyebrow">Selected date only</span><h2>Whole-slot cover</h2><p class="muted">Move all current tasks for one person in a fixed operational slot to another person.</p>
-    <div class="form-grid"><div class="field"><label>Person off</label><select id="coverFrom"></select></div><div class="field"><label>Slot</label><select id="coverSlot"></select></div><div class="field"><label>Covered by</label><select id="coverTo"></select></div></div>
-    <div class="form-actions"><button id="coverBtn" class="btn">Apply Cover</button></div><div id="coverResult" class="inline-message" hidden></div>
+  <div class="page-heading">
+    <div>
+      <span class="eyebrow">Shift cover scheduler</span>
+      <h2>Manage cover for any date</h2>
+      <p id="coverDateHeading"></p>
+    </div>
+  </div>
+
+  <div class="date-navigator card compact-card">
+    <button id="coverPrevDate" class="btn secondary square-btn" type="button">←</button>
+    <div class="date-nav-center">
+      <strong id="coverNavDate"></strong>
+      <input id="coverDatePicker" type="date">
+    </div>
+    <button id="coverNextDate" class="btn secondary square-btn" type="button">→</button>
+    <button id="coverToday" class="btn secondary small" type="button">Today</button>
+  </div>
+
+  <div class="cover-layout">
+    <article class="card elevated cover-control-card">
+      <div class="section-intro">
+        <div>
+          <span class="eyebrow">Whole-slot cover</span>
+          <h3>Reassign a person's tasks</h3>
+          <p class="muted">Choose a person, operational slot and covering person. The matching tasks are previewed before you apply the change.</p>
+        </div>
+      </div>
+
+      <div class="cover-form-grid">
+        <label class="field">
+          <span class="field-label">Person off</span>
+          <select id="coverFrom"></select>
+        </label>
+        <label class="field">
+          <span class="field-label">Operational slot</span>
+          <select id="coverSlot"></select>
+        </label>
+        <label class="field">
+          <span class="field-label">Covered by</span>
+          <select id="coverTo"></select>
+        </label>
+      </div>
+
+      <div class="cover-scope-actions">
+        <button id="coverDayBtn" class="btn" type="button">Apply to This Date Only</button>
+        <button id="coverFutureBtn" class="btn secondary" type="button">Every Weekday From This Date Onward</button>
+      </div>
+
+      <div class="cover-scope-help">
+        <div>
+          <strong>This date only</strong>
+          <span>Changes only the selected day's matching tasks.</span>
+        </div>
+        <div>
+          <strong id="coverFutureHelpTitle">Every weekday going forward</strong>
+          <span id="coverFutureHelpText">Makes the same cover arrangement permanent for this weekday from the selected date onward. Previous dates remain unchanged.</span>
+        </div>
+      </div>
+
+      <div id="coverResult" class="inline-message" hidden></div>
+    </article>
+
+    <article class="card elevated cover-preview-card">
+      <div class="cover-preview-head">
+        <div>
+          <span class="eyebrow">Preview</span>
+          <h3>Tasks that will move</h3>
+        </div>
+        <span id="coverAffectedCount" class="report-count-badge">0 tasks</span>
+      </div>
+
+      <div id="coverCapacityNote" class="cover-capacity-note"></div>
+
+      <div class="cover-preview-columns" aria-hidden="true">
+        <span>Task</span><span>Current assignee</span><span>Effort</span><span>Status</span>
+      </div>
+      <div id="coverPreviewRows" class="cover-preview-rows"></div>
+    </article>
   </div>
 </section>
 
