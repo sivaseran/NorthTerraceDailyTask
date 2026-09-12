@@ -47,3 +47,41 @@ Legacy WHO OPEN / FLOOR assignments become Unassigned for management to allocate
 
 ## Important reporting note
 Because this version uses free client-side schedule generation, reports cover dates where a daily schedule record exists. The app does not fabricate historical task records for days that were never generated.
+
+## V2.1 — Team roster + compact editing
+
+Roster:
+- Staff 1 — Parthy — 1111
+- Staff 2 — Uday — 2222
+- Staff 3 — Prashanthy — 3333
+- Staff 4 — Suku — 4444
+- Staff 5 — Donna — 5555
+- Staff 6 — Moon — 6666
+- Staff 7 — Himmo — 7777
+- Staff 8 — Rishi — 8888
+- Staff 9 — Pragash — 9999
+- Manager — 0000
+
+People & PINs shows the roster first. Add/Edit details stay collapsed until clicked.
+Schedule Editor is compact by default with one-row editing and optional Advanced Edit All.
+
+## V2.2 — Production Manager Navigation
+
+Normal Manager navigation is now:
+- Schedule Editor
+- People & PINs
+- Shift Cover
+- Reports
+
+Removed:
+- Settings tab — Manager PIN is edited from People & PINs.
+- Setup tab — replaced by a one-time initialization banner.
+
+The one-time banner disappears permanently after successful initialization.
+A `system/app` Firestore marker records completion so managers do not see setup controls during normal operation.
+Existing V2 weekly templates are preserved during initialization; old V1 templates are migrated only when detected.
+
+## V2.2.1 — Task action wording
+- "Skip This Date" remains the one-day exception action.
+- "Stop recurring from this date" is renamed to "Remove This Task Completely".
+- Confirmation clearly states that previous history is preserved while the selected date and future matching occurrences are removed.

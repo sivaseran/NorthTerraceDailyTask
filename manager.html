@@ -13,8 +13,6 @@
   <button data-section="people">People & PINs</button>
   <button data-section="cover">Shift Cover</button>
   <button data-section="reports">Reports</button>
-  <button data-section="settings">Settings</button>
-  <button data-section="setup">Setup</button>
 </nav>
 
 <section id="schedule" class="manager-section">
@@ -25,26 +23,65 @@
     <button id="mgrNextDate" class="btn secondary square-btn">→</button>
     <button id="mgrToday" class="btn secondary small">Today</button>
   </div>
+  <div id="systemInitBanner" class="system-init-banner" hidden>
+    <div>
+      <span class="eyebrow">One-time initialization</span>
+      <h3>Finish North Terrace V2 setup</h3>
+      <p>This is required only once. It will apply the confirmed staff roster/PINs and ensure the five-slot schedule is V2-ready. After completion, this message disappears permanently.</p>
+    </div>
+    <button id="initializeV2Btn" class="btn" type="button">Finish V2 Setup</button>
+    <div id="systemInitResult" class="inline-message" hidden></div>
+  </div>
+  <div class="schedule-mode-bar">
+    <div><strong>Schedule view</strong><span>Compact by default. Edit one task at a time.</span></div>
+    <button id="toggleAdvancedEdit" class="btn secondary small" type="button">▾ Advanced: Edit all tasks</button>
+  </div>
   <div class="manager-tip"><strong>How editing works:</strong> edit directly in the schedule. <b>Save this date only</b> changes only the selected day. <b>Every weekday going forward</b> changes that weekday from this date onward; historical dates stay unchanged.</div>
   <div id="managerSlots"></div>
 </section>
 
 <section id="people" class="manager-section" hidden>
   <div class="card elevated">
-    <div class="section-intro"><div><span class="eyebrow">Named assignees</span><h2>Create or edit a person</h2><p class="muted">Every active Staff or Assignee can be selected directly by name in the schedule. PIN is optional for Assignee-only records.</p></div><button id="clearPersonForm" class="btn secondary small">New person</button></div>
+    <div class="section-intro">
+      <div>
+        <span class="eyebrow">People & PINs</span>
+        <h2>North Terrace team</h2>
+        <p class="muted">The roster is shown first. Add/Edit details stay collapsed until you need them.</p>
+      </div>
+      <button id="openAddPerson" class="btn">+ Add Person</button>
+    </div>
+    <div class="table-wrap people-table-wrap" style="margin-top:14px">
+      <table class="people-table">
+        <thead><tr><th>Staff</th><th>Name</th><th>PIN</th><th>Role</th><th>Status</th><th></th></tr></thead>
+        <tbody id="peopleRows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="personEditorCard" class="card elevated person-editor-card" hidden>
+    <div class="section-intro">
+      <div>
+        <span class="eyebrow" id="personEditorKicker">Add person</span>
+        <h2 id="personEditorTitle">Add a new person</h2>
+        <p class="muted">Open only when you need to add or edit a team member.</p>
+      </div>
+      <button id="closePersonEditor" class="btn secondary small" type="button">Close</button>
+    </div>
     <input id="personEditId" type="hidden">
     <div class="form-grid">
-      <div class="field"><label class="field-label">Name <span class="required">*</span></label><input id="personName" placeholder="Donna"><div class="field-error" hidden></div></div>
+      <div class="field"><label class="field-label">Name <span class="required">*</span></label><input id="personName" placeholder="Name"><div class="field-error" hidden></div></div>
       <div class="field"><label class="field-label">Role</label><select id="personRole"><option value="staff">Staff</option><option value="assignee">Assignee only</option><option value="manager">Manager</option></select></div>
-      <div class="field"><label class="field-label">Staff ID</label><input id="personStaffId" placeholder="Optional / e.g. 3"><div class="field-error" hidden></div></div>
+      <div class="field"><label class="field-label">Staff ID</label><input id="personStaffId" placeholder="e.g. 1"><div class="field-error" hidden></div></div>
       <div class="field"><label class="field-label">PIN</label><input id="personPin" type="password" inputmode="numeric" maxlength="8" placeholder="4 digits for staff"><div class="field-error" hidden></div></div>
       <div class="field"><label class="field-label">Confirm PIN</label><input id="personPinConfirm" type="password" inputmode="numeric" maxlength="8" placeholder="Repeat PIN"><div class="field-error" hidden></div></div>
       <div class="field"><label class="field-label">Status</label><select id="personActive"><option value="true">Active</option><option value="false">Inactive</option></select></div>
     </div>
-    <div class="form-actions"><button id="savePersonBtn" class="btn">Save Person</button></div><div id="personResult" class="inline-message" hidden></div>
+    <div class="form-actions">
+      <button id="savePersonBtn" class="btn">Save Person</button>
+      <button id="cancelPersonEdit" class="btn secondary" type="button">Cancel</button>
+    </div>
+    <div id="personResult" class="inline-message" hidden></div>
   </div>
-  <div class="card elevated"><div class="card-head"><div><h2>People</h2><div class="card-subtitle">Names here drive the assignee list used by every schedule view.</div></div></div>
-  <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Name</th><th>Role</th><th>Staff ID</th><th>PIN</th><th>Status</th><th></th></tr></thead><tbody id="peopleRows"></tbody></table></div></div>
 </section>
 
 <section id="cover" class="manager-section" hidden>
@@ -71,19 +108,9 @@
   <div class="card elevated"><h2>Exceptions & audit</h2><div class="table-wrap"><table><thead><tr><th>Date</th><th>Exception</th><th>Task</th><th>Assigned</th><th>Completed by</th><th>Slot</th></tr></thead><tbody id="exceptionRows"></tbody></table></div></div>
 </section>
 
-<section id="settings" class="manager-section" hidden>
-  <div class="card elevated"><span class="eyebrow">Manager security</span><h2>Change my manager PIN</h2>
-  <div class="form-grid"><div class="field"><label>New PIN</label><input id="managerNewPin" type="password" inputmode="numeric" maxlength="8"></div><div class="field"><label>Confirm PIN</label><input id="managerConfirmPin" type="password" inputmode="numeric" maxlength="8"></div></div>
-  <div class="form-actions"><button id="changeManagerPinBtn" class="btn">Change Manager PIN</button></div><div id="managerPinResult" class="inline-message" hidden></div></div>
-</section>
 
-<section id="setup" class="manager-section" hidden>
-  <div class="card elevated"><span class="eyebrow">V2 migration</span><h2>Upgrade the North Terrace schedule</h2>
-    <p class="muted">Loads the confirmed five-slot schedule, keeps your existing users/PINs and past daily history, adds Donna/Parth as named assignees if needed, and rebuilds today using V2 fields. WHO OPEN / FLOOR source labels become Unassigned so management can allocate real names.</p>
-    <button id="seedBtn" class="btn">Upgrade Schedule to V2</button>
-    <div id="seedResult" class="inline-message" hidden></div>
-  </div>
-</section>
+
+
 </main>
 <script type="module" src="js/manager.js"></script>
 </body></html>
