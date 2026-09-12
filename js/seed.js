@@ -5135,8 +5135,143 @@ function localTodayISO(){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 
+
+function isParthName(value){
+  return String(value||"").trim().toLowerCase()==="parth";
+}
+
+export async function migrateParthToParthy(){
+  const usersSnap=await getDocs(collection(db,"users"));
+  const oldParthDocs=usersSnap.docs.filter(d=>{
+    const x=d.data();
+    return d.id!=="staff1" && isParthName(x.name);
+  });
+  const oldParthIds=new Set(oldParthDocs.map(d=>d.id));
+
+  // Ensure the canonical staff record exists and is active.
+  await setDoc(doc(db,"users","staff1"),{
+    name:"Parthy",
+    staffId:"1",
+    pin:"1111",
+    role:"staff",
+    active:true,
+    updatedAt:serverTimestamp()
+  },{merge:true});
+
+  // Hide any duplicate Parth identity from People / Assignee lists.
+  if(oldParthDocs.length){
+    await commitUpdates(oldParthDocs,(batch,d)=>{
+      batch.set(d.ref,{
+        active:false,
+        mergedInto:"staff1",
+        mergedIntoName:"Parthy",
+        updatedAt:serverTimestamp()
+      },{merge:true});
+    });
+  }
+
+  // Rewrite all recurring schedule rules that still point to Parth.
+  const templateSnap=await getDocs(collection(db,"weeklyTemplates"));
+  const changedTemplates=[];
+
+  for(const d of templateSnap.docs){
+    const x=d.data();
+    const schedule=structuredClone(x.schedule||{});
+    let changed=false;
+
+    Object.keys(schedule).forEach(day=>{
+      const dayData=schedule[day];
+      if(!dayData) return;
+
+      if(Array.isArray(dayData.versions)){
+        dayData.versions=dayData.versions.map(v=>{
+          const oldId=String(v.assigneeId||"");
+          const key=String(v.assigneeKey||"");
+          const legacy=String(v.legacyAssignee||"");
+          const keyName=key.toLowerCase()==="person:parth";
+
+          if(oldParthIds.has(oldId) || keyName || isParthName(legacy)){
+            changed=true;
+            return {
+              ...v,
+              assigneeId:"staff1",
+              assigneeKey:"",
+              legacyAssignee:""
+            };
+          }
+          return v;
+        });
+      }else if(dayData && typeof dayData==="object"){
+        // V1 compatibility if an unmigrated day still exists.
+        if(isParthName(dayData.assignee)){
+          dayData.assignee="1";
+          changed=true;
+        }
+      }
+    });
+
+    if(changed) changedTemplates.push({ref:d.ref,schedule});
+  }
+
+  if(changedTemplates.length){
+    await commitUpdates(changedTemplates,(batch,item)=>{
+      batch.update(item.ref,{
+        schedule:item.schedule,
+        updatedAt:serverTimestamp()
+      });
+    });
+  }
+
+  // Rewrite daily task identity references for all dates, including history.
+  // This is an identity correction only; completion timestamps/status are preserved.
+  const dailySnap=await getDocs(collection(db,"dailyTasks"));
+  const changedDaily=[];
+
+  dailySnap.docs.forEach(d=>{
+    const x=d.data();
+    const patch={};
+    let changed=false;
+
+    if(oldParthIds.has(String(x.assignedTo||"")) || isParthName(x.assignedName)){
+      patch.assignedTo="staff1";
+      patch.assignedName="Parthy";
+      changed=true;
+    }
+
+    if(oldParthIds.has(String(x.originalAssignedTo||"")) || isParthName(x.originalAssignedName)){
+      patch.originalAssignedTo="staff1";
+      patch.originalAssignedName="Parthy";
+      changed=true;
+    }
+
+    if(oldParthIds.has(String(x.completedByUserId||"")) || isParthName(x.completedByName)){
+      patch.completedByUserId="staff1";
+      patch.completedByName="Parthy";
+      changed=true;
+    }
+
+    if(changed){
+      patch.updatedAt=serverTimestamp();
+      changedDaily.push({ref:d.ref,patch});
+    }
+  });
+
+  if(changedDaily.length){
+    await commitUpdates(changedDaily,(batch,item)=>{
+      batch.update(item.ref,item.patch);
+    });
+  }
+
+  return {
+    duplicateUsers:oldParthDocs.length,
+    templateTasks:changedTemplates.length,
+    dailyTasks:changedDaily.length
+  };
+}
+
 export async function initializeV22(){
   await seedPeopleRoster();
+  await migrateParthToParthy();
 
   const templateSnap=await getDocs(collection(db,"weeklyTemplates"));
   const existingTemplates=templateSnap.docs.map(d=>({id:d.id,...d.data()}));

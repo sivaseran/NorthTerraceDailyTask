@@ -3,10 +3,10 @@ import {
   SLOT_DEFS,todayISO,addDaysISO,formatLongDate,slotLabelForDate,slotCapacityMinutes,
   getUsers,getAssignableUsers,getSystemState,validateUserUniqueness,saveUser,createPerson,
   ensureTasksForDate,resetTasksForDate,watchTasksForDate,getTasksForDate,
-  updateDailyTask,saveFutureRule,createTaskForDate,cancelTaskToday,stopTaskFuture,
+  updateDailyTask,saveFutureRule,createTaskForDate,cancelTaskToday,stopTaskFuture,saveFutureShiftCover,
   workloadBySlot,capacityForDraft,completeTask
 } from './store.js';
-import {initializeV22} from './seed.js';
+import {initializeV22,migrateParthToParthy} from './seed.js';
 import {initReports} from './reports.js';
 import {
   escapeHtml,statusView,showToast,confirmAction,setButtonLoading,setInlineMessage,
@@ -18,7 +18,9 @@ const user=getSession();
 if(!user||user.role!=='manager') location.href='login.html';
 
 let selectedDate=todayISO(),tasks=[],people=[],unsubscribe=null;
+let coverDate=todayISO(),coverTasks=[];
 let advancedEditAll=false;
+const isHistoricalDate=()=>selectedDate<todayISO();
 const personOptions=()=>`<option value="">Unassigned</option>`+people.map(p=>`<option value="${p.id}">${escapeHtml(p.name||p.id)}</option>`).join('');
 const slotOptions=selected=>SLOT_DEFS.map(s=>`<option value="${s.id}" ${s.id===selected?'selected':''}>${escapeHtml(slotLabelForDate(s.id,selectedDate))}</option>`).join('');
 const effortText=v=>Number(v)>0?`${Number(v)} min`:'Not set';
@@ -27,6 +29,18 @@ function updateDateUI(){
   $('#managerDate').textContent=formatLongDate(selectedDate);
   $('#mgrNavDate').textContent=formatLongDate(selectedDate);
   $('#mgrDatePicker').value=selectedDate;
+
+  const historical=isHistoricalDate();
+  $('#historicalReadOnlyBanner').hidden=!historical;
+  $('#toggleAdvancedEdit').hidden=historical;
+  $('#scheduleModeHelp').textContent=historical
+    ?'Historical task records are shown exactly for review; editing is disabled.'
+    :'Compact by default. Edit one task at a time.';
+
+  if(historical){
+    advancedEditAll=false;
+    $('#toggleAdvancedEdit').textContent='▾ Advanced: Edit all tasks';
+  }
 }
 function draftFromRow(row){
   return {
@@ -39,30 +53,57 @@ function draftFromRow(row){
 }
 function slotCapacityHTML(slotId){
   const loads=workloadBySlot(tasks,selectedDate).filter(x=>x.slotId===slotId);
-  if(!loads.length) return '<span class="capacity-empty">No effort values entered yet.</span>';
+  if(!loads.length){
+    return '<span class="capacity-empty">Capacity: effort not entered</span>';
+  }
   return loads.map(x=>`<span class="capacity-chip ${x.effort>x.capacity?'over':''}">
-    ${escapeHtml(x.assignedName)} · ${x.effort}m / ${x.capacity}m${x.missing?` · ${x.missing} unset`:''}
+    <strong>${escapeHtml(x.assignedName)}</strong>
+    <span>${x.effort} / ${x.capacity} min</span>
+    ${x.missing?`<em>${x.missing} unset</em>`:''}
   </span>`).join('');
 }
 
 function taskEditor(t){
-  return `<article class="manager-task-editor compact-editor" data-id="${t.id}" data-template="${escapeHtml(t.templateTaskId||'')}">
-    <div class="compact-task-view">
-      <div class="compact-task-name">
-        <strong>${escapeHtml(t.taskName||'Untitled task')}</strong>
-        <div class="ops-task-meta">
-          <span>${escapeHtml(t.assignedName||'Unassigned')}</span>
-          <span>•</span><span>${Number(t.effortMinutes)>0?`${Number(t.effortMinutes)} min`:'Effort not set'}</span>
+  const assignee=t.assignedName||'Unassigned';
+  const unassigned=!t.assignedTo;
+  const effort=Number(t.effortMinutes)>0?`${Number(t.effortMinutes)} min`:'—';
+  const historical=isHistoricalDate();
+
+  return `<article class="manager-task-editor compact-editor ${historical?'historical-task-row':''}" data-id="${t.id}" data-template="${escapeHtml(t.templateTaskId||'')}">
+    <div class="compact-task-view dense-task-row">
+      <div class="dense-task-main">
+        <strong class="dense-task-title">${escapeHtml(t.taskName||'Untitled task')}</strong>
+        <div class="dense-task-badges">
           ${t.photoRequired?'<span class="mini-pill photo-pill">📷 Photo</span>':''}
-          ${t.legacyAssignee&&(!t.assignedTo)?`<span class="legacy-note">Source: ${escapeHtml(t.legacyAssignee)}</span>`:''}
+          ${t.recurring?'<span class="mini-pill recurring-pill">↻ Recurring</span>':''}
         </div>
       </div>
-      <div class="compact-task-right">
+
+      <div class="dense-task-assignee">
+        <span class="mobile-field-label">Assignee</span>
+        <span class="assignee-value ${unassigned?'unassigned-value':''}">${escapeHtml(assignee)}</span>
+      </div>
+
+      <div class="dense-task-effort">
+        <span class="mobile-field-label">Effort</span>
+        <span class="${Number(t.effortMinutes)>0?'':'effort-unset'}">${effort}</span>
+      </div>
+
+      <div class="dense-task-status">
+        <span class="mobile-field-label">Status</span>
         ${statusView(t.status)}
-        <button class="btn secondary small open-row-edit" type="button">Edit</button>
+      </div>
+
+      <div class="dense-task-action">
+        ${historical
+          ?'<span class="historical-view-badge">View only</span>'
+          :'<button class="btn secondary small open-row-edit" type="button">Edit</button>'}
       </div>
     </div>
+
+    ${historical?'':`
     <div class="row-edit-panel" hidden>
+      ${t.legacyAssignee&&(!t.assignedTo)?`<div class="legacy-editor-note">Original source assignment: ${escapeHtml(t.legacyAssignee)}</div>`:''}
       <div class="editor-grid">
         <div class="field editor-name"><label>Task</label><input class="edit-task-name" value="${escapeHtml(t.taskName||'')}"></div>
         <div class="field"><label>Slot</label><select class="edit-slot">${slotOptions(t.slotId)}</select></div>
@@ -74,14 +115,15 @@ function taskEditor(t){
         <button class="btn small save-day" type="button">Save this date only</button>
         ${t.templateTaskId?`<button class="btn secondary small save-future" type="button">Every ${new Date(selectedDate+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'})} going forward</button>`:''}
         <button class="link-btn close-row-edit" type="button">Close</button>
-        <button class="link-btn cancel-today" type="button">Skip this date only</button>
+        <button class="link-btn cancel-today" type="button">Skip This Date</button>
         ${t.templateTaskId?`<button class="link-btn stop-future" type="button">Remove This Task Completely</button>`:''}
       </div>
       <div class="inline-message row-message" hidden></div>
-    </div>
+    </div>`}
   </article>`;
 }
 function newTaskEditor(slotId){
+  if(isHistoricalDate()) return '';
   return `<div class="new-task-editor" data-new-slot="${slotId}" hidden>
     <div class="editor-grid">
       <div class="field editor-name"><label>New task name</label><input class="new-task-name" placeholder="Task name"></div>
@@ -99,24 +141,49 @@ function renderSchedule(rows){
   tasks=rows;
   $('#managerSlots').innerHTML=SLOT_DEFS.map(slot=>{
     const a=rows.filter(t=>t.slotId===slot.id&&t.status!=='cancelled');
-    return `<section class="manager-slot-card" data-slot="${slot.id}">
-      <div class="manager-slot-head">
-        <div><span class="slot-kicker">Fixed operational slot</span><h3>${escapeHtml(slotLabelForDate(slot.id,selectedDate))}</h3><p>${a.length} active task${a.length===1?'':'s'} · capacity check is advisory</p></div>
-        ${selectedDate<todayISO()?'':`<button class="btn secondary small add-task" data-slot="${slot.id}">+ Add task</button>`}
+    return `<section class="manager-slot-card dense-slot-card" data-slot="${slot.id}">
+      <div class="manager-slot-head dense-slot-head">
+        <div class="dense-slot-primary">
+          <span class="slot-kicker">Fixed operational slot</span>
+          <div class="dense-slot-title-line">
+            <h3>${escapeHtml(slotLabelForDate(slot.id,selectedDate))}</h3>
+            <span class="dense-task-count">${a.length} task${a.length===1?'':'s'}</span>
+          </div>
+        </div>
+
+        <div class="dense-slot-capacity">
+          ${slotCapacityHTML(slot.id)}
+        </div>
+
+        <div class="dense-slot-add">
+          ${isHistoricalDate()?'':`<button class="btn secondary small add-task" data-slot="${slot.id}">+ Add task</button>`}
+        </div>
       </div>
-      <div class="capacity-strip">${slotCapacityHTML(slot.id)}</div>
+
+      <div class="desktop-task-columns" aria-hidden="true">
+        <span>Task</span>
+        <span>Assignee</span>
+        <span>Effort</span>
+        <span>Status</span>
+        <span></span>
+      </div>
+
       <div class="manager-task-list">${a.map(taskEditor).join('')||'<div class="slot-empty">No tasks in this slot.</div>'}</div>
       ${newTaskEditor(slot.id)}
     </section>`;
   }).join('');
+
   document.querySelectorAll('.manager-task-editor').forEach(row=>{
     const panel=row.querySelector('.row-edit-panel');
     if(panel) panel.hidden=!advancedEditAll;
   });
+
   // Set assignee dropdowns after HTML is built.
   document.querySelectorAll('.manager-task-editor').forEach(row=>{
+    const select=row.querySelector('.edit-assignee');
+    if(!select) return;
     const t=rows.find(x=>x.id===row.dataset.id);
-    row.querySelector('.edit-assignee').value=t?.assignedTo||'';
+    select.value=t?.assignedTo||'';
   });
 }
 
@@ -145,9 +212,132 @@ async function loadPeople(){
     <td><span class="status-dot ${p.active!==false?'active':'inactive'}"></span>${p.active!==false?'Active':'Inactive'}</td>
     <td><button class="btn secondary small edit-person" data-id="${p.id}">Edit</button></td>
   </tr>`).join('');
-  const opts=personOptions();
-  $('#coverFrom').innerHTML=opts;$('#coverTo').innerHTML=opts;
-  $('#coverSlot').innerHTML=SLOT_DEFS.map(s=>`<option value="${s.id}">${slotLabelForDate(s.id,selectedDate)}</option>`).join('');
+  const coverPeople=people.map(p=>`<option value="${p.id}">${escapeHtml(p.name||p.id)}</option>`).join('');
+  const currentFrom=$('#coverFrom')?.value||'';
+  const currentTo=$('#coverTo')?.value||'';
+  if($('#coverFrom')) $('#coverFrom').innerHTML=`<option value="">Select person off</option>${coverPeople}`;
+  if($('#coverTo')) $('#coverTo').innerHTML=`<option value="">Select covering person</option>${coverPeople}`;
+  if($('#coverFrom')&&people.some(p=>p.id===currentFrom)) $('#coverFrom').value=currentFrom;
+  if($('#coverTo')&&people.some(p=>p.id===currentTo)) $('#coverTo').value=currentTo;
+  if($('#coverSlot')) $('#coverSlot').innerHTML=SLOT_DEFS.map(s=>`<option value="${s.id}">${slotLabelForDate(s.id,coverDate)}</option>`).join('');
+}
+
+
+function coverWeekdayLong(){
+  return new Date(coverDate+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'});
+}
+
+function updateCoverDateUI(){
+  $('#coverDateHeading').textContent=formatLongDate(coverDate);
+  $('#coverNavDate').textContent=formatLongDate(coverDate);
+  $('#coverDatePicker').value=coverDate;
+  $('#coverSlot').innerHTML=SLOT_DEFS.map(s=>`<option value="${s.id}">${slotLabelForDate(s.id,coverDate)}</option>`).join('');
+
+  const weekday=coverWeekdayLong();
+  $('#coverFutureBtn').textContent=`Every ${weekday} From This Date Onward`;
+  $('#coverFutureHelpTitle').textContent=`Every ${weekday} going forward`;
+  $('#coverFutureHelpText').textContent=`Makes this cover arrangement permanent for every ${weekday} from ${formatLongDate(coverDate)} onward. Previous dates remain unchanged.`;
+
+  const historical=coverDate<todayISO();
+  $('#coverDayBtn').disabled=historical;
+  $('#coverFutureBtn').disabled=historical;
+}
+
+function currentCoverAffected(){
+  const from=$('#coverFrom').value;
+  const slot=$('#coverSlot').value;
+  if(!from||!slot) return [];
+  return coverTasks.filter(t=>
+    t.assignedTo===from &&
+    t.slotId===slot &&
+    t.status!=='cancelled' &&
+    t.status!=='completed'
+  );
+}
+
+function renderCoverPreview(){
+  const rows=currentCoverAffected();
+  const targetId=$('#coverTo').value;
+  const target=people.find(p=>p.id===targetId);
+  const slot=$('#coverSlot').value;
+  const source=people.find(p=>p.id===$('#coverFrom').value);
+
+  $('#coverAffectedCount').textContent=`${rows.length} task${rows.length===1?'':'s'}`;
+
+  if(!$('#coverFrom').value){
+    $('#coverPreviewRows').innerHTML='<div class="cover-preview-empty">Select the person who is off to preview their tasks.</div>';
+  }else if(!rows.length){
+    $('#coverPreviewRows').innerHTML='<div class="cover-preview-empty">No incomplete matching tasks for this person and slot on the selected date.</div>';
+  }else{
+    $('#coverPreviewRows').innerHTML=rows.map(t=>`<div class="cover-preview-row">
+      <div><strong>${escapeHtml(t.taskName||'Untitled task')}</strong>${t.photoRequired?'<span class="mini-pill photo-pill">📷 Photo</span>':''}</div>
+      <div>${escapeHtml(t.assignedName||source?.name||'Unassigned')}</div>
+      <div>${Number(t.effortMinutes)>0?`${Number(t.effortMinutes)} min`:'—'}</div>
+      <div>${statusView(t.status)}</div>
+    </div>`).join('');
+  }
+
+  if(!slot||!targetId){
+    $('#coverCapacityNote').innerHTML='<span class="muted">Select a covering person to check the known workload for this slot.</span>';
+    return;
+  }
+
+  const knownAffected=rows.reduce((s,t)=>s+(Number(t.effortMinutes)||0),0);
+  const existing=coverTasks
+    .filter(t=>t.assignedTo===targetId&&t.slotId===slot&&t.status!=='cancelled')
+    .reduce((s,t)=>s+(Number(t.effortMinutes)||0),0);
+  const unset=rows.filter(t=>!Number(t.effortMinutes)).length;
+  const capacity=slotCapacityMinutes(slot,coverDate);
+  const total=existing+knownAffected;
+  const over=Math.max(0,total-capacity);
+
+  $('#coverCapacityNote').innerHTML=over
+    ? `<strong class="cover-capacity-over">Capacity warning:</strong> ${escapeHtml(target?.name||'Covering person')} would have <b>${total} / ${capacity} min</b> known effort in this slot (${over} min over).${unset?` ${unset} moved task(s) also have no effort set.`:''}`
+    : `<strong>${escapeHtml(target?.name||'Covering person')}</strong>: ${total} / ${capacity} min known effort after cover.${unset?` ${unset} moved task(s) have no effort set and are not included in the total.`:''}`;
+}
+
+async function loadCoverDate(){
+  updateCoverDateUI();
+  $('#coverPreviewRows').innerHTML='<div class="cover-preview-empty">Loading selected date…</div>';
+
+  if(coverDate>=todayISO()) await ensureTasksForDate(coverDate);
+  coverTasks=await getTasksForDate(coverDate);
+
+  // Keep the selected slot if possible when date changes.
+  const oldSlot=$('#coverSlot').value||'S1';
+  $('#coverSlot').innerHTML=SLOT_DEFS.map(s=>`<option value="${s.id}">${slotLabelForDate(s.id,coverDate)}</option>`).join('');
+  if(SLOT_DEFS.some(s=>s.id===oldSlot)) $('#coverSlot').value=oldSlot;
+
+  renderCoverPreview();
+
+  if(coverDate<todayISO()){
+    setInlineMessage($('#coverResult'),'Historical dates are read only. Choose today or a future date to apply cover.','warning');
+  }else{
+    setInlineMessage($('#coverResult'),'');
+  }
+}
+
+async function confirmCoverCapacity(){
+  const rows=currentCoverAffected();
+  const targetId=$('#coverTo').value;
+  const slot=$('#coverSlot').value;
+  if(!rows.length||!targetId||!slot) return true;
+
+  const target=people.find(p=>p.id===targetId);
+  const knownAffected=rows.reduce((s,t)=>s+(Number(t.effortMinutes)||0),0);
+  const existing=coverTasks
+    .filter(t=>t.assignedTo===targetId&&t.slotId===slot&&t.status!=='cancelled')
+    .reduce((s,t)=>s+(Number(t.effortMinutes)||0),0);
+  const capacity=slotCapacityMinutes(slot,coverDate);
+  const total=existing+knownAffected;
+  if(total<=capacity) return true;
+
+  return confirmAction({
+    title:'Capacity warning',
+    message:`${target?.name||'The covering person'} would have ${total} minutes of known effort in a ${capacity}-minute slot.`,
+    details:`This is ${total-capacity} minutes over the slot capacity. Tasks without an effort value are not included. You can still save the cover if operationally appropriate.`,
+    confirmText:'Apply Anyway'
+  });
 }
 
 async function maybeWarnCapacity(draft,excludeId=''){
@@ -161,6 +351,10 @@ async function maybeWarnCapacity(draft,excludeId=''){
   });
 }
 async function saveRow(row,scope){
+  if(isHistoricalDate()){
+    showToast('Historical dates are read only.','warning',{title:'No changes made'});
+    return;
+  }
   const t=tasks.find(x=>x.id===row.dataset.id); if(!t) return;
   const draft=draftFromRow(row);
   const msg=row.querySelector('.row-message');
@@ -181,6 +375,10 @@ async function saveRow(row,scope){
   finally{setButtonLoading(button,false);}
 }
 async function createFromBox(box,scope){
+  if(isHistoricalDate()){
+    showToast('Historical dates are read only.','warning',{title:'No changes made'});
+    return;
+  }
   const draft={
     taskName:box.querySelector('.new-task-name').value.trim(),
     slotId:box.querySelector('.new-slot').value,
@@ -198,12 +396,21 @@ async function createFromBox(box,scope){
 }
 
 $('#toggleAdvancedEdit').onclick=()=>{
+  if(isHistoricalDate()){
+    showToast('Historical dates are read only.','warning',{title:'No changes made'});
+    return;
+  }
   advancedEditAll=!advancedEditAll;
   $('#toggleAdvancedEdit').textContent=advancedEditAll?'▴ Advanced: Collapse all':'▾ Advanced: Edit all tasks';
   document.querySelectorAll('.row-edit-panel').forEach(p=>p.hidden=!advancedEditAll);
 };
 
 $('#managerSlots').addEventListener('change',e=>{
+  if(isHistoricalDate()){
+    showToast('Historical schedules are view only.','warning',{title:'Read-only history'});
+    renderSchedule(tasks);
+    return;
+  }
   if(e.target.classList.contains('edit-slot')){
     const row=e.target.closest('.manager-task-editor'),newSlot=e.target.value;
     const target=document.querySelector(`.manager-slot-card[data-slot="${newSlot}"] .manager-task-list`);
@@ -214,6 +421,12 @@ $('#managerSlots').addEventListener('change',e=>{
   }
 });
 $('#managerSlots').addEventListener('click',async e=>{
+  const mutatingTarget=e.target.closest('.open-row-edit,.add-task,.save-day,.save-future,.create-day,.create-future,.cancel-today,.stop-future');
+  if(isHistoricalDate()&&mutatingTarget){
+    showToast('Historical schedules are view only. Choose today or a future date to make changes.','warning',{title:'Read-only history'});
+    return;
+  }
+
   if(e.target.closest('.open-row-edit')){
     if(!advancedEditAll) document.querySelectorAll('.row-edit-panel').forEach(p=>p.hidden=true);
     const row=e.target.closest('.manager-task-editor');
@@ -236,25 +449,32 @@ $('#managerSlots').addEventListener('click',async e=>{
   if(e.target.closest('.create-day')) return createFromBox(box,'day');
   if(e.target.closest('.create-future')) return createFromBox(box,'future');
   if(e.target.closest('.cancel-today')){
+    if(isHistoricalDate()){showToast('Historical dates are read only.','warning');return;}
     const ok=await confirmAction({title:'Skip this date only?',message:'This task will be skipped only on the selected date. Future recurring dates remain unchanged.',confirmText:'Skip This Date'});
     if(ok) await cancelTaskToday(row.dataset.id,user);return;
   }
   if(e.target.closest('.stop-future')){
+    if(isHistoricalDate()){showToast('Historical dates are read only.','warning');return;}
     const t=tasks.find(x=>x.id===row.dataset.id);if(!t?.templateTaskId)return;
     const ok=await confirmAction({title:'Remove this task completely?',message:`Remove this task from the selected date and all future ${new Date(selectedDate+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'})} occurrences?`,details:'Previous dates remain unchanged.',confirmText:'Remove Completely',danger:true});
     if(ok){await stopTaskFuture(t.templateTaskId,selectedDate,user);await cancelTaskToday(t.id,user);}return;
   }
 });
 
+$('#historicalGoToday').onclick=()=>{selectedDate=todayISO();bindDate();};
 $('#mgrPrevDate').onclick=()=>{selectedDate=addDaysISO(selectedDate,-1);bindDate();};
 $('#mgrNextDate').onclick=()=>{selectedDate=addDaysISO(selectedDate,1);bindDate();};
 $('#mgrToday').onclick=()=>{selectedDate=todayISO();bindDate();};
 $('#mgrDatePicker').onchange=e=>{if(e.target.value){selectedDate=e.target.value;bindDate();}};
 
-document.querySelectorAll('.manager-nav button').forEach(btn=>btn.onclick=()=>{
+document.querySelectorAll('.manager-nav button').forEach(btn=>btn.onclick=async()=>{
   document.querySelectorAll('.manager-nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
   document.querySelectorAll('.manager-section').forEach(s=>s.hidden=true);$('#'+btn.dataset.section).hidden=false;
-  if(btn.dataset.section==='people') loadPeople();
+  if(btn.dataset.section==='people') await loadPeople();
+  if(btn.dataset.section==='cover'){
+    if(!coverDate) coverDate=selectedDate||todayISO();
+    await loadCoverDate();
+  }
 });
 
 function clearPerson(){
@@ -294,21 +514,98 @@ $('#savePersonBtn').onclick=async()=>{
   finally{setButtonLoading(btn,false);}
 };
 
-$('#coverBtn').onclick=async()=>{
-  if(selectedDate<todayISO()){setInlineMessage($('#coverResult'),'Historical dates are read only.','warning');return;}
+$('#coverPrevDate').onclick=()=>{coverDate=addDaysISO(coverDate,-1);loadCoverDate();};
+$('#coverNextDate').onclick=()=>{coverDate=addDaysISO(coverDate,1);loadCoverDate();};
+$('#coverToday').onclick=()=>{coverDate=todayISO();loadCoverDate();};
+$('#coverDatePicker').onchange=e=>{if(e.target.value){coverDate=e.target.value;loadCoverDate();}};
+
+['coverFrom','coverTo','coverSlot'].forEach(id=>{
+  $('#'+id).addEventListener('change',renderCoverPreview);
+});
+
+$('#coverDayBtn').onclick=async()=>{
+  if(coverDate<todayISO()){setInlineMessage($('#coverResult'),'Historical dates are read only.','warning');return;}
   const from=$('#coverFrom').value,to=$('#coverTo').value,slot=$('#coverSlot').value;
   if(!from||!to||from===to){setInlineMessage($('#coverResult'),'Choose two different people.','error');return;}
-  const affected=tasks.filter(t=>t.assignedTo===from&&t.slotId===slot&&t.status!=='cancelled');
-  if(!affected.length){setInlineMessage($('#coverResult'),'No matching tasks in this slot.','warning');return;}
+
+  const affected=currentCoverAffected();
+  if(!affected.length){setInlineMessage($('#coverResult'),'No incomplete matching tasks in this slot.','warning');return;}
+  if(!await confirmCoverCapacity()) return;
+
   const target=people.find(p=>p.id===to);
-  const ok=await confirmAction({title:'Apply whole-slot cover?',message:`Move ${affected.length} task(s) to ${target?.name||'the covering person'} for ${slotLabelForDate(slot,selectedDate)} on ${formatLongDate(selectedDate)}?`,confirmText:'Apply Cover'});
+  const source=people.find(p=>p.id===from);
+  const ok=await confirmAction({
+    title:'Apply cover to this date only?',
+    message:`Move ${affected.length} task(s) from ${source?.name||'the person off'} to ${target?.name||'the covering person'} for ${slotLabelForDate(slot,coverDate)} on ${formatLongDate(coverDate)}?`,
+    details:'Only this selected date changes. The recurring schedule remains unchanged.',
+    confirmText:'Apply This Date'
+  });
   if(!ok)return;
-  const btn=$('#coverBtn');setButtonLoading(btn,true,'Applying…');
+
+  const btn=$('#coverDayBtn');setButtonLoading(btn,true,'Applying…');
   try{
-    for(const t of affected) await updateDailyTask(t.id,{assignedTo:to,assignedName:target?.name||'Unassigned'},user);
-    setInlineMessage($('#coverResult'),`✓ ${affected.length} task(s) moved for this date only.`,'success');
-  }catch(e){setInlineMessage($('#coverResult'),'Could not apply cover.','error');}
-  finally{setButtonLoading(btn,false);}
+    for(const t of affected){
+      await updateDailyTask(t.id,{
+        assignedTo:to,
+        assignedName:target?.name||'Unassigned',
+        shiftCoverScope:'date',
+        shiftCoveredFromUserId:from,
+        shiftCoveredFromName:source?.name||'',
+        shiftCoverDate:coverDate
+      },user);
+    }
+    setInlineMessage($('#coverResult'),`✓ ${affected.length} task(s) moved for ${formatLongDate(coverDate)} only.`,'success');
+    showToast('Shift cover applied for the selected date.','success');
+    await loadCoverDate();
+    if(coverDate===selectedDate) await bindDate();
+  }catch(e){
+    console.error(e);
+    setInlineMessage($('#coverResult'),'Could not apply cover.','error');
+  }finally{
+    setButtonLoading(btn,false);
+  }
+};
+
+$('#coverFutureBtn').onclick=async()=>{
+  if(coverDate<todayISO()){setInlineMessage($('#coverResult'),'Historical dates are read only.','warning');return;}
+  const from=$('#coverFrom').value,to=$('#coverTo').value,slot=$('#coverSlot').value;
+  if(!from||!to||from===to){setInlineMessage($('#coverResult'),'Choose two different people.','error');return;}
+
+  const affected=currentCoverAffected();
+  if(!affected.length){setInlineMessage($('#coverResult'),'No incomplete matching tasks in this slot on the selected date.','warning');return;}
+  if(!await confirmCoverCapacity()) return;
+
+  const target=people.find(p=>p.id===to);
+  const source=people.find(p=>p.id===from);
+  const weekday=coverWeekdayLong();
+  const ok=await confirmAction({
+    title:`Change every ${weekday} from this date onward?`,
+    message:`Move matching ${slotLabelForDate(slot,coverDate)} tasks from ${source?.name||'the person off'} to ${target?.name||'the covering person'} starting ${formatLongDate(coverDate)}?`,
+    details:`This becomes the permanent cover arrangement for this slot on future ${weekday}s. Previous dates remain unchanged. You can later create another future cover from a newer date to change it again.`,
+    confirmText:`Every ${weekday} Going Forward`
+  });
+  if(!ok)return;
+
+  const btn=$('#coverFutureBtn');setButtonLoading(btn,true,'Saving future cover…');
+  try{
+    const result=await saveFutureShiftCover({
+      date:coverDate,slotId:slot,fromUserId:from,toUserId:to
+    },user);
+
+    setInlineMessage(
+      $('#coverResult'),
+      `✓ Future cover saved. Matching ${weekday} tasks from ${formatLongDate(coverDate)} onward will be assigned to ${result.toName}. ${result.updated} already-generated task record(s) were updated.`,
+      'success'
+    );
+    showToast(`Future ${weekday} cover saved.`,'success');
+    await loadCoverDate();
+    if(coverDate===selectedDate) await bindDate();
+  }catch(e){
+    console.error(e);
+    setInlineMessage($('#coverResult'),e.message||'Could not save future cover.','error');
+  }finally{
+    setButtonLoading(btn,false);
+  }
 };
 
 
@@ -364,8 +661,19 @@ $('#logout').onclick=()=>{clearSession();location.href='login.html';};
 
 initReports({root:document.querySelector('#reports'),userProvider:()=>user});
 initNetworkStatus();registerAppServiceWorker();
+
+try{
+  const merge=await migrateParthToParthy();
+  if(merge.duplicateUsers||merge.templateTasks||merge.dailyTasks){
+    showToast('Parth has been merged into Parthy across assignments and reports.','success',{title:'Staff identity updated'});
+  }
+}catch(error){
+  console.error('Parth → Parthy migration failed',error);
+}
+
 await loadPeople();
 updateDateUI();
+updateCoverDateUI();
 const systemReady=await checkSystemReady();
 if(systemReady){
   await bindDate();

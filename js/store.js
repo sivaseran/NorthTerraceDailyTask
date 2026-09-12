@@ -81,8 +81,15 @@ export async function getSystemState(){
 }
 export async function getAssignableUsers(){
   const users=await getUsers();
-  return users.filter(u=>u.active!==false&&(u.role==='staff'||u.role==='assignee'))
-    .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  const parthyExists=users.some(u=>u.active!==false&&String(u.name||'').trim().toLowerCase()==='parthy');
+  return users.filter(u=>{
+    if(u.active===false||!(u.role==='staff'||u.role==='assignee')) return false;
+    if(parthyExists&&u.id!=='staff1'&&String(u.name||'').trim().toLowerCase()==='parth') return false;
+    return true;
+  }).sort((a,b)=>{
+    const ai=Number(a.staffId)||999,bi=Number(b.staffId)||999;
+    return ai-bi||String(a.name||'').localeCompare(String(b.name||''));
+  });
 }
 export async function validateUserUniqueness(documentId,{pin,staffId,role}){
   const users=await getUsers();
@@ -104,6 +111,111 @@ export async function getWeeklyTemplate(){
   const s=await getDocs(collection(db,'weeklyTemplates'));
   return s.docs.map(d=>({id:d.id,...d.data()}))
     .sort((a,b)=>(Number(a.sortOrder)||9999)-(Number(b.sortOrder)||9999)||String(a.taskName||'').localeCompare(String(b.taskName||'')));
+}
+
+export async function getShiftCoverRules(){
+  const s=await getDocs(collection(db,'shiftCoverRules'));
+  return s.docs.map(d=>({id:d.id,...d.data()}))
+    .filter(r=>r.active!==false);
+}
+
+function applyShiftCoverRulesToRow(row,date,rules,users){
+  const weekday=dayKey(date);
+  const applicable=rules
+    .filter(r=>
+      r.active!==false &&
+      String(r.weekday||'')===weekday &&
+      String(r.slotId||'')===String(row.slotId||'') &&
+      String(r.effectiveFrom||'0000-01-01')<=date
+    )
+    .sort((a,b)=>
+      String(a.effectiveFrom||'').localeCompare(String(b.effectiveFrom||'')) ||
+      String(a.createdKey||a.id||'').localeCompare(String(b.createdKey||b.id||''))
+    );
+
+  let assignedTo=row.assignedTo||'';
+  let assignedName=row.assignedName||'Unassigned';
+  let appliedRuleId='';
+
+  for(const rule of applicable){
+    if(String(rule.fromUserId||'')===String(assignedTo||'')){
+      assignedTo=rule.toUserId||'';
+      const target=users.find(u=>u.id===assignedTo);
+      assignedName=target?.name||rule.toName||'Unassigned';
+      appliedRuleId=rule.id||'';
+    }
+  }
+
+  return {
+    ...row,
+    assignedTo,
+    assignedName,
+    shiftCoverRuleId:appliedRuleId
+  };
+}
+
+export async function saveFutureShiftCover({date,slotId,fromUserId,toUserId},actor){
+  if(!date||!slotId||!fromUserId||!toUserId) throw new Error('Cover details are incomplete.');
+  if(fromUserId===toUserId) throw new Error('Choose two different people.');
+
+  const users=await getUsers();
+  const from=users.find(u=>u.id===fromUserId);
+  const to=users.find(u=>u.id===toUserId);
+  if(!to) throw new Error('Covering person could not be found.');
+
+  const weekday=dayKey(date);
+  const ruleId=`cover_${date}_${weekday}_${slotId}_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+
+  await setDoc(doc(db,'shiftCoverRules',ruleId),{
+    effectiveFrom:date,
+    weekday,
+    slotId,
+    fromUserId,
+    fromName:from?.name||'',
+    toUserId,
+    toName:to.name||'',
+    active:true,
+    createdKey:`${date}_${Date.now()}`,
+    createdAt:serverTimestamp(),
+    createdByUserId:actor?.id||'',
+    createdByName:actor?.name||''
+  });
+
+  // Update already-generated matching snapshots. Future dates not yet
+  // generated will pick up this rule automatically in getPlannedTasksForDate().
+  const futureQ=query(collection(db,'dailyTasks'),where('date','>=',date));
+  const future=await getDocs(futureQ);
+  const matching=future.docs.filter(d=>{
+    const x=d.data();
+    return dayKey(x.date)===weekday &&
+      x.slotId===slotId &&
+      x.assignedTo===fromUserId &&
+      x.status!=='cancelled' &&
+      x.status!=='completed';
+  });
+
+  let updated=0;
+  for(let i=0;i<matching.length;i+=400){
+    const batch=writeBatch(db);
+    matching.slice(i,i+400).forEach(d=>{
+      batch.update(d.ref,{
+        assignedTo:toUserId,
+        assignedName:to.name||'Unassigned',
+        shiftCoverRuleId:ruleId,
+        shiftCoverScope:'future',
+        shiftCoveredFromUserId:fromUserId,
+        shiftCoveredFromName:from?.name||'',
+        shiftCoverEffectiveFrom:date,
+        updatedAt:serverTimestamp(),
+        updatedByUserId:actor?.id||'',
+        updatedByName:actor?.name||''
+      });
+    });
+    await batch.commit();
+    updated+=matching.slice(i,i+400).length;
+  }
+
+  return {ruleId,updated,weekday,toName:to.name||'Unassigned'};
 }
 
 function normaliseVersions(daySchedule){
@@ -154,7 +266,7 @@ async function resolveAssignee(rule,users){
 }
 
 export async function getPlannedTasksForDate(date){
-  const [templates,users]=await Promise.all([getWeeklyTemplate(),getUsers()]);
+  const [templates,users,coverRules]=await Promise.all([getWeeklyTemplate(),getUsers(),getShiftCoverRules()]);
   const rows=[];
   for(const t of templates){
     const rule=ruleForDate(t,date);
@@ -192,7 +304,7 @@ export async function getPlannedTasksForDate(date){
       photoRequired:Boolean(t.photoRequired),recurring:Boolean(t.recurring),status:'planned'
     });
   }
-  return rows;
+  return rows.map(row=>applyShiftCoverRulesToRow(row,date,coverRules,users));
 }
 
 function completedDate(value){
