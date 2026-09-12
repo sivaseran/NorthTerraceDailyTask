@@ -85,3 +85,27 @@ Existing V2 weekly templates are preserved during initialization; old V1 templat
 - "Skip This Date" remains the one-day exception action.
 - "Stop recurring from this date" is renamed to "Remove This Task Completely".
 - Confirmation clearly states that previous history is preserved while the selected date and future matching occurrences are removed.
+
+## V2.3 — Report tabs and shared filters
+
+Reports now have top tabs:
+- Overview
+- Staff
+- Tasks
+- Time Slots
+- Exceptions / Audit
+
+Shared report filters:
+- Today
+- This Week
+- This Month
+- Custom Range
+- Staff selector
+
+When a specific staff member is selected, an additional involvement filter appears:
+- Assigned to them
+- Completed by them
+- Either assigned or completed
+
+The selected date/staff scope remains active when switching report tabs.
+CSV export uses the currently filtered records.

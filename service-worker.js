@@ -1,4 +1,4 @@
-const CACHE='north-terrace-v2-2-1-wording';
+const CACHE='north-terrace-v2-3-reports-tabs-filters';
 const ASSETS=[
   './','./index.html','./login.html','./staff.html','./manager.html','./css/style.css',
   './js/firebase-config.js','./js/firebase.js','./js/auth.js','./js/store.js','./js/ui.js',

@@ -92,20 +92,147 @@
 </section>
 
 <section id="reports" class="manager-section" hidden>
-  <div class="card elevated">
-    <div class="section-intro"><div><span class="eyebrow">Management intelligence</span><h2>Detailed operations report</h2><p class="muted">Completion, exceptions, workload effort, reassignments and actual completers.</p></div><button id="exportReportBtn" class="btn secondary">Export CSV</button></div>
-    <div class="report-controls">
-      <select id="reportPeriod"><option value="today">Today</option><option value="week">This week</option><option value="month">This month</option><option value="custom">Custom range</option></select>
-      <div id="customReportDates" class="report-custom" hidden><input id="reportStart" type="date"><span>to</span><input id="reportEnd" type="date"></div>
-      <button id="runReportBtn" class="btn">Generate Report</button>
+  <div class="report-shell card elevated">
+    <div class="section-intro report-title-row">
+      <div>
+        <span class="eyebrow">Management intelligence</span>
+        <h2>Operations Reports</h2>
+        <p class="muted">Review performance, workload and exceptions using one shared date and staff filter.</p>
+      </div>
+      <button id="exportReportBtn" class="btn secondary">Export filtered CSV</button>
     </div>
-    <p id="reportCoverage" class="report-coverage"></p>
+
+    <nav class="report-tabs" aria-label="Report views">
+      <button class="active" data-report-tab="overview">Overview</button>
+      <button data-report-tab="staff">Staff</button>
+      <button data-report-tab="tasks">Tasks</button>
+      <button data-report-tab="slots">Time Slots</button>
+      <button data-report-tab="exceptions">Exceptions / Audit</button>
+    </nav>
+
+    <div class="report-filter-panel">
+      <div class="report-period-pills" aria-label="Report period">
+        <button class="active" data-report-period="today">Today</button>
+        <button data-report-period="week">This Week</button>
+        <button data-report-period="month">This Month</button>
+        <button data-report-period="custom">Custom Range</button>
+      </div>
+
+      <div class="report-filter-grid">
+        <label class="report-filter-field">
+          <span>Staff</span>
+          <select id="reportStaff">
+            <option value="all">All Staff</option>
+          </select>
+        </label>
+
+        <label id="reportInvolvementField" class="report-filter-field" hidden>
+          <span>Staff involvement</span>
+          <select id="reportInvolvement">
+            <option value="assigned">Assigned to them</option>
+            <option value="completed">Completed by them</option>
+            <option value="either">Either assigned or completed</option>
+          </select>
+        </label>
+
+        <div id="customReportDates" class="report-custom-dates" hidden>
+          <label class="report-filter-field">
+            <span>From</span>
+            <input id="reportStart" type="date">
+          </label>
+          <label class="report-filter-field">
+            <span>To</span>
+            <input id="reportEnd" type="date">
+          </label>
+          <button id="runReportBtn" class="btn small report-apply-btn">Apply dates</button>
+        </div>
+
+        <button id="resetReportFilters" class="btn secondary small report-reset-btn" type="button">Reset filters</button>
+      </div>
+
+      <div class="report-scope-line">
+        <strong id="reportScopeText">Today · All Staff</strong>
+        <span id="reportCoverage"></span>
+      </div>
+    </div>
   </div>
-  <div id="reportSummary" class="stats-grid"></div>
-  <div class="card elevated"><h2>Staff / assignee view</h2><div class="table-wrap"><table><thead><tr><th>Person</th><th>Assigned</th><th>Completed</th><th>Late</th><th>Missed</th><th>Reassigned</th><th>Completion</th><th>Known effort</th></tr></thead><tbody id="staffReportRows"></tbody></table></div></div>
-  <div class="card elevated"><h2>Task view</h2><div class="table-wrap"><table><thead><tr><th>Task</th><th>Scheduled</th><th>Completed</th><th>Late</th><th>Missed</th><th>Completion</th></tr></thead><tbody id="taskReportRows"></tbody></table></div></div>
-  <div class="card elevated"><h2>Time-slot view</h2><div class="table-wrap"><table><thead><tr><th>Slot</th><th>Tasks</th><th>Completed</th><th>Late</th><th>Missed</th><th>Known effort</th></tr></thead><tbody id="slotReportRows"></tbody></table></div></div>
-  <div class="card elevated"><h2>Exceptions & audit</h2><div class="table-wrap"><table><thead><tr><th>Date</th><th>Exception</th><th>Task</th><th>Assigned</th><th>Completed by</th><th>Slot</th></tr></thead><tbody id="exceptionRows"></tbody></table></div></div>
+
+  <section class="report-panel active" data-report-panel="overview">
+    <div id="reportSummary" class="stats-grid report-summary-grid"></div>
+
+    <div class="report-overview-grid">
+      <article class="card elevated report-insight-card">
+        <div class="report-panel-heading">
+          <div><span class="eyebrow">Completion</span><h3>Operational outcome</h3></div>
+        </div>
+        <div id="reportOutcomeBreakdown" class="report-kpi-list"></div>
+      </article>
+
+      <article class="card elevated report-insight-card">
+        <div class="report-panel-heading">
+          <div><span class="eyebrow">Management attention</span><h3>Exceptions snapshot</h3></div>
+        </div>
+        <div id="reportExceptionSnapshot" class="report-kpi-list"></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="report-panel" data-report-panel="staff" hidden>
+    <div class="card elevated">
+      <div class="report-panel-heading">
+        <div><span class="eyebrow">People</span><h2>Staff / assignee view</h2><p id="staffReportNote" class="muted"></p></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Person</th><th>Assigned</th><th>Completed</th><th>Late</th><th>Missed</th><th>Reassigned</th><th>Done by another</th><th>Completion</th><th>Known effort</th></tr></thead>
+          <tbody id="staffReportRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="report-panel" data-report-panel="tasks" hidden>
+    <div class="card elevated">
+      <div class="report-panel-heading">
+        <div><span class="eyebrow">Operations</span><h2>Task view</h2><p class="muted">See which tasks are completed consistently and where misses or delays occur.</p></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Task</th><th>Scheduled</th><th>Completed</th><th>Late</th><th>Missed</th><th>Completion</th><th>Known effort</th></tr></thead>
+          <tbody id="taskReportRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="report-panel" data-report-panel="slots" hidden>
+    <div class="card elevated">
+      <div class="report-panel-heading">
+        <div><span class="eyebrow">Time windows</span><h2>Time-slot view</h2><p class="muted">Compare completion and known workload across the fixed operational slots.</p></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Slot</th><th>Tasks</th><th>Completed</th><th>Late</th><th>Missed</th><th>Completion</th><th>Known effort</th><th>Effort unset</th></tr></thead>
+          <tbody id="slotReportRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="report-panel" data-report-panel="exceptions" hidden>
+    <div class="card elevated">
+      <div class="report-panel-heading">
+        <div><span class="eyebrow">Audit trail</span><h2>Exceptions / Audit</h2><p class="muted">Missed, late, reassigned, cross-completed, unassigned and effort-not-set records.</p></div>
+        <span id="exceptionCountBadge" class="report-count-badge">0 exceptions</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Exception</th><th>Task</th><th>Assigned</th><th>Completed by</th><th>Slot</th><th>Effort</th></tr></thead>
+          <tbody id="exceptionRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
 </section>
 
 
