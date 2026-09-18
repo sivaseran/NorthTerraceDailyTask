@@ -1,22 +1,16 @@
-North Terrace V3.2.2 temperature-task repair
+North Terrace V3.2.3 — definitive temperature repair
 
-Replace only:
+Replace:
+- manager.html
 - js/seed.js
 - js/manager.js
 - service-worker.js
 
-This repair:
-- removes legacy temperature tasks such as "Check temperature 1.30PM"
-- guarantees exactly 9 canonical temperature tasks in the weekly template
-- names them:
-  Check hot food temperature 06:30
-  Check hot food temperature 07:30
-  Check hot food temperature 08:30
-  Check hot food temperature 09:30
-  Check hot food temperature 10:30
-  Check hot food temperature 11:30
-  Check hot food temperature 12:30
-  Check hot food temperature 13:30
-  Check hot food temperature 14:30
-- makes all 9 active Monday-Sunday
-- repairs today/future daily temperature rows
+After deployment:
+1. Hard refresh.
+2. Open Manager > Effort Allocation.
+3. Click "Repair Temperature Tasks" once.
+
+The repair reads the actual Firestore weeklyTemplates collection, deletes every legacy
+temperature task not using the canonical temp_0630 ... temp_1430 IDs, recreates the
+nine correct tasks, and cleans today/future daily temperature rows.
