@@ -5440,6 +5440,113 @@ export async function ensureV321TemperatureNames(){
 }
 
 
+
+export async function reconcileTemperatureTasks(){
+  const clocks=['06:30','07:30','08:30','09:30','10:30','11:30','12:30','13:30','14:30'];
+  const wantedIds=new Set(clocks.map(clock=>`temp_${clock.replace(':','')}`));
+
+  const templatesSnap=await getDocs(collection(db,'weeklyTemplates'));
+  const templates=templatesSnap.docs.map(d=>({id:d.id,ref:d.ref,...d.data()}));
+
+  // Delete every temperature-related template that is not one of the nine
+  // canonical IDs. This intentionally catches legacy names such as
+  // "Check temperature 1.30PM" and "Cooking and check temperature every Hour".
+  const legacy=templates.filter(t=>{
+    if(wantedIds.has(t.id)) return false;
+    return /temperature/i.test(String(t.taskName||''));
+  });
+
+  const batch=writeBatch(db);
+  for(const t of legacy) batch.delete(t.ref);
+
+  const existingById=new Map(templates.filter(t=>wantedIds.has(t.id)).map(t=>[t.id,t]));
+
+  for(const clock of clocks){
+    const id=`temp_${clock.replace(':','')}`;
+    const old=existingById.get(id);
+
+    let effortMinutes=null;
+    let assigneeId='';
+    if(old?.schedule){
+      for(const day of ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']){
+        const versions=Array.isArray(old.schedule?.[day]?.versions)?old.schedule[day].versions:[];
+        const latest=[...versions].sort((a,b)=>String(b.effectiveFrom||'').localeCompare(String(a.effectiveFrom||'')))[0];
+        if(latest){
+          if(effortMinutes===null&&Number(latest.effortMinutes)>0) effortMinutes=Number(latest.effortMinutes);
+          if(!assigneeId&&latest.assigneeId) assigneeId=latest.assigneeId;
+        }
+      }
+    }
+
+    const schedule={};
+    for(const day of ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']){
+      schedule[day]={versions:[{
+        effectiveFrom:'2026-09-18',
+        active:true,
+        slotId:v3SlotForTime(clock),
+        assigneeId,
+        assigneeKey:'',
+        legacyAssignee:'',
+        effortMinutes,
+        sourceTime:clock
+      }]};
+    }
+
+    batch.set(doc(db,'weeklyTemplates',id),{
+      schemaVersion:3,
+      taskName:`Check hot food temperature ${clock}`,
+      photoRequired:false,
+      temperatureRequired:true,
+      recurring:true,
+      frequencyMinutes:null,
+      schedule,
+      updatedAt:serverTimestamp()
+    },{merge:false});
+  }
+
+  await batch.commit();
+
+  // Clean today/future daily rows too.
+  const today=localTodayISO();
+  const dailySnap=await getDocs(collection(db,'dailyTasks'));
+  const docs=dailySnap.docs.filter(d=>String(d.data().date||'')>=today);
+
+  for(let i=0;i<docs.length;i+=350){
+    const b=writeBatch(db);
+    let touched=0;
+
+    for(const d of docs.slice(i,i+350)){
+      const x=d.data();
+      const tid=String(x.templateTaskId||'');
+      const name=String(x.taskName||'');
+
+      if(wantedIds.has(tid)){
+        const m=tid.match(/^temp_(\d{2})(\d{2})$/);
+        if(m){
+          const clock=`${m[1]}:${m[2]}`;
+          b.update(d.ref,{
+            taskName:`Check hot food temperature ${clock}`,
+            sourceTime:clock,
+            slotId:v3SlotForTime(clock),
+            updatedAt:serverTimestamp()
+          });
+          touched++;
+        }
+      }else if(/temperature/i.test(name)){
+        b.delete(d.ref);
+        touched++;
+      }
+    }
+
+    if(touched) await b.commit();
+  }
+
+  return {
+    legacyRemoved:legacy.map(t=>t.taskName||t.id),
+    canonicalCount:clocks.length
+  };
+}
+
 export async function ensureV322TemperatureRepair(){
   const stateRef=doc(db,'system','app');
   const stateSnap=await getDoc(stateRef);

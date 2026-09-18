@@ -6,7 +6,7 @@ import {
   updateDailyTask,saveFutureRule,createTaskForDate,cancelTaskToday,stopTaskFuture,saveFutureShiftCover,
   workloadBySlot,capacityForDraft,completeTask
 } from './store.js';
-import {initializeV22,migrateParthToParthy,ensureV30TaskModel,ensureV321TemperatureNames,ensureV322TemperatureRepair} from './seed.js';
+import {initializeV22,migrateParthToParthy,ensureV30TaskModel,ensureV321TemperatureNames,ensureV322TemperatureRepair,reconcileTemperatureTasks} from './seed.js';
 import {initReports} from './reports.js';
 import {
   escapeHtml,statusView,showToast,confirmAction,setButtonLoading,setInlineMessage,
@@ -1502,6 +1502,29 @@ $('#effortResetFilters').onclick=()=>{
 };
 $('#effortSaveTemplate').onclick=saveWeeklyEffortSetup;
 
+
+$('#repairTemperatureTasks').onclick=async()=>{
+  const btn=$('#repairTemperatureTasks');
+  setButtonLoading(btn,true,'Repairing…');
+  try{
+    const result=await reconcileTemperatureTasks();
+    await loadEffortAllocation();
+    await bindDate();
+    setInlineMessage(
+      $('#effortResult'),
+      `✓ Temperature tasks repaired. ${result.legacyRemoved.length} legacy temperature template(s) removed and exactly ${result.canonicalCount} hourly hot-food temperature tasks confirmed.`,
+      'success'
+    );
+    showToast('Temperature task list repaired.','success');
+  }catch(error){
+    console.error(error);
+    setInlineMessage($('#effortResult'),error.message||'Could not repair temperature tasks.','error');
+  }finally{
+    setButtonLoading(btn,false);
+  }
+};
+
+
 async function checkSystemReady(){
   try{
     const state=await getSystemState();
@@ -1567,6 +1590,7 @@ try{
 await ensureV30TaskModel();
   await ensureV321TemperatureNames();
   await ensureV322TemperatureRepair();
+  await reconcileTemperatureTasks();
   await loadPeople();
   { const a=await getStaffAvailability(); staffAvailability=a?.week||structuredClone(DEFAULT_STAFF_AVAILABILITY); }
 updateDateUI();
