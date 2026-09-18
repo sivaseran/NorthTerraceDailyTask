@@ -20,6 +20,7 @@ if(!user||user.role!=='manager') location.href='login.html';
 let selectedDate=todayISO(),tasks=[],people=[],unsubscribe=null;
 let coverDate=todayISO(),coverTasks=[];
 let advancedEditAll=false;
+let bulkDate=todayISO();
 let bulkRowsData=[];
 let bulkDirty=new Map();
 const isHistoricalDate=()=>selectedDate<todayISO();
@@ -613,108 +614,320 @@ $('#coverFutureBtn').onclick=async()=>{
 
 
 
-const DAY_LABELS={mon:'Monday',tue:'Tuesday',wed:'Wednesday',thu:'Thursday',fri:'Friday',sat:'Saturday',sun:'Sunday'};
 
-function activeVersionForBulk(dayData){
-  if(!dayData?.versions?.length) return null;
-  return dayData.versions.filter(v=>v.active!==false&&!v.effectiveTo)
-    .sort((a,b)=>String(a.effectiveFrom||'').localeCompare(String(b.effectiveFrom||''))).at(-1)||null;
-}
-function bulkRowKey(r){return `${r.templateTaskId}|${r.dayKey}`;}
+function bulkRowKey(r){return r.id;}
 function bulkPersonOptions(selected=''){
-  return `<option value="">Unassigned</option>`+people.map(p=>`<option value="${p.id}" ${p.id===selected?'selected':''}>${escapeHtml(p.name||p.id)}</option>`).join('');
+  return `<option value="">Unassigned</option>`+
+    people.map(p=>`<option value="${p.id}" ${p.id===selected?'selected':''}>${escapeHtml(p.name||p.id)}</option>`).join('');
 }
-function bulkSlotLabel(id){return id==='AUTO'?'Hourly / automatic':slotLabelForDate(id,todayISO());}
+function bulkSlotOptions(selected=''){
+  return SLOT_DEFS.map(s=>`<option value="${s.id}" ${s.id===selected?'selected':''}>${escapeHtml(slotLabelForDate(s.id,bulkDate))}</option>`).join('');
+}
+function bulkEffectiveRow(row){
+  return bulkDirty.get(row.id)||row;
+}
 function filteredBulkRows(){
-  const d=$('#bulkDayFilter').value,s=$('#bulkSlotFilter').value;
-  const ua=$('#bulkOnlyUnassigned').checked,me=$('#bulkOnlyMissingEffort').checked;
-  return bulkRowsData.filter(r=>{
-    const x=bulkDirty.get(bulkRowKey(r))||r;
-    return (d==='all'||r.dayKey===d) && (s==='all'||r.slotId===s) && (!ua||!x.assigneeId) && (!me||!Number(x.effortMinutes));
+  const slot=$('#bulkSlotFilter').value;
+  const unassigned=$('#bulkOnlyUnassigned').checked;
+  const missingEffort=$('#bulkOnlyMissingEffort').checked;
+  const includeRemoved=$('#bulkIncludeRemoved').checked;
+
+  return bulkRowsData.filter(row=>{
+    const x=bulkEffectiveRow(row);
+    if(!includeRemoved&&x.status==='cancelled') return false;
+    if(slot!=='all'&&x.slotId!==slot) return false;
+    if(unassigned&&x.assignedTo) return false;
+    if(missingEffort&&Number(x.effortMinutes)>0) return false;
+    return true;
   });
 }
+function updateBulkDateUI(){
+  $('#bulkDateText').textContent=formatLongDate(bulkDate);
+  $('#bulkDatePicker').value=bulkDate;
+
+  const effectiveFrom=bulkDate<todayISO()?todayISO():bulkDate;
+  const weekday=new Date(effectiveFrom+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'});
+  $('#bulkFutureHelp').textContent=
+    bulkDate<todayISO()
+      ? `Using a historical date as your source. Future changes will start today and apply to matching ${weekday} schedules.`
+      : `Future changes start from ${formatLongDate(effectiveFrom)} for the matching weekday.`;
+
+  $('#bulkSaveDate').disabled=bulkDate<todayISO();
+  $('#bulkSaveDate').title=bulkDate<todayISO()?'Historical daily records are read only. Use Apply to Future Schedule instead.':'';
+}
 function updateBulkSummary(){
-  const all=bulkRowsData.map(r=>bulkDirty.get(bulkRowKey(r))||r);
+  const visible=filteredBulkRows();
+  const all=bulkRowsData.map(bulkEffectiveRow);
+  const changed=bulkDirty.size;
+  const futureCapable=[...bulkDirty.values()].filter(r=>r.templateTaskId).length;
   $('#bulkSummary').innerHTML=`
-    <span><strong>${filteredBulkRows().length}</strong> visible</span>
-    <span><strong>${bulkDirty.size}</strong> unsaved</span>
-    <span><strong>${all.filter(r=>!r.assigneeId).length}</strong> unassigned</span>
-    <span><strong>${all.filter(r=>!Number(r.effortMinutes)).length}</strong> effort not set</span>`;
+    <span><strong>${visible.length}</strong> visible</span>
+    <span><strong>${changed}</strong> changed</span>
+    <span><strong>${all.filter(r=>!r.assignedTo&&r.status!=='cancelled').length}</strong> unassigned</span>
+    <span><strong>${all.filter(r=>!Number(r.effortMinutes)&&r.status!=='cancelled').length}</strong> effort not set</span>
+    <span><strong>${futureCapable}</strong> can update future schedule</span>`;
 }
 function renderBulkRows(){
-  $('#bulkRows').innerHTML=filteredBulkRows().map(r=>{
-    const key=bulkRowKey(r),x=bulkDirty.get(key)||r;
-    return `<tr data-key="${escapeHtml(key)}">
+  const visible=filteredBulkRows();
+
+  $('#bulkRows').innerHTML=visible.map(row=>{
+    const x=bulkEffectiveRow(row);
+    const dirty=bulkDirty.has(row.id);
+    const removed=x.status==='cancelled'||x.removeRequested;
+    const futureReady=Boolean(row.templateTaskId);
+
+    return `<tr data-id="${escapeHtml(row.id)}" class="${dirty?'bulk-row-dirty':''} ${removed?'bulk-row-removed':''}">
       <td><input class="bulk-row-select" type="checkbox"></td>
-      <td><strong>${escapeHtml(r.taskName)}</strong>${r.photoRequired?'<span class="mini-pill photo-pill">📷</span>':''}</td>
-      <td>${DAY_LABELS[r.dayKey]}</td><td>${escapeHtml(bulkSlotLabel(r.slotId))}</td>
-      <td><select class="bulk-assignee">${bulkPersonOptions(x.assigneeId||'')}</select></td>
-      <td><input class="bulk-effort" type="number" min="1" step="5" placeholder="—" value="${Number(x.effortMinutes)>0?Number(x.effortMinutes):''}"></td>
-      <td><button class="link-btn bulk-copy-assignee" type="button">Assignee ↓</button><br><button class="link-btn bulk-copy-effort" type="button">Effort ↓</button></td>
+      <td>
+        <input class="bulk-task-name" value="${escapeHtml(x.taskName||'')}" ${removed?'disabled':''}>
+        <div class="bulk-task-sub">
+          ${futureReady?'<span class="mini-pill recurring-pill">Recurring</span>':'<span class="mini-pill">Date only</span>'}
+          ${row.photoRequired?'<span class="mini-pill photo-pill">📷 Photo</span>':''}
+        </div>
+      </td>
+      <td><select class="bulk-slot" ${removed?'disabled':''}>${bulkSlotOptions(x.slotId)}</select></td>
+      <td><select class="bulk-assignee" ${removed?'disabled':''}>${bulkPersonOptions(x.assignedTo||'')}</select></td>
+      <td><input class="bulk-effort" type="number" min="1" step="5" placeholder="—" value="${Number(x.effortMinutes)>0?Number(x.effortMinutes):''}" ${removed?'disabled':''}></td>
+      <td>${statusView(x.status)}</td>
+      <td>
+        ${x.status==='cancelled'
+          ?'<span class="historical-view-badge">Removed</span>'
+          :`<label class="bulk-remove-label"><input class="bulk-remove" type="checkbox" ${x.removeRequested?'checked':''}> Remove</label>`}
+      </td>
     </tr>`;
-  }).join('')||'<tr><td colspan="7" class="muted report-empty-cell">No tasks match these filters.</td></tr>';
-  $('#bulkSelectAll').checked=false; updateBulkSummary();
+  }).join('')||'<tr><td colspan="7" class="muted report-empty-cell">No existing tasks found for this date/filter.</td></tr>';
+
+  $('#bulkSelectAll').checked=false;
+  updateBulkSummary();
 }
 async function loadBulkSetup(){
-  if(!people.length) await loadPeople();
-  const templates=await getWeeklyTemplate();
-  bulkRowsData=[];
-  for(const t of templates){
-    for(const dayKey of Object.keys(DAY_LABELS)){
-      const v=activeVersionForBulk(t.schedule?.[dayKey]);
-      if(!v) continue;
-      bulkRowsData.push({
-        templateTaskId:t.id,taskName:t.taskName||'Untitled task',dayKey,slotId:v.slotId||'',
-        assigneeId:v.assigneeId||'',effortMinutes:Number(v.effortMinutes)>0?Number(v.effortMinutes):null,
-        photoRequired:Boolean(t.photoRequired)
-      });
+  try{
+    if(!people.length) await loadPeople();
+    updateBulkDateUI();
+    setInlineMessage($('#bulkResult'),'');
+    $('#bulkRows').innerHTML='<tr><td colspan="7" class="muted report-empty-cell">Loading existing Firebase tasks…</td></tr>';
+
+    // Important: ensure:false means this screen NEVER generates/recreates tasks.
+    bulkRowsData=await getTasksForDate(bulkDate,{ensure:false});
+    bulkDirty.clear();
+
+    const selectedSlot=$('#bulkSlotFilter').value||'all';
+    $('#bulkSlotFilter').innerHTML='<option value="all">All slots</option>'+
+      SLOT_DEFS.map(s=>`<option value="${s.id}">${escapeHtml(slotLabelForDate(s.id,bulkDate))}</option>`).join('');
+    if([...$('#bulkSlotFilter').options].some(o=>o.value===selectedSlot)) $('#bulkSlotFilter').value=selectedSlot;
+
+    renderBulkRows();
+
+    if(!bulkRowsData.length){
+      setInlineMessage(
+        $('#bulkResult'),
+        `No daily task records exist in Firebase for ${formatLongDate(bulkDate)}. Choose one of the dates you previously used in the app.`,
+        'warning'
+      );
     }
+  }catch(error){
+    console.error(error);
+    setInlineMessage($('#bulkResult'),'Could not load the existing daily tasks.','error');
   }
-  const order=['mon','tue','wed','thu','fri','sat','sun'];
-  bulkRowsData.sort((a,b)=>order.indexOf(a.dayKey)-order.indexOf(b.dayKey)||String(a.slotId).localeCompare(String(b.slotId))||String(a.taskName).localeCompare(String(b.taskName)));
-  $('#bulkSlotFilter').innerHTML='<option value="all">All slots</option>'+SLOT_DEFS.map(s=>`<option value="${s.id}">${escapeHtml(slotLabelForDate(s.id,todayISO()))}</option>`).join('')+'<option value="AUTO">Hourly / automatic</option>';
+}
+function markExistingBulkDirty(rowEl){
+  const id=rowEl.dataset.id;
+  const original=bulkRowsData.find(r=>r.id===id);
+  if(!original) return;
+
+  const removeRequested=Boolean(rowEl.querySelector('.bulk-remove')?.checked);
+  const draft={
+    ...original,
+    taskName:rowEl.querySelector('.bulk-task-name')?.value.trim()||original.taskName,
+    slotId:rowEl.querySelector('.bulk-slot')?.value||original.slotId,
+    assignedTo:rowEl.querySelector('.bulk-assignee')?.value||'',
+    effortMinutes:Number(rowEl.querySelector('.bulk-effort')?.value)>0?Number(rowEl.querySelector('.bulk-effort').value):null,
+    removeRequested
+  };
+
+  const unchanged=
+    draft.taskName===original.taskName &&
+    draft.slotId===original.slotId &&
+    draft.assignedTo===(original.assignedTo||'') &&
+    Number(draft.effortMinutes||0)===Number(original.effortMinutes||0) &&
+    !removeRequested;
+
+  if(unchanged) bulkDirty.delete(id);
+  else bulkDirty.set(id,draft);
+
   renderBulkRows();
 }
-function markBulkDirty(row){
-  const key=row.dataset.key,orig=bulkRowsData.find(r=>bulkRowKey(r)===key); if(!orig) return;
-  const draft={...orig,assigneeId:row.querySelector('.bulk-assignee').value,effortMinutes:Number(row.querySelector('.bulk-effort').value)>0?Number(row.querySelector('.bulk-effort').value):null};
-  const same=draft.assigneeId===orig.assigneeId&&Number(draft.effortMinutes||0)===Number(orig.effortMinutes||0);
-  if(same) bulkDirty.delete(key); else bulkDirty.set(key,draft);
-  row.classList.toggle('bulk-row-dirty',!same); updateBulkSummary();
+function selectedBulkRowEls(){
+  return [...document.querySelectorAll('#bulkRows tr[data-id]')]
+    .filter(row=>row.querySelector('.bulk-row-select')?.checked);
 }
-function selectedBulkRows(){return [...document.querySelectorAll('#bulkRows tr[data-key]')].filter(r=>r.querySelector('.bulk-row-select')?.checked);}
-function copyDown(row,type){
-  const rows=[...document.querySelectorAll('#bulkRows tr[data-key]')],i=rows.indexOf(row); if(i<0)return;
-  const src=bulkRowsData.find(r=>bulkRowKey(r)===row.dataset.key); if(!src)return;
-  const val=type==='assignee'?row.querySelector('.bulk-assignee').value:row.querySelector('.bulk-effort').value;
-  for(let n=i+1;n<rows.length;n++){
-    const d=bulkRowsData.find(r=>bulkRowKey(r)===rows[n].dataset.key);
-    if(!d||d.dayKey!==src.dayKey||d.slotId!==src.slotId) break;
-    if(type==='assignee') rows[n].querySelector('.bulk-assignee').value=val; else rows[n].querySelector('.bulk-effort').value=val;
-    markBulkDirty(rows[n]);
+function applyQuickEffort(minutes){
+  const rows=selectedBulkRowEls();
+  if(!rows.length){
+    showToast('Select one or more task rows first.','warning',{title:'No rows selected'});
+    return;
+  }
+  rows.forEach(row=>{
+    const input=row.querySelector('.bulk-effort');
+    if(!input||input.disabled) return;
+    input.value=minutes;
+    const original=bulkRowsData.find(r=>r.id===row.dataset.id);
+    const existing=bulkDirty.get(row.dataset.id)||original;
+    bulkDirty.set(row.dataset.id,{...existing,effortMinutes:Number(minutes)});
+  });
+  renderBulkRows();
+}
+async function saveBulkDateOnly(){
+  if(bulkDate<todayISO()){
+    showToast('Historical daily records are read only.','warning',{title:'No changes made'});
+    return;
+  }
+  if(!bulkDirty.size){
+    showToast('There are no changes to save.','info');
+    return;
+  }
+
+  const ok=await confirmAction({
+    title:'Save changes to this date only?',
+    message:`Update ${bulkDirty.size} existing daily task record${bulkDirty.size===1?'':'s'} on ${formatLongDate(bulkDate)}?`,
+    details:'The recurring weekly schedule will not change.',
+    confirmText:'Save This Date'
+  });
+  if(!ok) return;
+
+  const btn=$('#bulkSaveDate');setButtonLoading(btn,true,'Saving…');
+  try{
+    const names=new Map(people.map(p=>[p.id,p.name||'Unassigned']));
+    for(const draft of bulkDirty.values()){
+      if(draft.removeRequested){
+        await cancelTaskToday(draft.id,user);
+      }else{
+        await updateDailyTask(draft.id,{
+          taskName:draft.taskName,
+          slotId:draft.slotId,
+          assignedTo:draft.assignedTo||'',
+          assignedName:draft.assignedTo?(names.get(draft.assignedTo)||'Unassigned'):'Unassigned',
+          effortMinutes:draft.effortMinutes
+        },user);
+      }
+    }
+    setInlineMessage($('#bulkResult'),`✓ ${bulkDirty.size} existing task record(s) updated for this date only.`,'success');
+    await loadBulkSetup();
+    if(bulkDate===selectedDate) await bindDate();
+  }catch(error){
+    console.error(error);
+    setInlineMessage($('#bulkResult'),error.message||'Could not save daily task changes.','error');
+  }finally{
+    setButtonLoading(btn,false);
   }
 }
-$('#bulkRows').addEventListener('change',e=>{const r=e.target.closest('tr[data-key]');if(r&&(e.target.classList.contains('bulk-assignee')||e.target.classList.contains('bulk-effort')))markBulkDirty(r);});
-$('#bulkRows').addEventListener('click',e=>{const r=e.target.closest('tr[data-key]');if(!r)return;if(e.target.closest('.bulk-copy-assignee'))copyDown(r,'assignee');if(e.target.closest('.bulk-copy-effort'))copyDown(r,'effort');});
-['bulkDayFilter','bulkSlotFilter','bulkOnlyUnassigned','bulkOnlyMissingEffort'].forEach(id=>$('#'+id).addEventListener('change',renderBulkRows));
-$('#bulkResetFilters').onclick=()=>{$('#bulkDayFilter').value='all';$('#bulkSlotFilter').value='all';$('#bulkOnlyUnassigned').checked=false;$('#bulkOnlyMissingEffort').checked=false;renderBulkRows();};
-$('#bulkSelectAll').onchange=e=>document.querySelectorAll('#bulkRows .bulk-row-select').forEach(cb=>cb.checked=e.target.checked);
-document.querySelectorAll('.bulk-effort-chip').forEach(btn=>btn.onclick=()=>{
-  const rows=selectedBulkRows(); if(!rows.length){showToast('Select one or more rows first.','warning');return;}
-  rows.forEach(r=>{r.querySelector('.bulk-effort').value=btn.dataset.minutes;markBulkDirty(r);});
-});
-$('#bulkSaveAll').onclick=async()=>{
-  if(!bulkDirty.size){showToast('There are no bulk changes to save.','info');return;}
-  const ok=await confirmAction({title:'Save all recurring task changes?',message:`Apply ${bulkDirty.size} assignment/effort change${bulkDirty.size===1?'':'s'} going forward?`,details:'Historical records will not change. Incomplete today/future snapshots will be refreshed.',confirmText:'Save All Changes'});
-  if(!ok)return;
-  const btn=$('#bulkSaveAll');setButtonLoading(btn,true,'Saving…');
+async function saveBulkFuture(){
+  if(!bulkDirty.size){
+    showToast('There are no changes to apply.','info');
+    return;
+  }
+
+  const eligible=[...bulkDirty.values()].filter(r=>r.templateTaskId);
+  const dateOnly=[...bulkDirty.values()].filter(r=>!r.templateTaskId);
+  if(!eligible.length){
+    showToast('None of the changed rows are linked to a recurring template.','warning',{title:'Future update unavailable'});
+    return;
+  }
+
+  const effectiveFrom=bulkDate<todayISO()?todayISO():bulkDate;
+  const weekday=new Date(effectiveFrom+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'});
+
+  const ok=await confirmAction({
+    title:'Apply changed tasks to the future schedule?',
+    message:`Apply ${eligible.length} changed recurring task${eligible.length===1?'':'s'} from ${formatLongDate(effectiveFrom)} onward?`,
+    details:`These changes affect future matching ${weekday}s only. Earlier history is preserved.${dateOnly.length?` ${dateOnly.length} date-only/ad-hoc changed row(s) will be skipped because they have no recurring template.`:''}`,
+    confirmText:'Apply to Future Schedule'
+  });
+  if(!ok) return;
+
+  const btn=$('#bulkSaveFuture');setButtonLoading(btn,true,'Updating future…');
   try{
-    const result=await bulkUpdateWeeklyTemplateRows([...bulkDirty.values()],user);
-    setInlineMessage($('#bulkResult'),`✓ Saved ${result.updated} recurring change(s). ${result.snapshotsUpdated} generated task record(s) refreshed.`,'success');
-    bulkDirty.clear();await loadBulkSetup();await bindDate();
-  }catch(e){console.error(e);setInlineMessage($('#bulkResult'),e.message||'Could not save bulk task setup.','error');}
-  finally{setButtonLoading(btn,false);}
+    for(const draft of eligible){
+      if(draft.removeRequested){
+        await stopTaskFuture(draft.templateTaskId,effectiveFrom,user);
+      }else{
+        await saveFutureRule(draft.templateTaskId,effectiveFrom,{
+          taskName:draft.taskName,
+          slotId:draft.slotId,
+          assignedTo:draft.assignedTo||'',
+          effortMinutes:draft.effortMinutes
+        },user);
+      }
+    }
+
+    setInlineMessage(
+      $('#bulkResult'),
+      `✓ ${eligible.length} recurring task change(s) applied from ${formatLongDate(effectiveFrom)} onward.${dateOnly.length?` ${dateOnly.length} date-only row(s) were not applied to the recurring schedule.`:''}`,
+      'success'
+    );
+    bulkDirty.clear();
+    await loadBulkSetup();
+    await bindDate();
+  }catch(error){
+    console.error(error);
+    setInlineMessage($('#bulkResult'),error.message||'Could not update the future schedule.','error');
+  }finally{
+    setButtonLoading(btn,false);
+  }
+}
+
+$('#bulkPrevDate').onclick=()=>{bulkDate=addDaysISO(bulkDate,-1);loadBulkSetup();};
+$('#bulkNextDate').onclick=()=>{bulkDate=addDaysISO(bulkDate,1);loadBulkSetup();};
+$('#bulkToday').onclick=()=>{bulkDate=todayISO();loadBulkSetup();};
+$('#bulkDatePicker').onchange=e=>{if(e.target.value){bulkDate=e.target.value;loadBulkSetup();}};
+$('#bulkLoadDate').onclick=loadBulkSetup;
+
+$('#bulkRows').addEventListener('change',e=>{
+  const row=e.target.closest('tr[data-id]');
+  if(!row) return;
+  if(
+    e.target.classList.contains('bulk-task-name')||
+    e.target.classList.contains('bulk-slot')||
+    e.target.classList.contains('bulk-assignee')||
+    e.target.classList.contains('bulk-effort')||
+    e.target.classList.contains('bulk-remove')
+  ){
+    markExistingBulkDirty(row);
+  }
+});
+$('#bulkRows').addEventListener('input',e=>{
+  const row=e.target.closest('tr[data-id]');
+  if(!row) return;
+  if(e.target.classList.contains('bulk-task-name')||e.target.classList.contains('bulk-effort')){
+    // Keep draft state without re-rendering on every keystroke.
+    const original=bulkRowsData.find(r=>r.id===row.dataset.id);
+    if(!original) return;
+    const current=bulkDirty.get(original.id)||{...original};
+    if(e.target.classList.contains('bulk-task-name')) current.taskName=e.target.value;
+    if(e.target.classList.contains('bulk-effort')) current.effortMinutes=Number(e.target.value)>0?Number(e.target.value):null;
+    bulkDirty.set(original.id,current);
+    row.classList.add('bulk-row-dirty');
+    updateBulkSummary();
+  }
+});
+['bulkSlotFilter','bulkOnlyUnassigned','bulkOnlyMissingEffort','bulkIncludeRemoved'].forEach(id=>{
+  $('#'+id).addEventListener('change',renderBulkRows);
+});
+$('#bulkResetFilters').onclick=()=>{
+  $('#bulkSlotFilter').value='all';
+  $('#bulkOnlyUnassigned').checked=false;
+  $('#bulkOnlyMissingEffort').checked=false;
+  $('#bulkIncludeRemoved').checked=false;
+  renderBulkRows();
 };
+$('#bulkSelectAll').onchange=e=>{
+  document.querySelectorAll('#bulkRows .bulk-row-select').forEach(cb=>cb.checked=e.target.checked);
+};
+document.querySelectorAll('.bulk-effort-chip').forEach(btn=>{
+  btn.onclick=()=>applyQuickEffort(Number(btn.dataset.minutes));
+});
+$('#bulkSaveDate').onclick=saveBulkDateOnly;
+$('#bulkSaveFuture').onclick=saveBulkFuture;
 
 
 async function checkSystemReady(){
