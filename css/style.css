@@ -1265,3 +1265,31 @@ body:not(.manager-page) .date-nav-center strong{
 .bulk-table .bulk-assignee{min-width:135px}.bulk-table .bulk-effort{width:78px}
 .bulk-row-dirty{background:#fffbed!important;box-shadow:inset 3px 0 0 #d7a627}
 @media(max-width:700px){.bulk-filter-bar{display:grid;grid-template-columns:1fr 1fr}.bulk-filter-field{min-width:0}#bulkResetFilters{grid-column:1/-1}}
+
+
+/* V2.8.1 — Existing Firebase Schedule Bulk Editor */
+.bulk-date-nav{margin:14px 0 10px}
+.bulk-save-bar{
+  display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  margin:10px 0 12px;padding:10px 12px;
+  border:1px solid var(--border);border-radius:10px;background:#fbfcfd
+}
+.bulk-save-bar .muted{font-size:10px;line-height:1.35;flex:1;min-width:220px}
+.existing-bulk-table{min-width:1050px}
+.existing-bulk-table td:nth-child(2){min-width:320px}
+.existing-bulk-table .bulk-task-name{width:100%;min-width:280px}
+.existing-bulk-table .bulk-slot{min-width:135px}
+.existing-bulk-table .bulk-assignee{min-width:135px}
+.existing-bulk-table .bulk-effort{width:78px}
+.bulk-task-sub{display:flex;gap:4px;margin-top:4px}
+.bulk-remove-label{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;color:#8f3030}
+.bulk-row-removed{opacity:.65;background:#f7f7f7!important}
+.bulk-note{
+  margin-top:10px;padding:9px 11px;border-radius:9px;background:#f4f7f9;
+  color:#5d6f7a;font-size:10px;line-height:1.45
+}
+.bulk-note strong{color:#314650}
+@media(max-width:700px){
+  .bulk-save-bar{align-items:stretch;flex-direction:column}
+  .bulk-save-bar .btn{width:100%}
+}
