@@ -1333,3 +1333,534 @@ body:not(.manager-page) .date-nav-center strong{
   margin-left:8px;padding:2px 6px;border-radius:999px;
   background:#fff4da;color:#865d0e;font-size:9px;font-style:normal;font-weight:800
 }
+
+
+/* ============================================================
+   V2.8.4 — Weekly Bulk Matrix (days as columns)
+   ============================================================ */
+.bulk-matrix-wrap{
+  max-height:72vh;
+  overflow:auto;
+  border:1px solid var(--border);
+  border-radius:11px;
+}
+.bulk-matrix-table{
+  width:max-content;
+  min-width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+  background:#fff;
+}
+.bulk-matrix-table th,
+.bulk-matrix-table td{
+  border-right:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  vertical-align:top;
+}
+.bulk-matrix-table thead th{
+  position:sticky;
+  top:0;
+  z-index:4;
+  min-width:165px;
+  padding:9px 8px;
+  background:#f5f8fa;
+  color:#405764;
+  text-align:center;
+  font-size:11px;
+  font-weight:900;
+}
+.bulk-matrix-table thead th small{
+  display:block;
+  margin-top:2px;
+  color:var(--muted);
+  font-size:9px;
+  font-weight:650;
+}
+.bulk-matrix-table .bulk-task-sticky{
+  position:sticky;
+  left:0;
+  z-index:3;
+  min-width:250px;
+  max-width:250px;
+  background:#fbfcfd;
+}
+.bulk-matrix-table thead .bulk-task-sticky{
+  z-index:6;
+}
+.bulk-task-info{
+  padding:10px 11px;
+  text-align:left;
+}
+.bulk-task-info strong{
+  display:block;
+  font-size:12px;
+  line-height:1.35;
+  color:#263d49;
+}
+.bulk-task-info>div{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  flex-wrap:wrap;
+  margin-top:5px;
+  color:var(--muted);
+  font-size:9px;
+}
+.bulk-matrix-cell{
+  position:relative;
+  min-width:165px;
+  padding:8px;
+  background:#fff;
+}
+.bulk-matrix-cell:hover{
+  background:#fbfdfe;
+}
+.bulk-cell-dirty{
+  background:#fffbed!important;
+  box-shadow:inset 0 3px 0 #d7a627;
+}
+.bulk-cell-removed{
+  background:#f6f6f6!important;
+  opacity:.72;
+}
+.bulk-matrix-empty{
+  min-width:165px;
+  text-align:center;
+  color:#b1bcc3;
+  background:#fafbfc;
+  font-size:18px;
+  vertical-align:middle!important;
+}
+.bulk-cell-select{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  margin-bottom:6px;
+  color:#83919a;
+  font-size:8px;
+  font-weight:800;
+  text-transform:uppercase;
+}
+.bulk-cell-assignee{
+  width:100%;
+  min-height:32px;
+  margin:0 0 6px;
+  padding:5px 6px;
+  font-size:10px;
+}
+.bulk-cell-effort-row{
+  display:flex;
+  align-items:center;
+  gap:4px;
+}
+.bulk-cell-effort{
+  width:62px;
+  min-height:30px;
+  margin:0;
+  padding:4px 6px;
+  font-size:10px;
+}
+.bulk-cell-effort-row>span{
+  color:var(--muted);
+  font-size:9px;
+}
+.bulk-cell-meta{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:4px;
+  margin-top:6px;
+  min-height:20px;
+  color:var(--muted);
+  font-size:9px;
+}
+.bulk-cell-remove{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  margin-top:5px;
+  color:#953a36;
+  font-size:9px;
+  font-weight:800;
+}
+.bulk-cell-removed-label{
+  display:inline-flex;
+  margin-top:5px;
+  padding:3px 6px;
+  border-radius:999px;
+  background:#eceff1;
+  color:#78858c;
+  font-size:9px;
+  font-weight:800;
+}
+
+@media(max-width:800px){
+  .bulk-matrix-wrap{max-height:70vh}
+  .bulk-matrix-table .bulk-task-sticky{
+    min-width:185px;
+    max-width:185px;
+  }
+  .bulk-matrix-table thead th,
+  .bulk-matrix-cell,
+  .bulk-matrix-empty{
+    min-width:145px;
+  }
+}
+
+
+/* ============================================================
+   V2.8.5 — Separate Effort Allocation form
+   ============================================================ */
+.effort-toolbar{
+  display:flex;
+  align-items:end;
+  gap:10px;
+  flex-wrap:wrap;
+  margin:12px 0;
+  padding:11px 12px;
+  border:1px solid var(--border);
+  border-radius:11px;
+  background:#f8fafb;
+}
+.effort-quick-set{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  flex-wrap:wrap;
+  margin-left:auto;
+}
+.effort-quick-set>span{
+  font-size:10px;
+  font-weight:850;
+  color:#536975;
+}
+.effort-chip{
+  border:1px solid #cfdbe2;
+  background:#fff;
+  border-radius:999px;
+  padding:5px 8px;
+  font-size:10px;
+  font-weight:850;
+  cursor:pointer;
+}
+.effort-chip:hover{background:#eef6fd;border-color:#aad2f5}
+.effort-chip.clear{color:#7a5555}
+.effort-matrix-wrap{
+  max-height:72vh;
+  overflow:auto;
+  border:1px solid var(--border);
+  border-radius:11px;
+}
+.effort-matrix-table{
+  width:max-content;
+  min-width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+  background:#fff;
+}
+.effort-matrix-table th,
+.effort-matrix-table td{
+  border-right:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  vertical-align:top;
+}
+.effort-matrix-table thead th{
+  position:sticky;
+  top:0;
+  z-index:4;
+  min-width:125px;
+  padding:9px 7px;
+  background:#f5f8fa;
+  color:#405764;
+  text-align:center;
+  font-size:10px;
+  font-weight:900;
+}
+.effort-matrix-table thead th small{
+  display:block;
+  margin-top:2px;
+  color:var(--muted);
+  font-size:9px;
+  font-weight:650;
+}
+.effort-task-sticky{
+  position:sticky;
+  left:0;
+  z-index:3;
+  min-width:255px!important;
+  max-width:255px;
+  background:#fbfcfd!important;
+}
+.effort-matrix-table thead .effort-task-sticky{z-index:6}
+.effort-task-info{
+  padding:9px 10px;
+  text-align:left;
+}
+.effort-task-info strong{
+  display:block;
+  color:#263d49;
+  font-size:11px;
+  line-height:1.35;
+}
+.effort-task-info>div{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  flex-wrap:wrap;
+  margin-top:4px;
+  color:var(--muted);
+  font-size:9px;
+}
+.effort-matrix-cell{
+  min-width:125px;
+  padding:8px;
+  background:#fff;
+  text-align:center;
+}
+.effort-cell-dirty{
+  background:#fffbed!important;
+  box-shadow:inset 0 3px 0 #d7a627;
+}
+.effort-matrix-empty{
+  min-width:125px;
+  color:#b1bcc3;
+  background:#fafbfc;
+  text-align:center;
+  vertical-align:middle!important;
+}
+.effort-matrix-empty.removed{
+  font-size:9px;
+  color:#8c969b;
+}
+.effort-cell-select{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  margin-bottom:6px;
+  color:#84939b;
+  font-size:8px;
+  font-weight:800;
+  text-transform:uppercase;
+}
+.effort-value-wrap{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+}
+.effort-cell-input{
+  width:64px;
+  min-height:34px;
+  margin:0;
+  padding:5px 6px;
+  font-size:12px;
+  font-weight:800;
+  text-align:center;
+}
+.effort-value-wrap>span{
+  color:var(--muted);
+  font-size:9px;
+}
+.effort-cell-footer{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  margin-top:6px;
+  min-height:20px;
+  color:var(--muted);
+  font-size:8px;
+}
+@media(max-width:800px){
+  .effort-task-sticky{min-width:185px!important;max-width:185px}
+  .effort-matrix-table thead th,.effort-matrix-cell,.effort-matrix-empty{min-width:115px}
+  .effort-quick-set{margin-left:0}
+}
+
+
+/* ============================================================
+   V2.8.6 — One effort value per task + per-day remove
+   ============================================================ */
+.effort-template-wrap{
+  max-height:72vh;
+  overflow:auto;
+  border:1px solid var(--border);
+  border-radius:11px;
+}
+.effort-template-table{
+  width:max-content;
+  min-width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+  background:#fff;
+}
+.effort-template-table th,
+.effort-template-table td{
+  border-right:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+}
+.effort-template-table thead th{
+  position:sticky;
+  top:0;
+  z-index:4;
+  min-width:92px;
+  padding:9px 7px;
+  background:#f5f8fa;
+  text-align:center;
+  color:#405764;
+  font-size:10px;
+  font-weight:900;
+}
+.effort-template-table thead th small{
+  display:block;
+  margin-top:2px;
+  color:var(--muted);
+  font-size:8px;
+}
+.effort-template-table .effort-task-sticky{
+  min-width:260px!important;
+  max-width:260px;
+}
+.effort-single-value{
+  min-width:110px;
+  padding:9px;
+  text-align:center;
+  vertical-align:middle;
+  background:#fff;
+}
+.effort-template-input{
+  width:64px;
+  min-height:34px;
+  margin:0;
+  padding:5px 6px;
+  text-align:center;
+  font-weight:850;
+}
+.effort-day-cell{
+  min-width:92px;
+  padding:8px;
+  text-align:center;
+  vertical-align:middle;
+  background:#fff;
+}
+.effort-day-cell label{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  font-size:9px;
+  font-weight:800;
+  color:#8e3e3a;
+  cursor:pointer;
+}
+.effort-day-cell.removed{
+  background:#fff3f2;
+}
+.effort-day-cell.missing{
+  color:#b1bcc3;
+  background:#fafbfc;
+  vertical-align:middle;
+}
+.effort-row-dirty{
+  box-shadow:inset 4px 0 0 #d7a627;
+}
+
+
+/* ============================================================
+   V2.9 FINAL — Staff availability + availability-aware assignment
+   ============================================================ */
+.availability-legend{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px 14px;
+  margin:12px 0;
+  padding:10px 12px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:#f8fafb;
+  color:#617580;
+  font-size:10px;
+}
+.availability-table-wrap{max-height:70vh;overflow:auto}
+.availability-table{
+  min-width:1180px;
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+}
+.availability-table th,.availability-table td{
+  padding:7px 6px;
+  border-bottom:1px solid var(--border);
+  vertical-align:middle;
+}
+.availability-table thead th{
+  position:sticky;
+  top:0;
+  z-index:3;
+  background:#f5f8fa;
+  font-size:10px;
+  text-align:center;
+}
+.availability-table tbody th{
+  position:sticky;
+  left:0;
+  z-index:2;
+  min-width:115px;
+  background:#fbfcfd;
+  text-align:left;
+  font-size:11px;
+}
+.availability-input{
+  width:100%;
+  min-width:125px;
+  margin:0;
+  padding:6px 7px;
+  font-size:10px;
+}
+.availability-input.invalid{
+  border-color:#c94b4b!important;
+  box-shadow:0 0 0 2px rgba(201,75,75,.12);
+}
+.availability-notes{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px 14px;
+  margin-top:12px;
+  color:#687b86;
+  font-size:10px;
+}
+.availability-notes strong{color:#344b57}
+.assignment-filter-note{
+  margin-left:auto;
+  color:#617580;
+  font-size:10px;
+  font-weight:750;
+}
+.assignment-cell .bulk-cell-assignee{
+  width:100%;
+  min-height:34px;
+  margin:0;
+  font-size:9px;
+}
+.assignment-cell-meta{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  flex-wrap:wrap;
+  margin-top:6px;
+  color:var(--muted);
+  font-size:8px;
+}
+.availability-badge{
+  display:inline-flex;
+  align-items:center;
+  padding:2px 5px;
+  border-radius:999px;
+  font-size:8px;
+  font-weight:900;
+}
+.availability-badge.full{background:#e7f6ec;color:#267143}
+.availability-badge.partial{background:#fff3d7;color:#8a6415}
+.availability-badge.unavailable{background:#fdeaea;color:#94423d}
