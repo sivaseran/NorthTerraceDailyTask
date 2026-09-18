@@ -1945,3 +1945,99 @@ body:not(.manager-page) .date-nav-center strong{
   font-size:12px;
   font-weight:850;
 }
+
+
+/* ============================================================
+   V3.1 FINAL — Master weekly task setup
+   ============================================================ */
+.effort-sort-note{
+  margin-left:auto;
+  color:#687c87;
+  font-size:10px;
+  font-weight:750;
+}
+.effort-time-col{min-width:94px!important}
+.effort-time-value{
+  min-width:94px;
+  padding:8px;
+  text-align:center;
+  vertical-align:middle;
+  background:#fff;
+}
+.effort-time-input{
+  width:82px;
+  min-height:34px;
+  margin:0;
+  padding:5px 6px;
+  font-size:11px;
+  font-weight:850;
+}
+.effort-day-cell.active{
+  background:#f2faf4;
+}
+.effort-day-cell.inactive{
+  background:#f7f8f9;
+}
+.effort-active-label{
+  display:flex!important;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  color:#667984!important;
+  font-size:9px!important;
+  font-weight:850!important;
+  cursor:pointer;
+}
+.effort-day-cell.active .effort-active-label{
+  color:#2e7046!important;
+}
+.effort-day-cell.inactive .effort-active-label{
+  color:#89969d!important;
+}
+.effort-active-label input{
+  width:18px;
+  height:18px;
+  margin:0;
+}
+
+
+/* ============================================================
+   V3.2 FINAL — Per-day task times
+   ============================================================ */
+.effort-daily-time-table thead th:not(.effort-task-sticky){
+  min-width:112px;
+}
+.effort-day-time-cell{
+  min-width:112px;
+  padding:7px;
+  text-align:center;
+  vertical-align:middle;
+  background:#fff;
+}
+.effort-day-time-cell.has-time{
+  background:#f5faf7;
+}
+.effort-day-time-cell.no-time{
+  background:#f7f8f9;
+}
+.effort-day-time-input{
+  width:88px;
+  min-height:34px;
+  margin:0 auto;
+  padding:5px 6px;
+  font-size:11px;
+  font-weight:850;
+  text-align:center;
+}
+.effort-day-slot{
+  display:block;
+  margin-top:4px;
+  color:#5e7480;
+  font-size:8px;
+  font-weight:800;
+  white-space:nowrap;
+}
+.effort-day-slot.off{
+  color:#9aa5ab;
+}
