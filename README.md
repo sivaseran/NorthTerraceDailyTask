@@ -262,3 +262,31 @@ Two save scopes:
    - ad-hoc/date-only rows without a template are skipped
 
 This lets management use an already-existing daily schedule as the source instead of recreating tasks one by one.
+
+## V2.8.2 — Existing Bulk Editor fixes
+
+Fixes:
+- Historical source dates now apply future changes from the **next occurrence of the same weekday**, not simply from Today.
+  Example: using an old Monday as the source on a Friday starts the new recurring rule on the next Monday.
+- Hourly recurring tasks such as `Cooking and check temperature every Hour` display their checkpoint time.
+- Hourly checkpoint slot is shown as automatic and cannot be manually moved to an incorrect slot.
+- Multiple checkpoint rows from one hourly task are consolidated into a single master-template update when applying future changes.
+- Saving a current/future date-only change to one hourly checkpoint keeps all checkpoints of that recurring task consistent for task name / assignee / effort.
+
+## V2.8.3 — Weekly Bulk Edit View
+
+Bulk Edit now loads a full Monday–Sunday week from existing Firebase `dailyTasks`.
+It still uses `ensure:false`, so missing days are never generated.
+
+Features:
+- previous / next week navigation
+- This Week shortcut
+- choose any date to jump to its Monday–Sunday week
+- day filter plus slot / unassigned / missing-effort filters
+- day divider rows for Monday through Sunday
+- edit task name, slot, assignee, effort, or remove
+- quick effort chips across selected rows
+- Save Changes to This Week updates only today/future daily records inside the loaded week; historical daily records remain read-only
+- Apply Changed Tasks to Future Schedule applies each changed row to its own matching weekday
+- historical source rows begin at the next occurrence of that weekday
+- hourly checkpoint tasks are consolidated per weekday/master task rather than across the entire week

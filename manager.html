@@ -180,24 +180,31 @@
   <div class="card elevated">
     <div class="section-intro">
       <div>
-        <span class="eyebrow">Existing schedule editor</span>
-        <h2>Bulk Edit Existing Tasks</h2>
-        <p class="muted">Load a date that already exists in Firebase, then change only what you need. No tasks are recreated one-by-one.</p>
+        <span class="eyebrow">Existing weekly schedule editor</span>
+        <h2>Bulk Edit Existing Tasks — Weekly View</h2>
+        <p class="muted">Loads the real Firebase daily-task records for Monday–Sunday. Nothing is created automatically.</p>
       </div>
     </div>
 
     <div class="date-navigator card compact-card bulk-date-nav">
-      <button id="bulkPrevDate" class="btn secondary square-btn" type="button">←</button>
+      <button id="bulkPrevWeek" class="btn secondary square-btn" type="button">←</button>
       <div class="date-nav-center">
-        <strong id="bulkDateText"></strong>
-        <input id="bulkDatePicker" type="date">
+        <strong id="bulkWeekText"></strong>
+        <input id="bulkWeekPicker" type="date" title="Choose any date inside the week">
       </div>
-      <button id="bulkNextDate" class="btn secondary square-btn" type="button">→</button>
-      <button id="bulkToday" class="btn secondary small" type="button">Today</button>
-      <button id="bulkLoadDate" class="btn small" type="button">Load Existing Tasks</button>
+      <button id="bulkNextWeek" class="btn secondary square-btn" type="button">→</button>
+      <button id="bulkThisWeek" class="btn secondary small" type="button">This Week</button>
+      <button id="bulkLoadWeek" class="btn small" type="button">Load Existing Week</button>
     </div>
 
     <div class="bulk-filter-bar">
+      <label class="bulk-filter-field"><span>Day</span>
+        <select id="bulkDayFilter">
+          <option value="all">All days</option>
+          <option value="mon">Monday</option><option value="tue">Tuesday</option><option value="wed">Wednesday</option>
+          <option value="thu">Thursday</option><option value="fri">Friday</option><option value="sat">Saturday</option><option value="sun">Sunday</option>
+        </select>
+      </label>
       <label class="bulk-filter-field"><span>Slot</span>
         <select id="bulkSlotFilter"><option value="all">All slots</option></select>
       </label>
@@ -223,17 +230,18 @@
     <div id="bulkResult" class="inline-message" hidden></div>
 
     <div class="bulk-save-bar">
-      <button id="bulkSaveDate" class="btn secondary" type="button">Save Changes to This Date</button>
+      <button id="bulkSaveWeek" class="btn secondary" type="button">Save Changes to This Week</button>
       <button id="bulkSaveFuture" class="btn" type="button">Apply Changed Tasks to Future Schedule</button>
-      <span id="bulkFutureHelp" class="muted"></span>
+      <span id="bulkFutureHelp" class="muted">Past daily records stay protected. Future changes follow each row's own weekday.</span>
     </div>
 
     <div class="table-wrap bulk-table-wrap">
-      <table class="bulk-table existing-bulk-table">
+      <table class="bulk-table existing-bulk-table weekly-bulk-table">
         <thead>
           <tr>
             <th><input id="bulkSelectAll" type="checkbox" aria-label="Select all visible tasks"></th>
             <th>Task</th>
+            <th>Day</th>
             <th>Slot</th>
             <th>Assignee</th>
             <th>Effort</th>
@@ -246,8 +254,8 @@
     </div>
 
     <div class="bulk-note">
-      <strong>How it works:</strong>
-      <span>“Save Changes to This Date” updates only the loaded daily records. “Apply Changed Tasks to Future Schedule” uses the existing task's recurring template where available and does not alter earlier history.</span>
+      <strong>Weekly source view:</strong>
+      <span>You can use an already-saved week as your model. “Save Changes to This Week” updates only today/future daily records inside this loaded week. “Apply Changed Tasks to Future Schedule” updates the matching recurring weekday for each changed row.</span>
     </div>
   </div>
 </section>
