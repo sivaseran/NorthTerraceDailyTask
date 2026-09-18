@@ -6,7 +6,7 @@ import {
   updateDailyTask,saveFutureRule,createTaskForDate,cancelTaskToday,stopTaskFuture,saveFutureShiftCover,
   workloadBySlot,capacityForDraft,completeTask
 } from './store.js';
-import {initializeV22,migrateParthToParthy,ensureV30TaskModel} from './seed.js';
+import {initializeV22,migrateParthToParthy,ensureV30TaskModel,ensureV321TemperatureNames} from './seed.js';
 import {initReports} from './reports.js';
 import {
   escapeHtml,statusView,showToast,confirmAction,setButtonLoading,setInlineMessage,
@@ -1565,6 +1565,7 @@ try{
 }
 
 await ensureV30TaskModel();
+  await ensureV321TemperatureNames();
   await loadPeople();
   { const a=await getStaffAvailability(); staffAvailability=a?.week||structuredClone(DEFAULT_STAFF_AVAILABILITY); }
 updateDateUI();

@@ -5378,7 +5378,7 @@ function v3TempTemplate(clock){
   return {
     id:`temp_${key}`,
     schemaVersion:3,
-    taskName:'Check hot food temperature',
+    taskName:`Check hot food temperature ${clock}`,
     photoRequired:false,
     temperatureRequired:true,
     recurring:true,
@@ -5388,6 +5388,55 @@ function v3TempTemplate(clock){
       Thu:structuredClone(dayVersion),Fri:structuredClone(dayVersion),Sat:structuredClone(dayVersion),Sun:structuredClone(dayVersion)
     }
   };
+}
+
+
+export async function ensureV321TemperatureNames(){
+  const stateRef=doc(db,'system','app');
+  const stateSnap=await getDoc(stateRef);
+  const state=stateSnap.exists()?stateSnap.data():{};
+  if(state?.v321TemperatureNamesReady) return {changed:false};
+
+  const clocks=['06:30','07:30','08:30','09:30','10:30','11:30','12:30','13:30','14:30'];
+  const batch=writeBatch(db);
+
+  for(const clock of clocks){
+    const id=`temp_${clock.replace(':','')}`;
+    batch.set(doc(db,'weeklyTemplates',id),{
+      taskName:`Check hot food temperature ${clock}`,
+      updatedAt:serverTimestamp()
+    },{merge:true});
+  }
+
+  await batch.commit();
+
+  // Keep already-generated today/future daily rows consistent with renamed templates.
+  const today=localTodayISO();
+  const dailySnap=await getDocs(collection(db,'dailyTasks'));
+  const toRename=dailySnap.docs.filter(d=>{
+    const x=d.data();
+    return String(x.date||'')>=today && /^temp_\d{4}$/.test(String(x.templateTaskId||''));
+  });
+
+  if(toRename.length){
+    await commitUpdates(toRename,(batch,d)=>{
+      const x=d.data();
+      const m=String(x.templateTaskId||'').match(/^temp_(\d{2})(\d{2})$/);
+      if(!m) return;
+      const clock=`${m[1]}:${m[2]}`;
+      batch.update(d.ref,{
+        taskName:`Check hot food temperature ${clock}`,
+        updatedAt:serverTimestamp()
+      });
+    });
+  }
+
+  await setDoc(stateRef,{
+    v321TemperatureNamesReady:true,
+    v321TemperatureNamesAt:serverTimestamp()
+  },{merge:true});
+
+  return {changed:true};
 }
 
 export async function ensureV30TaskModel(){
