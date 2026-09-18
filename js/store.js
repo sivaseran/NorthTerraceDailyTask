@@ -355,7 +355,12 @@ function normaliseDaily(d){
 }
 function sortTasks(rows){
   const order=Object.fromEntries(SLOT_DEFS.map((s,i)=>[s.id,i]));
-  return [...rows].sort((a,b)=>(order[a.slotId]??99)-(order[b.slotId]??99)||String(a.taskName||'').localeCompare(String(b.taskName||''))||String(a.checkpoint||'').localeCompare(String(b.checkpoint||'')));
+  const taskTime=row=>String(row.sourceTime||row.checkpoint||'99:99');
+  return [...rows].sort((a,b)=>
+    (order[a.slotId]??99)-(order[b.slotId]??99) ||
+    taskTime(a).localeCompare(taskTime(b)) ||
+    String(a.taskName||'').localeCompare(String(b.taskName||''))
+  );
 }
 
 async function plannedToDaily(row,users){
@@ -622,12 +627,12 @@ export async function saveFutureRule(templateTaskId,date,changes,actor){
   const next={
     effectiveFrom:date,
     active:changes.active!==undefined?Boolean(changes.active):current.active!==false,
-    slotId:task.recurring?'AUTO':(changes.slotId??current.slotId??''),
+    slotId:(task.recurring&&task.frequencyMinutes)?'AUTO':(changes.slotId??current.slotId??''),
     assigneeId:changes.assignedTo!==undefined?changes.assignedTo:(current.assigneeId||''),
     assigneeKey:'',
     legacyAssignee:'',
     effortMinutes:changes.effortMinutes!==undefined?changes.effortMinutes:(current.effortMinutes??null),
-    sourceTime:current.sourceTime||''
+    sourceTime:changes.sourceTime!==undefined?changes.sourceTime:(current.sourceTime||'')
   };
   schedule[dkey]={versions:[...kept,next]};
   await updateDoc(ref,{
@@ -653,9 +658,10 @@ export async function saveFutureRule(templateTaskId,date,changes,actor){
         assignedTo:next.assigneeId,
         assignedName:assignee?.name||'Unassigned',
         photoRequired:changes.photoRequired!==undefined?Boolean(changes.photoRequired):Boolean(x.photoRequired),
+        sourceTime:changes.sourceTime!==undefined?changes.sourceTime:(x.sourceTime||''),
         updatedAt:serverTimestamp()
       };
-      if(!task.recurring&&changes.slotId) patch.slotId=changes.slotId;
+      if(!(task.recurring&&task.frequencyMinutes)&&changes.slotId) patch.slotId=changes.slotId;
       batch.update(d.ref,patch); touched++;
     }
   });

@@ -1115,6 +1115,8 @@ $('#bulkSaveFuture').onclick=saveBulkFuture;
 
 
 
+
+
 function effortWeekStart(date){
   const d=new Date(date+'T12:00:00');
   const diff=(d.getDay()+6)%7;
@@ -1130,47 +1132,139 @@ function effortWeekRangeText(){
   const a=new Date(dates[0]+'T12:00:00'),b=new Date(dates[6]+'T12:00:00');
   return `${a.toLocaleDateString('en-GB',{day:'numeric',month:'short'})} – ${b.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}`;
 }
-function effortMasterKey(row){
-  if(row.templateTaskId) return `tpl:${row.templateTaskId}`;
-  return `adhoc:${String(row.taskName||'').trim().toLowerCase()}|${row.slotId||''}`;
+function effortVersions(dayData){
+  if(!dayData) return [];
+  if(Array.isArray(dayData.versions)) return dayData.versions.filter(Boolean);
+  if(dayData&&typeof dayData==='object') return [dayData];
+  return [];
+}
+function effortDayName(day){
+  return {mon:'Mon',tue:'Tue',wed:'Wed',thu:'Thu',fri:'Fri',sat:'Sat',sun:'Sun'}[day];
+}
+function effortRuleForDate(template,date){
+  const dayName=effortDayName(bulkDayKey(date));
+  return effortVersions(template.schedule?.[dayName])
+    .filter(v=>String(v.effectiveFrom||'0000-01-01')<=date&&(!v.effectiveTo||String(v.effectiveTo)>=date))
+    .sort((a,b)=>String(b.effectiveFrom||'').localeCompare(String(a.effectiveFrom||'')))[0]||null;
+}
+function effortBaseRule(template){
+  const candidates=[];
+  for(const day of ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']){
+    candidates.push(...effortVersions(template.schedule?.[day]));
+  }
+  return candidates
+    .filter(Boolean)
+    .sort((a,b)=>String(b.effectiveFrom||'').localeCompare(String(a.effectiveFrom||'')))[0]||{};
+}
+function validHHMM(value){
+  return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(value||''));
+}
+function timeSortValue(value){
+  if(!validHHMM(value)) return 99999;
+  const [h,m]=value.split(':').map(Number);
+  return h*60+m;
+}
+function slotFromTime(value,fallback='S1'){
+  if(!validHHMM(value)) return fallback||'S1';
+  const mins=timeSortValue(value);
+  if(mins<9*60) return 'S1';
+  if(mins<14*60) return 'S2';
+  if(mins<18*60) return 'S3';
+  if(mins<20*60) return 'S4';
+  return 'S5';
+}
+function slotStartTime(slotId){
+  return SLOT_DEFS.find(s=>s.id===slotId)?.start||'';
+}
+function inferredRuleTime(rule){
+  if(!rule||rule.active===false) return '';
+  if(validHHMM(rule.sourceTime)) return rule.sourceTime;
+  return slotStartTime(rule.slotId)||'';
 }
 function effortGroups(){
-  const map=new Map();
-  for(const row of effortRowsData){
-    const key=effortMasterKey(row);
-    if(!map.has(key)) map.set(key,[]);
-    map.get(key).push(row);
-  }
+  const dates=effortWeekDates();
 
-  return [...map.entries()].map(([key,rows])=>{
-    const byDay=Object.fromEntries(BULK_DAY_ORDER.map(day=>[day,rows.filter(r=>bulkDayKey(r.date)===day)]));
-    const existingEfforts=rows.map(r=>Number(r.effortMinutes)||0).filter(Boolean);
-    const defaultEffort=existingEfforts[0]||null;
-    const slotId=rows.some(r=>r.checkpoint)
-      ?'AUTO'
-      :([...new Set(rows.map(r=>r.slotId).filter(Boolean))].length===1?rows[0].slotId:'MULTI');
+  return effortRowsData.map(template=>{
+    const base=effortBaseRule(template);
+    const byDay={};
+
+    BULK_DAY_ORDER.forEach((day,i)=>{
+      const date=dates[i];
+      const rule=effortRuleForDate(template,date);
+      byDay[day]={
+        day,
+        date,
+        rule,
+        time:inferredRuleTime(rule),
+        assignedTo:rule?.assigneeId||''
+      };
+    });
+
+    // Monday is the default template time. If Monday is missing, use the first
+    // active weekday so the task is still easy to initialise across the week.
+    const firstExistingTime=BULK_DAY_ORDER.map(day=>byDay[day].time).find(Boolean)||inferredRuleTime(base)||'';
+    const mondayTime=byDay.mon.time||firstExistingTime;
+
+    // User wants every task populated across all days initially. Missing weekday
+    // rules therefore inherit Monday/default time in the setup screen; clearing a
+    // time explicitly removes that weekday.
+    const defaultDayTimes={};
+    BULK_DAY_ORDER.forEach(day=>{
+      defaultDayTimes[day]=byDay[day].time||mondayTime;
+    });
+
+    const efforts=BULK_DAY_ORDER
+      .map(day=>Number(byDay[day].rule?.effortMinutes)||0)
+      .filter(Boolean);
+    const defaultEffort=efforts[0]||Number(base.effortMinutes)||null;
 
     return {
-      key,rows,byDay,
-      taskName:rows[0]?.taskName||'Untitled task',
-      slotId,
-      recurring:rows.some(r=>r.templateTaskId),
-      checkpoint:rows.some(r=>r.checkpoint),
-      defaultEffort
+      key:`tpl:${template.id}`,
+      templateTaskId:template.id,
+      template,
+      taskName:template.taskName||'Untitled task',
+      byDay,
+      defaultDayTimes,
+      defaultEffort,
+      recurring:Boolean(template.recurring),
+      checkpoint:Boolean(template.frequencyMinutes),
+      temperatureRequired:Boolean(template.temperatureRequired)
     };
   }).sort((a,b)=>{
-    const rank=id=>id==='AUTO'?-1:id==='MULTI'?999:SLOT_DEFS.findIndex(s=>s.id===id);
-    return rank(a.slotId)-rank(b.slotId)||String(a.taskName).localeCompare(String(b.taskName));
+    const ad=effortDraftForGroupRaw(a);
+    const bd=effortDraftForGroupRaw(b);
+    const aKey=ad.dayTimes.mon||BULK_DAY_ORDER.map(d=>ad.dayTimes[d]).find(Boolean)||'';
+    const bKey=bd.dayTimes.mon||BULK_DAY_ORDER.map(d=>bd.dayTimes[d]).find(Boolean)||'';
+    return timeSortValue(aKey)-timeSortValue(bKey)||String(a.taskName).localeCompare(String(b.taskName));
   });
+}
+function effortDraftForGroupRaw(group){
+  return effortDirty.get(group.key)||{
+    effortMinutes:group.defaultEffort,
+    dayTimes:{...group.defaultDayTimes}
+  };
+}
+function effortDraftForGroup(group){
+  const draft=effortDraftForGroupRaw(group);
+  return {
+    effortMinutes:draft.effortMinutes,
+    dayTimes:{...draft.dayTimes}
+  };
 }
 function filteredEffortGroups(){
   const slot=$('#effortSlotFilter').value;
   const missing=$('#effortOnlyMissing').checked;
+
   return effortGroups().filter(g=>{
-    if(slot!=='all'&&g.slotId!==slot) return false;
-    const draft=effortDirty.get(g.key);
-    const minutes=draft?.effortMinutes??g.defaultEffort;
-    if(missing&&Number(minutes)>0) return false;
+    const draft=effortDraftForGroup(g);
+    if(slot!=='all'){
+      const anyInSlot=BULK_DAY_ORDER.some(day=>{
+        const t=draft.dayTimes[day];
+        return t&&slotFromTime(t)==slot;
+      });
+      if(!anyInSlot) return false;
+    }
+    if(missing&&Number(draft.effortMinutes)>0) return false;
     return true;
   });
 }
@@ -1189,20 +1283,22 @@ function updateEffortWeekUI(){
 function updateEffortSummary(){
   const groups=effortGroups();
   const visible=filteredEffortGroups();
-  const missing=groups.filter(g=>{
-    const d=effortDirty.get(g.key);
-    return !Number(d?.effortMinutes??g.defaultEffort);
-  }).length;
+  const missingEffort=groups.filter(g=>!Number(effortDraftForGroup(g).effortMinutes)).length;
+  const hiddenDays=groups.reduce((sum,g)=>{
+    const d=effortDraftForGroup(g);
+    return sum+BULK_DAY_ORDER.filter(day=>!d.dayTimes[day]).length;
+  },0);
+
   $('#effortSummary').innerHTML=`
     <span><strong>${visible.length}</strong> task rows</span>
     <span><strong>${effortDirty.size}</strong> changed tasks</span>
-    <span><strong>${missing}</strong> effort not set</span>`;
+    <span><strong>${missingEffort}</strong> effort not set</span>
+    <span><strong>${hiddenDays}</strong> hidden task-days</span>`;
 }
-function effortDraftForGroup(group){
-  return effortDirty.get(group.key)||{
-    effortMinutes:group.defaultEffort,
-    removedDays:new Set()
-  };
+function effortSlotBadge(time){
+  if(!time) return '<span class="effort-day-slot off">Hidden</span>';
+  const slot=slotFromTime(time);
+  return `<span class="effort-day-slot">${escapeHtml(slotLabelForDate(slot,effortWeekStart(effortWeekAnchor)))}</span>`;
 }
 function renderEffortMatrix(){
   const groups=filteredEffortGroups();
@@ -1210,13 +1306,12 @@ function renderEffortMatrix(){
   $('#effortMatrixRows').innerHTML=groups.map(group=>{
     const draft=effortDraftForGroup(group);
 
-    return `<tr data-effort-group="${escapeHtml(group.key)}">
+    return `<tr data-effort-group="${escapeHtml(group.key)}" class="${effortDirty.has(group.key)?'effort-row-dirty':''}">
       <th class="effort-task-sticky effort-task-info">
         <strong>${escapeHtml(group.taskName)}</strong>
         <div>
-          ${group.rows[0]?.temperatureRequired&&group.rows[0]?.sourceTime?`<span class="temperature-time-label">🌡 ${escapeHtml(group.rows[0].sourceTime)}</span>`:''}
-          <span>${group.slotId==='AUTO'?'Hourly / automatic':group.slotId==='MULTI'?'Multiple slots':escapeHtml(slotLabelForDate(group.slotId,effortWeekStart(effortWeekAnchor)))}</span>
           ${group.recurring?'<span class="mini-pill recurring-pill">Recurring</span>':'<span class="mini-pill">Date only</span>'}
+          ${group.temperatureRequired?'<span class="mini-pill temperature-time-label">Hot food</span>':''}
         </div>
       </th>
 
@@ -1228,18 +1323,14 @@ function renderEffortMatrix(){
       </td>
 
       ${BULK_DAY_ORDER.map(day=>{
-        const dayRows=group.byDay[day];
-        if(!dayRows.length) return `<td class="effort-day-cell missing"><span>—</span></td>`;
-        const removed=draft.removedDays?.has(day) || dayRows.every(r=>r.status==='cancelled');
-        return `<td class="effort-day-cell ${removed?'removed':''}" data-day="${day}">
-          <label>
-            <input class="effort-remove-day" type="checkbox" ${removed?'checked':''}>
-            <span>Remove</span>
-          </label>
+        const time=draft.dayTimes[day]||'';
+        return `<td class="effort-day-time-cell ${time?'has-time':'no-time'}" data-day="${day}">
+          <input class="effort-day-time-input" data-day="${day}" type="time" step="60" value="${escapeHtml(time)}" aria-label="${BULK_DAY_LABELS[day]} task time">
+          ${effortSlotBadge(time)}
         </td>`;
       }).join('')}
     </tr>`;
-  }).join('')||'<tr><td colspan="9" class="muted report-empty-cell">No existing tasks found for this week/filter.</td></tr>';
+  }).join('')||'<tr><td colspan="9" class="muted report-empty-cell">No tasks match this filter.</td></tr>';
 
   updateEffortSummary();
 }
@@ -1247,32 +1338,23 @@ async function loadEffortAllocation(){
   try{
     updateEffortWeekUI();
     setInlineMessage($('#effortResult'),'');
-    $('#effortMatrixRows').innerHTML='<tr><td colspan="9" class="muted report-empty-cell">Loading existing Firebase week…</td></tr>';
+    $('#effortMatrixRows').innerHTML='<tr><td colspan="9" class="muted report-empty-cell">Loading master weekly task setup…</td></tr>';
 
-    const dates=effortWeekDates();
-    const results=await Promise.all(dates.map(date=>getSetupTasksForDate(date)));
-    effortRowsData=results.flat();
+    effortRowsData=await getWeeklyTemplate();
     effortDirty.clear();
 
     const selected=$('#effortSlotFilter').value||'all';
     $('#effortSlotFilter').innerHTML='<option value="all">All slots</option>'+
-      '<option value="AUTO">Hourly / automatic</option>'+
-      SLOT_DEFS.map(s=>`<option value="${s.id}">${escapeHtml(slotLabelForDate(s.id,dates[0]))}</option>`).join('')+
-      '<option value="MULTI">Multiple slots</option>';
+      SLOT_DEFS.map(s=>`<option value="${s.id}">${escapeHtml(slotLabelForDate(s.id,effortWeekDates()[0]))}</option>`).join('');
     if([...$('#effortSlotFilter').options].some(o=>o.value===selected)) $('#effortSlotFilter').value=selected;
 
     renderEffortMatrix();
-
-    const found=new Set(effortRowsData.map(r=>r.date));
-    if(found.size<7){
-      setInlineMessage($('#effortResult'),`${found.size} saved day(s) found. Missing days stay blank and are not created.`,'warning');
-    }
   }catch(error){
     console.error(error);
-    setInlineMessage($('#effortResult'),'Could not load effort allocation data.','error');
+    setInlineMessage($('#effortResult'),'Could not load the weekly task setup.','error');
   }
 }
-function readEffortGroupDraft(rowEl){
+function readEffortGroupDraft(rowEl,{copyMonday=false}={}){
   const key=rowEl.dataset.effortGroup;
   const group=effortGroups().find(g=>g.key===key);
   if(!group) return;
@@ -1281,42 +1363,43 @@ function readEffortGroupDraft(rowEl){
     ?Number(rowEl.querySelector('.effort-template-input').value)
     :null;
 
-  const removedDays=new Set();
-  rowEl.querySelectorAll('.effort-day-cell[data-day]').forEach(cell=>{
-    if(cell.querySelector('.effort-remove-day')?.checked) removedDays.add(cell.dataset.day);
+  const dayTimes={};
+  BULK_DAY_ORDER.forEach(day=>{
+    dayTimes[day]=String(rowEl.querySelector(`.effort-day-time-input[data-day="${day}"]`)?.value||'');
   });
 
-  const originalEffort=Number(group.defaultEffort)||0;
-  const originalRemoved=new Set(
-    BULK_DAY_ORDER.filter(day=>{
-      const rows=group.byDay[day];
-      return rows.length&&rows.every(r=>r.status==='cancelled');
-    })
-  );
+  if(copyMonday&&dayTimes.mon){
+    BULK_DAY_ORDER.slice(1).forEach(day=>dayTimes[day]=dayTimes.mon);
+  }
 
-  const sameEffort=Number(effortMinutes||0)===originalEffort;
-  const sameRemoved=
-    removedDays.size===originalRemoved.size &&
-    [...removedDays].every(d=>originalRemoved.has(d));
+  const originalTimes=group.defaultDayTimes;
+  const sameEffort=Number(effortMinutes||0)===Number(group.defaultEffort||0);
+  const sameTimes=BULK_DAY_ORDER.every(day=>(dayTimes[day]||'')===(originalTimes[day]||''));
 
-  if(sameEffort&&sameRemoved) effortDirty.delete(key);
-  else effortDirty.set(key,{effortMinutes,removedDays});
+  if(sameEffort&&sameTimes){
+    effortDirty.delete(key);
+  }else{
+    effortDirty.set(key,{effortMinutes,dayTimes});
+  }
 }
 async function saveWeeklyEffortSetup(){
-  if(!effortDirty.size){
-    showToast('There are no effort/removal changes to save.','info');
+  // Save the complete master-week model, not only touched rows. This guarantees
+  // missing weekday rules are created from the visible times.
+  const groups=effortGroups();
+  const changes=groups.map(group=>({group,draft:effortDraftForGroup(group)}));
+
+  const invalid=changes.find(({draft})=>
+    BULK_DAY_ORDER.some(day=>draft.dayTimes[day]&&!validHHMM(draft.dayTimes[day]))
+  );
+  if(invalid){
+    showToast('Please use valid HH:MM task times.','warning');
     return;
   }
 
-  const groups=effortGroups();
-  const changes=[...effortDirty.entries()]
-    .map(([key,draft])=>({group:groups.find(g=>g.key===key),draft}))
-    .filter(x=>x.group);
-
   const ok=await confirmAction({
-    title:'Save weekly effort setup?',
-    message:`Save ${changes.length} changed task setup${changes.length===1?'':'s'}?`,
-    details:'Each task gets one effort value across all active days. Ticked Remove days are excluded. Staff assignment is not changed.',
+    title:'Save complete weekly task setup?',
+    message:`Save ${changes.length} master task${changes.length===1?'':'s'} across Monday–Sunday?`,
+    details:'A day with a time is active. A blank time is removed from that weekday. Each time automatically determines the operational slot and task order.',
     confirmText:'Save Weekly Setup'
   });
   if(!ok) return;
@@ -1325,66 +1408,51 @@ async function saveWeeklyEffortSetup(){
   setButtonLoading(btn,true,'Saving…');
 
   try{
-    let updatedDaily=0, updatedFuture=0, removedCount=0;
+    let activeSaved=0,hiddenSaved=0;
+    const dates=effortWeekDates();
 
     for(const {group,draft} of changes){
-      const activeDays=BULK_DAY_ORDER.filter(day=>group.byDay[day].length&&!draft.removedDays.has(day));
+      const sourceBase=effortBaseRule(group.template);
 
-      // Update currently loaded week only for today/future daily records.
-      for(const day of activeDays){
-        for(const row of group.byDay[day]){
-          if(row.date<todayISO()||row.status==='cancelled'||row._virtual) continue;
-          await updateDailyTask(row.id,{effortMinutes:draft.effortMinutes},user);
-          updatedDaily++;
-        }
-      }
+      for(let i=0;i<BULK_DAY_ORDER.length;i++){
+        const day=BULK_DAY_ORDER[i];
+        const time=draft.dayTimes[day]||'';
+        const sourceDate=dates[i];
+        const effectiveFrom=sourceDate<todayISO()
+          ?nextSameWeekdayOnOrAfter(sourceDate,todayISO())
+          :sourceDate;
+        const currentRule=group.byDay[day]?.rule;
+        const currentlyActive=Boolean(currentRule&&currentRule.active!==false);
 
-      // Remove selected days from currently loaded week if today/future.
-      for(const day of draft.removedDays){
-        for(const row of group.byDay[day]){
-          if(row.date<todayISO()||row.status==='cancelled'||row._virtual) continue;
-          await cancelTaskToday(row.id,user);
-          removedCount++;
-        }
-      }
-
-      // Update recurring template per weekday, keeping the same effort across active days.
-      if(group.recurring){
-        for(const day of BULK_DAY_ORDER){
-          const rows=group.byDay[day];
-          if(!rows.length) continue;
-
-          const source=rows[0];
-          const effectiveFrom=source.date<todayISO()?nextSameWeekdayOnOrAfter(source.date,todayISO()):source.date;
-
-          if(draft.removedDays.has(day)){
-            await stopTaskFuture(source.templateTaskId,effectiveFrom,user);
-            updatedFuture++;
-          }else{
-            await saveFutureRule(source.templateTaskId,effectiveFrom,{
-              taskName:source.taskName,
-              slotId:source.slotId,
-              assignedTo:source.assignedTo||'',
-              effortMinutes:draft.effortMinutes
-            },user);
-            updatedFuture++;
-          }
+        if(time){
+          const slotId=slotFromTime(time,currentRule?.slotId||sourceBase.slotId||'S1');
+          await saveFutureRule(group.templateTaskId,effectiveFrom,{
+            active:true,
+            taskName:group.taskName,
+            slotId,
+            assignedTo:currentRule?.assigneeId||sourceBase.assigneeId||'',
+            effortMinutes:draft.effortMinutes,
+            sourceTime:time
+          },user);
+          activeSaved++;
+        }else if(currentlyActive){
+          await stopTaskFuture(group.templateTaskId,effectiveFrom,user);
+          hiddenSaved++;
         }
       }
     }
 
     setInlineMessage(
       $('#effortResult'),
-      `✓ Weekly effort setup saved. ${updatedDaily} current/future daily record(s) updated, ${removedCount} daily task(s) removed, and ${updatedFuture} recurring weekday rule(s) updated.`,
+      `✓ Weekly task setup saved. ${activeSaved} active task-day rule(s) saved and ${hiddenSaved} task-day rule(s) hidden.`,
       'success'
     );
-
     effortDirty.clear();
     await loadEffortAllocation();
     await bindDate();
   }catch(error){
     console.error(error);
-    setInlineMessage($('#effortResult'),error.message||'Could not save weekly effort setup.','error');
+    setInlineMessage($('#effortResult'),error.message||'Could not save weekly task setup.','error');
   }finally{
     setButtonLoading(btn,false);
   }
@@ -1398,16 +1466,32 @@ $('#effortLoadWeek').onclick=loadEffortAllocation;
 
 $('#effortMatrixRows').addEventListener('input',e=>{
   const row=e.target.closest('tr[data-effort-group]');
-  if(!row||!e.target.classList.contains('effort-template-input')) return;
-  readEffortGroupDraft(row);
-  row.classList.add('effort-row-dirty');
-  updateEffortSummary();
+  if(!row) return;
+
+  if(e.target.classList.contains('effort-template-input')){
+    readEffortGroupDraft(row);
+    row.classList.add('effort-row-dirty');
+    updateEffortSummary();
+  }
 });
 $('#effortMatrixRows').addEventListener('change',e=>{
   const row=e.target.closest('tr[data-effort-group]');
-  if(!row||!e.target.classList.contains('effort-remove-day')) return;
-  readEffortGroupDraft(row);
-  renderEffortMatrix();
+  if(!row) return;
+
+  if(e.target.classList.contains('effort-day-time-input')){
+    const day=e.target.dataset.day;
+    if(day==='mon'&&e.target.value){
+      // Monday is the quick-fill master: populate all other weekdays.
+      BULK_DAY_ORDER.slice(1).forEach(other=>{
+        const input=row.querySelector(`.effort-day-time-input[data-day="${other}"]`);
+        if(input) input.value=e.target.value;
+      });
+      readEffortGroupDraft(row,{copyMonday:true});
+    }else{
+      readEffortGroupDraft(row);
+    }
+    renderEffortMatrix(); // re-order rows immediately based on Monday/first active time
+  }
 });
 $('#effortSlotFilter').onchange=renderEffortMatrix;
 $('#effortOnlyMissing').onchange=renderEffortMatrix;
