@@ -364,3 +364,41 @@ Final manager workflow:
    - Unassigned is always available.
 
 All previous schedule editor, shift cover, reports, tablet general view and smart alert features are retained.
+
+## V3.0 FINAL — Full-week task model + hot food temperatures
+
+Task model:
+- Every existing master task is populated across all seven weekdays.
+- Setup pages use the current weekly template, so Monday–Sunday columns are fully populated even when an old daily snapshot was missing tasks.
+- Saved daily values are overlaid where they exist.
+
+Temperature workflow:
+- Legacy `Cooking and check temperature every Hour` / old temperature checkpoint template is removed from the active model.
+- Nine separate recurring tasks are created every day:
+  - 06:30
+  - 07:30
+  - 08:30
+  - 09:30
+  - 10:30
+  - 11:30
+  - 12:30
+  - 13:30
+  - 14:30
+- Each task is named exactly `Check hot food temperature`.
+- Each task is shown as a separate row/time in Effort Allocation and Staff Assignment.
+- Staff/General operational views provide a Celsius input.
+- Temperature is required before the task can be completed and is stored on the daily task record as `temperatureC`.
+
+Migration:
+- V3 migration is idempotent and recorded in `system/app.v30Ready`.
+- Historical daily records are not rewritten.
+- Old temperature daily rows are removed only from today/future.
+
+## V3.0.1 FINAL — Simplified temperature completion + removal flow
+
+Changes:
+- `Check hot food temperature` remains as nine separate tasks from 06:30 to 14:30.
+- Celsius entry has been removed for now.
+- Staff simply press `Complete` like any other task.
+- Tasks removed on Effort Allocation are excluded from the Staff Assignment matrix.
+- Staff Assignment therefore shows only active tasks that still need an assignee.
