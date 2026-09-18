@@ -1,7 +1,7 @@
 import {getSession,clearSession} from './auth.js';
 import {
   SLOT_DEFS,todayISO,addDaysISO,formatLongDate,slotLabelForDate,slotCapacityMinutes,
-  getUsers,getAssignableUsers,getSystemState,getWeeklyTemplate,bulkUpdateWeeklyTemplateRows,validateUserUniqueness,saveUser,createPerson,
+  getUsers,getAssignableUsers,getSystemState,getStaffAvailability,saveStaffAvailability,getWeeklyTemplate,bulkUpdateWeeklyTemplateRows,validateUserUniqueness,saveUser,createPerson,
   ensureTasksForDate,resetTasksForDate,watchTasksForDate,getTasksForDate,
   updateDailyTask,saveFutureRule,createTaskForDate,cancelTaskToday,stopTaskFuture,saveFutureShiftCover,
   workloadBySlot,capacityForDraft,completeTask
@@ -23,6 +23,10 @@ let advancedEditAll=false;
 let bulkWeekAnchor=todayISO();
 let bulkRowsData=[];
 let bulkDirty=new Map();
+let effortWeekAnchor=todayISO();
+let effortRowsData=[];
+let effortDirty=new Map();
+let staffAvailability={};
 const isHistoricalDate=()=>selectedDate<todayISO();
 const personOptions=()=>`<option value="">Unassigned</option>`+people.map(p=>`<option value="${p.id}">${escapeHtml(p.name||p.id)}</option>`).join('');
 const slotOptions=selected=>SLOT_DEFS.map(s=>`<option value="${s.id}" ${s.id===selected?'selected':''}>${escapeHtml(slotLabelForDate(s.id,selectedDate))}</option>`).join('');
@@ -474,11 +478,13 @@ document.querySelectorAll('.manager-nav button').forEach(btn=>btn.onclick=async(
   document.querySelectorAll('.manager-nav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
   document.querySelectorAll('.manager-section').forEach(s=>s.hidden=true);$('#'+btn.dataset.section).hidden=false;
   if(btn.dataset.section==='people') await loadPeople();
+  if(btn.dataset.section==='availability') await loadStaffAvailability();
   if(btn.dataset.section==='cover'){
     if(!coverDate) coverDate=selectedDate||todayISO();
     await loadCoverDate();
   }
   if(btn.dataset.section==='bulk') await loadBulkSetup();
+  if(btn.dataset.section==='effort') await loadEffortAllocation();
 });
 
 function clearPerson(){
@@ -616,7 +622,166 @@ $('#coverFutureBtn').onclick=async()=>{
 
 
 
+
+
+const AVAIL_DAY_ORDER=['mon','tue','wed','thu','fri','sat','sun'];
+const DEFAULT_STAFF_AVAILABILITY={
+  staff1:{mon:'05:30-13:00, 15:00-20:00',tue:'08:00-13:00',wed:'08:00-12:00, 14:00-20:00',thu:'08:00-20:00',fri:'12:00-23:00',sat:'08:00-12:00, 14:00-20:00',sun:''},
+  staff2:{mon:'',tue:'',wed:'',thu:'',fri:'08:00-13:30',sat:'',sun:'07:00-13:30'},
+  staff3:{mon:'13:00-18:00',tue:'05:30-14:00',wed:'16:30-22:00',thu:'13:00-16:00',fri:'12:00-20:00',sat:'12:00-17:00',sun:''},
+  staff4:{mon:'',tue:'',wed:'',thu:'14:30-22:00',fri:'',sat:'',sun:'13:30-22:00'},
+  staff5:{mon:'',tue:'',wed:'05:30-13:45',thu:'05:30-13:45',fri:'',sat:'',sun:''},
+  staff6:{mon:'18:00-22:00',tue:'',wed:'12:00-16:30',thu:'',fri:'09:30-12:00',sat:'',sun:'11:00-20:00'},
+  staff7:{mon:'',tue:'14:00-22:00',wed:'',thu:'',fri:'05:30-09:30',sat:'',sun:'07:00-11:00'},
+  staff8:{mon:'',tue:'',wed:'',thu:'',fri:'',sat:'17:00-23:00',sun:''},
+  staff9:{mon:'08:00-15:00',tue:'13:00-20:00',wed:'',thu:'',fri:'',sat:'05:30-14:00',sun:''}
+};
+
+function parseTimeMinutes(value){
+  const m=String(value||'').trim().match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if(!m) return null;
+  return Number(m[1])*60+Number(m[2]);
+}
+function parseShiftText(text){
+  return String(text||'').split(',').map(part=>part.trim()).filter(Boolean).map(part=>{
+    const m=part.match(/^(\d{1,2}:\d{2})\s*[-–—]\s*(\d{1,2}:\d{2})$/);
+    if(!m) return null;
+    const start=parseTimeMinutes(m[1]),end=parseTimeMinutes(m[2]);
+    if(start===null||end===null||end<=start) return null;
+    return {start,end,label:`${m[1].padStart(5,'0')}–${m[2].padStart(5,'0')}`};
+  }).filter(Boolean);
+}
+function validateShiftText(text){
+  const raw=String(text||'').trim();
+  if(!raw) return true;
+  const parts=raw.split(',').map(x=>x.trim()).filter(Boolean);
+  return parts.length>0&&parseShiftText(raw).length===parts.length;
+}
+function dayKeyLower(date){return bulkDayKey(date);}
+function availabilityTextFor(userId,date){
+  return staffAvailability?.[userId]?.[dayKeyLower(date)]||'';
+}
+function slotWindowForDate(slotId,date){
+  const slot=SLOT_DEFS.find(s=>s.id===slotId);
+  if(!slot) return null;
+  let end=slot.end;
+  if(slotId==='S5'){
+    const dow=new Date(date+'T12:00:00').getDay();
+    end=(dow===5||dow===6)?'23:00':'22:00';
+  }
+  return {start:parseTimeMinutes(slot.start),end:parseTimeMinutes(end)};
+}
+function availabilityForRows(person,date,rows){
+  const shifts=parseShiftText(availabilityTextFor(person.id,date));
+  if(!shifts.length) return {level:'none',label:'Off rota',shiftText:''};
+
+  const checkpoints=rows.map(r=>parseTimeMinutes(r.checkpoint)).filter(v=>v!==null);
+  if(checkpoints.length){
+    const covered=checkpoints.filter(cp=>shifts.some(s=>cp>=s.start&&cp<=s.end)).length;
+    const level=covered===checkpoints.length?'full':covered>0?'partial':'none';
+    return {level,label:level==='full'?'Full':'Partial',shiftText:availabilityTextFor(person.id,date)};
+  }
+
+  const windows=rows.map(r=>slotWindowForDate(r.slotId,date)).filter(Boolean);
+  if(!windows.length) return {level:'partial',label:'Partial',shiftText:availabilityTextFor(person.id,date)};
+  const start=Math.min(...windows.map(w=>w.start)),end=Math.max(...windows.map(w=>w.end));
+
+  const full=shifts.some(s=>s.start<=start&&s.end>=end);
+  const overlap=shifts.some(s=>Math.max(s.start,start)<Math.min(s.end,end));
+  return {
+    level:full?'full':overlap?'partial':'none',
+    label:full?'Full':overlap?'Partial':'Off rota',
+    shiftText:availabilityTextFor(person.id,date)
+  };
+}
+function availablePersonOptions(date,rows,selected=''){
+  const full=[],partial=[];
+  for(const p of people){
+    const a=availabilityForRows(p,date,rows);
+    if(a.level==='full') full.push({p,a});
+    else if(a.level==='partial') partial.push({p,a});
+  }
+
+  const availableIds=new Set([...full,...partial].map(x=>x.p.id));
+  const options=['<option value="">Unassigned</option>'];
+
+  if(full.length){
+    options.push('<optgroup label="✓ Available for full task window">');
+    for(const {p,a} of full) options.push(`<option value="${p.id}" ${p.id===selected?'selected':''}>✓ ${escapeHtml(p.name||p.id)} · ${escapeHtml(a.shiftText)}</option>`);
+    options.push('</optgroup>');
+  }
+  if(partial.length){
+    options.push('<optgroup label="◐ Partially available">');
+    for(const {p,a} of partial) options.push(`<option value="${p.id}" ${p.id===selected?'selected':''}>◐ ${escapeHtml(p.name||p.id)} · ${escapeHtml(a.shiftText)}</option>`);
+    options.push('</optgroup>');
+  }
+
+  if(selected&&!availableIds.has(selected)){
+    const current=people.find(p=>p.id===selected);
+    if(current) options.push(`<optgroup label="Current assignment"><option value="${current.id}" selected>⚠ ${escapeHtml(current.name||current.id)} · outside rota</option></optgroup>`);
+  }
+  return options.join('');
+}
+
+async function loadStaffAvailability(){
+  if(!people.length) await loadPeople();
+  let stored=await getStaffAvailability();
+  if(!stored?.week){
+    staffAvailability=structuredClone(DEFAULT_STAFF_AVAILABILITY);
+    await saveStaffAvailability(staffAvailability,user);
+  }else{
+    staffAvailability={...structuredClone(DEFAULT_STAFF_AVAILABILITY),...stored.week};
+  }
+
+  const team=people.filter(p=>/^staff\d+$/.test(p.id)).sort((a,b)=>(Number(a.staffId)||999)-(Number(b.staffId)||999));
+  $('#availabilityRows').innerHTML=team.map(p=>`
+    <tr data-user="${p.id}">
+      <th>${escapeHtml(p.name||p.id)}</th>
+      ${AVAIL_DAY_ORDER.map(day=>`<td><input class="availability-input" data-day="${day}" value="${escapeHtml(staffAvailability?.[p.id]?.[day]||'')}" placeholder="Off"></td>`).join('')}
+    </tr>`).join('');
+}
+$('#saveAvailability').onclick=async()=>{
+  const next=structuredClone(staffAvailability||{});
+  let invalid=null;
+
+  document.querySelectorAll('#availabilityRows tr[data-user]').forEach(row=>{
+    const id=row.dataset.user;
+    next[id]=next[id]||{};
+    row.querySelectorAll('.availability-input').forEach(input=>{
+      const value=input.value.trim();
+      input.classList.remove('invalid');
+      if(!validateShiftText(value)&&!invalid){
+        invalid=input;
+      }
+      next[id][input.dataset.day]=value;
+    });
+  });
+
+  if(invalid){
+    invalid.classList.add('invalid');
+    invalid.focus();
+    setInlineMessage($('#availabilityResult'),'Use HH:MM-HH:MM. For two shifts use a comma, e.g. 05:30-13:00, 15:00-20:00.','error');
+    return;
+  }
+
+  const btn=$('#saveAvailability');
+  setButtonLoading(btn,true,'Saving…');
+  try{
+    await saveStaffAvailability(next,user);
+    staffAvailability=next;
+    setInlineMessage($('#availabilityResult'),'✓ Staff availability saved. Staff Assignment will now use these hours.','success');
+    showToast('Staff availability saved.','success');
+    if(!$('#bulk').hidden) await loadBulkSetup();
+  }catch(error){
+    console.error(error);
+    setInlineMessage($('#availabilityResult'),error.message||'Could not save staff availability.','error');
+  }finally{
+    setButtonLoading(btn,false);
+  }
+};
+
 const BULK_DAY_LABELS={mon:'Monday',tue:'Tuesday',wed:'Wednesday',thu:'Thursday',fri:'Friday',sat:'Saturday',sun:'Sunday'};
+const BULK_DAY_ORDER=['mon','tue','wed','thu','fri','sat','sun'];
 
 function bulkWeekStart(date){
   const d=new Date(date+'T12:00:00');
@@ -628,7 +793,6 @@ function bulkWeekDates(){
   const start=bulkWeekStart(bulkWeekAnchor);
   return Array.from({length:7},(_,i)=>addDaysISO(start,i));
 }
-function bulkWeekEnd(){return bulkWeekDates()[6];}
 function bulkDayKey(date){
   return ['sun','mon','tue','wed','thu','fri','sat'][new Date(date+'T12:00:00').getDay()];
 }
@@ -637,7 +801,6 @@ function bulkWeekRangeText(){
   const a=new Date(dates[0]+'T12:00:00'),b=new Date(dates[6]+'T12:00:00');
   return `${a.toLocaleDateString('en-GB',{day:'numeric',month:'short'})} – ${b.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}`;
 }
-function bulkRowKey(r){return r.id;}
 function nextSameWeekdayOnOrAfter(sourceDate,fromDate=todayISO()){
   const source=new Date(sourceDate+'T12:00:00');
   const from=new Date(fromDate+'T12:00:00');
@@ -648,125 +811,159 @@ function nextSameWeekdayOnOrAfter(sourceDate,fromDate=todayISO()){
 function bulkFutureEffectiveDateFor(row){
   return row.date<todayISO()?nextSameWeekdayOnOrAfter(row.date,todayISO()):row.date;
 }
-function bulkPersonOptions(selected=''){
-  return `<option value="">Unassigned</option>`+
-    people.map(p=>`<option value="${p.id}" ${p.id===selected?'selected':''}>${escapeHtml(p.name||p.id)}</option>`).join('');
+function bulkMasterKey(row){
+  // Recurring checkpoints from the same master task become one weekly row.
+  if(row.templateTaskId) return `tpl:${row.templateTaskId}`;
+  return `adhoc:${String(row.taskName||'').trim().toLowerCase()}|${row.slotId||''}`;
 }
-function bulkSlotOptions(selected='',date=todayISO()){
-  return SLOT_DEFS.map(s=>`<option value="${s.id}" ${s.id===selected?'selected':''}>${escapeHtml(slotLabelForDate(s.id,date))}</option>`).join('');
+function bulkMasterSlot(rows){
+  if(rows.some(r=>r.checkpoint)) return 'AUTO';
+  const slots=[...new Set(rows.map(r=>r.slotId).filter(Boolean))];
+  return slots.length===1?slots[0]:'MULTI';
 }
-function bulkEffectiveRow(row){return bulkDirty.get(row.id)||row;}
-function filteredBulkRows(){
-  const day=$('#bulkDayFilter').value;
-  const slot=$('#bulkSlotFilter').value;
-  const unassigned=$('#bulkOnlyUnassigned').checked;
-  const missingEffort=$('#bulkOnlyMissingEffort').checked;
-  const includeRemoved=$('#bulkIncludeRemoved').checked;
+function bulkMasterLabel(rows){
+  return rows[0]?.taskName||'Untitled task';
+}
+function cellDraft(row){
+  return bulkDirty.get(row.id)||row;
+}
+function matrixGroups(){
+  const groups=new Map();
 
-  return bulkRowsData.filter(row=>{
-    const x=bulkEffectiveRow(row);
-    if(day!=='all'&&bulkDayKey(row.date)!==day) return false;
-    if(!includeRemoved&&x.status==='cancelled') return false;
-    if(slot!=='all'&&x.slotId!==slot) return false;
-    if(unassigned&&x.assignedTo) return false;
-    if(missingEffort&&Number(x.effortMinutes)>0) return false;
+  for(const row of bulkRowsData){
+    const key=bulkMasterKey(row);
+    if(!groups.has(key)) groups.set(key,[]);
+    groups.get(key).push(row);
+  }
+
+  return [...groups.entries()].map(([key,rows])=>({
+    key,
+    rows,
+    taskName:bulkMasterLabel(rows),
+    slotId:bulkMasterSlot(rows),
+    recurring:Boolean(rows.some(r=>r.templateTaskId)),
+    checkpoint:Boolean(rows.some(r=>r.checkpoint)),
+    byDay:Object.fromEntries(BULK_DAY_ORDER.map(day=>[
+      day,
+      rows.filter(r=>bulkDayKey(r.date)===day)
+    ]))
+  })).sort((a,b)=>{
+    const slotRank=id=>id==='AUTO'?-1:SLOT_DEFS.findIndex(s=>s.id===id);
+    return slotRank(a.slotId)-slotRank(b.slotId)||String(a.taskName).localeCompare(String(b.taskName));
+  });
+}
+function filteredMatrixGroups(){
+  const slot=$('#bulkSlotFilter').value;
+  const ua=$('#bulkOnlyUnassigned').checked;
+
+  return matrixGroups().filter(group=>{
+    if(slot!=='all'&&group.slotId!==slot) return false;
+
+    const cells=group.rows.map(cellDraft).filter(r=>r.status!=='cancelled');
+    if(!cells.length) return false;
+    if(ua&&!cells.some(r=>!r.assignedTo)) return false;
     return true;
   });
 }
 function updateBulkWeekUI(){
   $('#bulkWeekText').textContent=`Week ${bulkWeekRangeText()}`;
   $('#bulkWeekPicker').value=bulkWeekStart(bulkWeekAnchor);
+
+  const dates=bulkWeekDates();
+  BULK_DAY_ORDER.forEach((day,i)=>{
+    const th=document.querySelector(`#bulk .bulk-matrix-table th[data-day="${day}"]`);
+    if(th){
+      th.innerHTML=`${BULK_DAY_LABELS[day]}<small>${new Date(dates[i]+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</small>`;
+    }
+  });
 }
 function updateBulkSummary(){
-  const visible=filteredBulkRows();
-  const all=bulkRowsData.map(bulkEffectiveRow);
+  const all=bulkRowsData.map(cellDraft).filter(r=>r.status!=='cancelled');
   const savedDays=new Set(bulkRowsData.map(r=>r.date)).size;
-  const futureCapable=[...bulkDirty.values()].filter(r=>r.templateTaskId).length;
-
   $('#bulkSummary').innerHTML=`
-    <span><strong>${savedDays}/7</strong> saved days found</span>
-    <span><strong>${visible.length}</strong> visible tasks</span>
-    <span><strong>${bulkDirty.size}</strong> changed</span>
-    <span><strong>${all.filter(r=>!r.assignedTo&&r.status!=='cancelled').length}</strong> unassigned</span>
-    <span><strong>${all.filter(r=>!Number(r.effortMinutes)&&r.status!=='cancelled').length}</strong> effort not set</span>
-    <span><strong>${futureCapable}</strong> future-capable changes</span>`;
+    <span><strong>${savedDays}/7</strong> saved days</span>
+    <span><strong>${filteredMatrixGroups().length}</strong> task rows</span>
+    <span><strong>${bulkDirty.size}</strong> changed assignment records</span>
+    <span><strong>${all.filter(r=>!r.assignedTo).length}</strong> unassigned</span>`;
+}
+function renderMatrixCell(dayRows,group){
+  if(!dayRows.length){
+    return `<td class="bulk-matrix-empty"><span>—</span></td>`;
+  }
+
+  const activeRows=dayRows.filter(r=>cellDraft(r).status!=='cancelled');
+  if(!activeRows.length){
+    return `<td class="bulk-matrix-empty"><span>Removed</span></td>`;
+  }
+
+  const base=cellDraft(activeRows[0]);
+  const dirty=activeRows.some(r=>bulkDirty.has(r.id));
+  const historical=activeRows[0].date<todayISO();
+  const cellId=activeRows.map(r=>r.id).join('|');
+  const avail=base.assignedTo
+    ?availabilityForRows(people.find(p=>p.id===base.assignedTo)||{id:base.assignedTo},activeRows[0].date,activeRows)
+    :null;
+
+  return `<td class="bulk-matrix-cell assignment-cell ${dirty?'bulk-cell-dirty':''}" data-cell="${escapeHtml(cellId)}">
+    <select class="bulk-cell-assignee">
+      ${availablePersonOptions(activeRows[0].date,activeRows,base.assignedTo||'')}
+    </select>
+    <div class="assignment-cell-meta">
+      ${group.checkpoint?`<span>${activeRows.length} checkpoints</span>`:`<span>${statusView(base.status)}</span>`}
+      ${avail?.level==='full'?'<span class="availability-badge full">✓ Full</span>':''}
+      ${avail?.level==='partial'?'<span class="availability-badge partial">◐ Partial</span>':''}
+      ${avail?.level==='none'?'<span class="availability-badge unavailable">⚠ Outside rota</span>':''}
+      ${historical?'<span class="historical-view-badge">History</span>':''}
+    </div>
+  </td>`;
 }
 function renderBulkRows(){
-  const visible=filteredBulkRows();
-  let lastDate='';
+  const groups=filteredMatrixGroups();
 
-  $('#bulkRows').innerHTML=visible.map(row=>{
-    const x=bulkEffectiveRow(row);
-    const dirty=bulkDirty.has(row.id);
-    const removed=x.status==='cancelled'||x.removeRequested;
-    const historical=row.date<todayISO();
-    const futureReady=Boolean(row.templateTaskId);
-    const dayKey=bulkDayKey(row.date);
-    const dayHeader=row.date!==lastDate
-      ?`<tr class="bulk-day-divider"><td colspan="8"><strong>${BULK_DAY_LABELS[dayKey]}</strong><span>${formatLongDate(row.date)}</span>${historical?'<em>Historical source</em>':''}</td></tr>`
-      :'';
-    lastDate=row.date;
-
-    return `${dayHeader}<tr data-id="${escapeHtml(row.id)}" class="${dirty?'bulk-row-dirty':''} ${removed?'bulk-row-removed':''}">
-      <td><input class="bulk-row-select" type="checkbox"></td>
-      <td>
-        <input class="bulk-task-name" value="${escapeHtml(x.taskName||'')}" ${removed?'disabled':''}>
-        <div class="bulk-task-sub">
-          ${futureReady?'<span class="mini-pill recurring-pill">Recurring</span>':'<span class="mini-pill">Date only</span>'}
-          ${row.checkpoint?`<span class="mini-pill checkpoint-pill">⏱ ${escapeHtml(row.checkpoint)}</span>`:''}
-          ${row.photoRequired?'<span class="mini-pill photo-pill">📷 Photo</span>':''}
+  $('#bulkMatrixRows').innerHTML=groups.map(group=>`
+    <tr data-group="${escapeHtml(group.key)}">
+      <th class="bulk-task-sticky bulk-task-info">
+        <strong>${escapeHtml(group.taskName)}</strong>
+        <div>
+          <span>${group.slotId==='AUTO'?'Hourly / automatic':group.slotId==='MULTI'?'Multiple slots':escapeHtml(slotLabelForDate(group.slotId,bulkWeekStart(bulkWeekAnchor)))}</span>
+          ${group.recurring?'<span class="mini-pill recurring-pill">Recurring</span>':'<span class="mini-pill">Date only</span>'}
         </div>
-      </td>
-      <td><strong>${BULK_DAY_LABELS[dayKey]}</strong><small class="bulk-row-date">${escapeHtml(row.date)}</small></td>
-      <td>
-        ${row.checkpoint
-          ?`<span class="bulk-auto-slot">${escapeHtml(slotLabelForDate(x.slotId,row.date))}<small>Automatic</small></span>`
-          :`<select class="bulk-slot" ${removed?'disabled':''}>${bulkSlotOptions(x.slotId,row.date)}</select>`}
-      </td>
-      <td><select class="bulk-assignee" ${removed?'disabled':''}>${bulkPersonOptions(x.assignedTo||'')}</select></td>
-      <td><input class="bulk-effort" type="number" min="1" step="5" placeholder="—" value="${Number(x.effortMinutes)>0?Number(x.effortMinutes):''}" ${removed?'disabled':''}></td>
-      <td>${statusView(x.status)}</td>
-      <td>
-        ${x.status==='cancelled'
-          ?'<span class="historical-view-badge">Removed</span>'
-          :`<label class="bulk-remove-label"><input class="bulk-remove" type="checkbox" ${x.removeRequested?'checked':''}> Remove</label>`}
-      </td>
-    </tr>`;
-  }).join('')||'<tr><td colspan="8" class="muted report-empty-cell">No existing tasks found for this week/filter.</td></tr>';
+      </th>
+      ${BULK_DAY_ORDER.map(day=>renderMatrixCell(group.byDay[day],group)).join('')}
+    </tr>`).join('')||'<tr><td colspan="8" class="muted report-empty-cell">No existing tasks found for this week/filter.</td></tr>';
 
-  $('#bulkSelectAll').checked=false;
   updateBulkSummary();
 }
 async function loadBulkSetup(){
   try{
     if(!people.length) await loadPeople();
+    if(!Object.keys(staffAvailability||{}).length){ const a=await getStaffAvailability(); staffAvailability=a?.week||structuredClone(DEFAULT_STAFF_AVAILABILITY); }
     updateBulkWeekUI();
     setInlineMessage($('#bulkResult'),'');
-    $('#bulkRows').innerHTML='<tr><td colspan="8" class="muted report-empty-cell">Loading existing Firebase week…</td></tr>';
+    $('#bulkMatrixRows').innerHTML='<tr><td colspan="8" class="muted report-empty-cell">Loading existing Firebase week…</td></tr>';
 
     const dates=bulkWeekDates();
     const results=await Promise.all(dates.map(date=>getTasksForDate(date,{ensure:false})));
-    bulkRowsData=results.flat().sort((a,b)=>
-      String(a.date).localeCompare(String(b.date)) ||
-      String(a.slotId||'').localeCompare(String(b.slotId||'')) ||
-      String(a.taskName||'').localeCompare(String(b.taskName||''))
-    );
+    bulkRowsData=results.flat();
     bulkDirty.clear();
 
     const selectedSlot=$('#bulkSlotFilter').value||'all';
     $('#bulkSlotFilter').innerHTML='<option value="all">All slots</option>'+
-      SLOT_DEFS.map(s=>`<option value="${s.id}">${escapeHtml(slotLabelForDate(s.id,bulkWeekStart(bulkWeekAnchor)))}</option>`).join('');
+      '<option value="AUTO">Hourly / automatic</option>'+
+      SLOT_DEFS.map(s=>`<option value="${s.id}">${escapeHtml(slotLabelForDate(s.id,dates[0]))}</option>`).join('')+
+      '<option value="MULTI">Multiple slots</option>';
     if([...$('#bulkSlotFilter').options].some(o=>o.value===selectedSlot)) $('#bulkSlotFilter').value=selectedSlot;
 
     renderBulkRows();
 
     const foundDays=new Set(bulkRowsData.map(r=>r.date));
     if(foundDays.size<7){
-      const missing=dates.filter(d=>!foundDays.has(d)).map(d=>new Date(d+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}));
+      const missing=dates.filter(d=>!foundDays.has(d))
+        .map(d=>new Date(d+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}));
       setInlineMessage(
         $('#bulkResult'),
-        `${foundDays.size} saved day(s) found in this week.${missing.length?` No Firebase daily-task records exist for: ${missing.join(', ')}.`:''} Missing days were not generated.`,
-        foundDays.size?'warning':'warning'
+        `${foundDays.size} saved day(s) found.${missing.length?` Blank columns/cells remain for missing saved days: ${missing.join(', ')}.`:''}`,
+        'warning'
       );
     }
   }catch(error){
@@ -774,49 +971,21 @@ async function loadBulkSetup(){
     setInlineMessage($('#bulkResult'),'Could not load the existing Firebase week.','error');
   }
 }
-function markExistingBulkDirty(rowEl){
-  const id=rowEl.dataset.id;
-  const original=bulkRowsData.find(r=>r.id===id);
-  if(!original) return;
-
-  const removeRequested=Boolean(rowEl.querySelector('.bulk-remove')?.checked);
-  const slotSelect=rowEl.querySelector('.bulk-slot');
-  const draft={
-    ...original,
-    taskName:rowEl.querySelector('.bulk-task-name')?.value.trim()||original.taskName,
-    slotId:slotSelect?slotSelect.value:original.slotId,
-    assignedTo:rowEl.querySelector('.bulk-assignee')?.value||'',
-    effortMinutes:Number(rowEl.querySelector('.bulk-effort')?.value)>0?Number(rowEl.querySelector('.bulk-effort').value):null,
-    removeRequested
-  };
-
-  const unchanged=
-    draft.taskName===original.taskName &&
-    draft.slotId===original.slotId &&
-    draft.assignedTo===(original.assignedTo||'') &&
-    Number(draft.effortMinutes||0)===Number(original.effortMinutes||0) &&
-    !removeRequested;
-
-  if(unchanged) bulkDirty.delete(id);
-  else bulkDirty.set(id,draft);
-
-  renderBulkRows();
+function rowsForCell(cell){
+  const ids=String(cell.dataset.cell||'').split('|').filter(Boolean);
+  return ids.map(id=>bulkRowsData.find(r=>r.id===id)).filter(Boolean);
 }
-function selectedBulkRowEls(){
-  return [...document.querySelectorAll('#bulkRows tr[data-id]')]
-    .filter(row=>row.querySelector('.bulk-row-select')?.checked);
-}
-function applyQuickEffort(minutes){
-  const rows=selectedBulkRowEls();
-  if(!rows.length){
-    showToast('Select one or more task rows first.','warning',{title:'No rows selected'});
-    return;
-  }
-  for(const row of rows){
-    const original=bulkRowsData.find(r=>r.id===row.dataset.id);
-    if(!original) continue;
-    const existing=bulkDirty.get(original.id)||{...original};
-    bulkDirty.set(original.id,{...existing,effortMinutes:Number(minutes)});
+function writeCellDraft(cell){
+  const rows=rowsForCell(cell).filter(r=>r.status!=='cancelled');
+  if(!rows.length) return;
+
+  const assignedTo=cell.querySelector('.bulk-cell-assignee')?.value||'';
+
+  for(const original of rows){
+    const draft={...original,assignedTo};
+    const unchanged=assignedTo===(original.assignedTo||'');
+    if(unchanged) bulkDirty.delete(original.id);
+    else bulkDirty.set(original.id,draft);
   }
   renderBulkRows();
 }
@@ -830,14 +999,14 @@ async function saveBulkWeek(){
   const historical=[...bulkDirty.values()].filter(r=>r.date<todayISO());
 
   if(!writable.length){
-    showToast('All changed daily records are historical and remain read only. Use Apply Changed Tasks to Future Schedule instead.','warning');
+    showToast('All changed cells are historical. Use Apply Changed Tasks to Future Schedule instead.','warning');
     return;
   }
 
   const ok=await confirmAction({
     title:'Save changes to this loaded week?',
-    message:`Update ${writable.length} changed daily task record${writable.length===1?'':'s'} from today/future dates in this week?`,
-    details:`${historical.length?`${historical.length} historical changed row(s) will be skipped to preserve audit history. `:''}The recurring weekly schedule will not change.`,
+    message:`Update ${writable.length} existing daily task record${writable.length===1?'':'s'} from today/future dates in this week?`,
+    details:`${historical.length?`${historical.length} historical record(s) will be skipped. `:''}The recurring weekly schedule will not change.`,
     confirmText:'Save This Week'
   });
   if(!ok) return;
@@ -845,53 +1014,20 @@ async function saveBulkWeek(){
   const btn=$('#bulkSaveWeek');setButtonLoading(btn,true,'Saving…');
   try{
     const names=new Map(people.map(p=>[p.id,p.name||'Unassigned']));
-    const processedCheckpointGroups=new Set();
 
     for(const draft of writable){
-      if(draft.checkpoint&&draft.templateTaskId){
-        const groupKey=`${draft.date}|${draft.templateTaskId}`;
-        if(processedCheckpointGroups.has(groupKey)) continue;
-        processedCheckpointGroups.add(groupKey);
-
-        const siblings=bulkRowsData.filter(r=>r.date===draft.date&&r.templateTaskId===draft.templateTaskId&&r.checkpoint);
-        for(const sibling of siblings){
-          if(draft.removeRequested){
-            await cancelTaskToday(sibling.id,user);
-          }else{
-            await updateDailyTask(sibling.id,{
-              taskName:draft.taskName,
-              assignedTo:draft.assignedTo||'',
-              assignedName:draft.assignedTo?(names.get(draft.assignedTo)||'Unassigned'):'Unassigned',
-              effortMinutes:draft.effortMinutes
-            },user);
-          }
-        }
-        continue;
-      }
-
-      if(draft.removeRequested){
-        await cancelTaskToday(draft.id,user);
-      }else{
-        await updateDailyTask(draft.id,{
-          taskName:draft.taskName,
-          slotId:draft.slotId,
-          assignedTo:draft.assignedTo||'',
-          assignedName:draft.assignedTo?(names.get(draft.assignedTo)||'Unassigned'):'Unassigned',
-          effortMinutes:draft.effortMinutes
-        },user);
-      }
+      await updateDailyTask(draft.id,{
+        assignedTo:draft.assignedTo||'',
+        assignedName:draft.assignedTo?(names.get(draft.assignedTo)||'Unassigned'):'Unassigned'
+      },user);
     }
 
-    setInlineMessage(
-      $('#bulkResult'),
-      `✓ ${writable.length} changed row(s) saved across the loaded week.${historical.length?` ${historical.length} historical row(s) were left unchanged.`:''}`,
-      'success'
-    );
+    setInlineMessage($('#bulkResult'),`✓ ${writable.length} existing daily record(s) updated in this week.${historical.length?` ${historical.length} historical record(s) were protected.`:''}`,'success');
     await loadBulkSetup();
     if(bulkWeekDates().includes(selectedDate)) await bindDate();
   }catch(error){
     console.error(error);
-    setInlineMessage($('#bulkResult'),error.message||'Could not save weekly daily-task changes.','error');
+    setInlineMessage($('#bulkResult'),error.message||'Could not save weekly changes.','error');
   }finally{
     setButtonLoading(btn,false);
   }
@@ -905,24 +1041,22 @@ async function saveBulkFuture(){
   const rawEligible=[...bulkDirty.values()].filter(r=>r.templateTaskId);
   const dateOnly=[...bulkDirty.values()].filter(r=>!r.templateTaskId);
 
-  // Consolidate hourly checkpoint rows only within the same weekday/master task.
-  // The same template can legitimately have different settings on different weekdays.
+  // One future rule per recurring master task + weekday.
   const eligibleMap=new Map();
   for(const draft of rawEligible){
-    const key=`${draft.templateTaskId}|${bulkDayKey(draft.date)}`;
-    eligibleMap.set(key,draft);
+    eligibleMap.set(`${draft.templateTaskId}|${bulkDayKey(draft.date)}`,draft);
   }
   const eligible=[...eligibleMap.values()];
 
   if(!eligible.length){
-    showToast('None of the changed rows are linked to a recurring template.','warning',{title:'Future update unavailable'});
+    showToast('None of the changed cells are linked to a recurring template.','warning');
     return;
   }
 
   const ok=await confirmAction({
-    title:'Apply changed weekly rows to the future schedule?',
-    message:`Apply ${eligible.length} recurring weekday change${eligible.length===1?'':'s'} using this loaded week as the source?`,
-    details:`Each row starts from its own date, or from the next matching weekday if the source row is historical. Earlier history remains unchanged.${rawEligible.length>eligible.length?' Hourly checkpoints are consolidated per weekday/master task.':''}${dateOnly.length?` ${dateOnly.length} date-only/ad-hoc row(s) will be skipped.`:''}`,
+    title:'Apply staff assignments to the future schedule?',
+    message:`Apply ${eligible.length} recurring weekday change${eligible.length===1?'':'s'} using this matrix as the source?`,
+    details:`Each assignment affects only its own weekday. Historical source cells begin from the next occurrence of that weekday. Earlier history remains unchanged.${dateOnly.length?` ${dateOnly.length} date-only/ad-hoc changed record(s) will be skipped.`:''}`,
     confirmText:'Apply to Future Schedule'
   });
   if(!ok) return;
@@ -931,23 +1065,15 @@ async function saveBulkFuture(){
   try{
     for(const draft of eligible){
       const effectiveFrom=bulkFutureEffectiveDateFor(draft);
-      if(draft.removeRequested){
-        await stopTaskFuture(draft.templateTaskId,effectiveFrom,user);
-      }else{
-        await saveFutureRule(draft.templateTaskId,effectiveFrom,{
-          taskName:draft.taskName,
-          slotId:draft.slotId,
-          assignedTo:draft.assignedTo||'',
-          effortMinutes:draft.effortMinutes
-        },user);
-      }
+      await saveFutureRule(draft.templateTaskId,effectiveFrom,{
+        taskName:draft.taskName,
+        slotId:draft.slotId,
+        assignedTo:draft.assignedTo||'',
+        effortMinutes:draft.effortMinutes
+      },user);
     }
 
-    setInlineMessage(
-      $('#bulkResult'),
-      `✓ ${eligible.length} recurring weekday change(s) applied to the future schedule.${rawEligible.length>eligible.length?' Hourly checkpoint rows were consolidated correctly.':''}${dateOnly.length?` ${dateOnly.length} date-only row(s) were skipped.`:''}`,
-      'success'
-    );
+    setInlineMessage($('#bulkResult'),`✓ ${eligible.length} recurring weekday change(s) applied to the future schedule.${dateOnly.length?` ${dateOnly.length} date-only record(s) were skipped.`:''}`,'success');
     bulkDirty.clear();
     await loadBulkSetup();
     await bindDate();
@@ -965,52 +1091,327 @@ $('#bulkThisWeek').onclick=()=>{bulkWeekAnchor=todayISO();loadBulkSetup();};
 $('#bulkWeekPicker').onchange=e=>{if(e.target.value){bulkWeekAnchor=e.target.value;loadBulkSetup();}};
 $('#bulkLoadWeek').onclick=loadBulkSetup;
 
-$('#bulkRows').addEventListener('change',e=>{
-  const row=e.target.closest('tr[data-id]');
-  if(!row) return;
-  if(
-    e.target.classList.contains('bulk-task-name')||
-    e.target.classList.contains('bulk-slot')||
-    e.target.classList.contains('bulk-assignee')||
-    e.target.classList.contains('bulk-effort')||
-    e.target.classList.contains('bulk-remove')
-  ){
-    markExistingBulkDirty(row);
+$('#bulkMatrixRows').addEventListener('change',e=>{
+  const cell=e.target.closest('.bulk-matrix-cell[data-cell]');
+  if(!cell) return;
+  if(e.target.classList.contains('bulk-cell-assignee')){
+    writeCellDraft(cell);
   }
 });
-$('#bulkRows').addEventListener('input',e=>{
-  const row=e.target.closest('tr[data-id]');
-  if(!row) return;
-  if(e.target.classList.contains('bulk-task-name')||e.target.classList.contains('bulk-effort')){
-    const original=bulkRowsData.find(r=>r.id===row.dataset.id);
-    if(!original) return;
-    const current=bulkDirty.get(original.id)||{...original};
-    if(e.target.classList.contains('bulk-task-name')) current.taskName=e.target.value;
-    if(e.target.classList.contains('bulk-effort')) current.effortMinutes=Number(e.target.value)>0?Number(e.target.value):null;
-    bulkDirty.set(original.id,current);
-    row.classList.add('bulk-row-dirty');
-    updateBulkSummary();
-  }
-});
-['bulkDayFilter','bulkSlotFilter','bulkOnlyUnassigned','bulkOnlyMissingEffort','bulkIncludeRemoved'].forEach(id=>{
+['bulkSlotFilter','bulkOnlyUnassigned'].forEach(id=>{
   $('#'+id).addEventListener('change',renderBulkRows);
 });
 $('#bulkResetFilters').onclick=()=>{
-  $('#bulkDayFilter').value='all';
   $('#bulkSlotFilter').value='all';
   $('#bulkOnlyUnassigned').checked=false;
-  $('#bulkOnlyMissingEffort').checked=false;
-  $('#bulkIncludeRemoved').checked=false;
   renderBulkRows();
 };
-$('#bulkSelectAll').onchange=e=>{
-  document.querySelectorAll('#bulkRows .bulk-row-select').forEach(cb=>cb.checked=e.target.checked);
-};
-document.querySelectorAll('.bulk-effort-chip').forEach(btn=>{
-  btn.onclick=()=>applyQuickEffort(Number(btn.dataset.minutes));
-});
 $('#bulkSaveWeek').onclick=saveBulkWeek;
 $('#bulkSaveFuture').onclick=saveBulkFuture;
+
+
+
+function effortWeekStart(date){
+  const d=new Date(date+'T12:00:00');
+  const diff=(d.getDay()+6)%7;
+  d.setDate(d.getDate()-diff);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function effortWeekDates(){
+  const start=effortWeekStart(effortWeekAnchor);
+  return Array.from({length:7},(_,i)=>addDaysISO(start,i));
+}
+function effortWeekRangeText(){
+  const dates=effortWeekDates();
+  const a=new Date(dates[0]+'T12:00:00'),b=new Date(dates[6]+'T12:00:00');
+  return `${a.toLocaleDateString('en-GB',{day:'numeric',month:'short'})} – ${b.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}`;
+}
+function effortMasterKey(row){
+  if(row.templateTaskId) return `tpl:${row.templateTaskId}`;
+  return `adhoc:${String(row.taskName||'').trim().toLowerCase()}|${row.slotId||''}`;
+}
+function effortGroups(){
+  const map=new Map();
+  for(const row of effortRowsData){
+    const key=effortMasterKey(row);
+    if(!map.has(key)) map.set(key,[]);
+    map.get(key).push(row);
+  }
+
+  return [...map.entries()].map(([key,rows])=>{
+    const byDay=Object.fromEntries(BULK_DAY_ORDER.map(day=>[day,rows.filter(r=>bulkDayKey(r.date)===day)]));
+    const existingEfforts=rows.map(r=>Number(r.effortMinutes)||0).filter(Boolean);
+    const defaultEffort=existingEfforts[0]||null;
+    const slotId=rows.some(r=>r.checkpoint)
+      ?'AUTO'
+      :([...new Set(rows.map(r=>r.slotId).filter(Boolean))].length===1?rows[0].slotId:'MULTI');
+
+    return {
+      key,rows,byDay,
+      taskName:rows[0]?.taskName||'Untitled task',
+      slotId,
+      recurring:rows.some(r=>r.templateTaskId),
+      checkpoint:rows.some(r=>r.checkpoint),
+      defaultEffort
+    };
+  }).sort((a,b)=>{
+    const rank=id=>id==='AUTO'?-1:id==='MULTI'?999:SLOT_DEFS.findIndex(s=>s.id===id);
+    return rank(a.slotId)-rank(b.slotId)||String(a.taskName).localeCompare(String(b.taskName));
+  });
+}
+function filteredEffortGroups(){
+  const slot=$('#effortSlotFilter').value;
+  const missing=$('#effortOnlyMissing').checked;
+  return effortGroups().filter(g=>{
+    if(slot!=='all'&&g.slotId!==slot) return false;
+    const draft=effortDirty.get(g.key);
+    const minutes=draft?.effortMinutes??g.defaultEffort;
+    if(missing&&Number(minutes)>0) return false;
+    return true;
+  });
+}
+function updateEffortWeekUI(){
+  $('#effortWeekText').textContent=`Week ${effortWeekRangeText()}`;
+  $('#effortWeekPicker').value=effortWeekStart(effortWeekAnchor);
+  const dates=effortWeekDates();
+
+  BULK_DAY_ORDER.forEach((day,i)=>{
+    const th=document.querySelector(`#effort .effort-template-table th[data-effort-day="${day}"]`);
+    if(th){
+      th.innerHTML=`${BULK_DAY_LABELS[day]}<small>${new Date(dates[i]+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</small>`;
+    }
+  });
+}
+function updateEffortSummary(){
+  const groups=effortGroups();
+  const visible=filteredEffortGroups();
+  const missing=groups.filter(g=>{
+    const d=effortDirty.get(g.key);
+    return !Number(d?.effortMinutes??g.defaultEffort);
+  }).length;
+  $('#effortSummary').innerHTML=`
+    <span><strong>${visible.length}</strong> task rows</span>
+    <span><strong>${effortDirty.size}</strong> changed tasks</span>
+    <span><strong>${missing}</strong> effort not set</span>`;
+}
+function effortDraftForGroup(group){
+  return effortDirty.get(group.key)||{
+    effortMinutes:group.defaultEffort,
+    removedDays:new Set()
+  };
+}
+function renderEffortMatrix(){
+  const groups=filteredEffortGroups();
+
+  $('#effortMatrixRows').innerHTML=groups.map(group=>{
+    const draft=effortDraftForGroup(group);
+
+    return `<tr data-effort-group="${escapeHtml(group.key)}">
+      <th class="effort-task-sticky effort-task-info">
+        <strong>${escapeHtml(group.taskName)}</strong>
+        <div>
+          <span>${group.slotId==='AUTO'?'Hourly / automatic':group.slotId==='MULTI'?'Multiple slots':escapeHtml(slotLabelForDate(group.slotId,effortWeekStart(effortWeekAnchor)))}</span>
+          ${group.recurring?'<span class="mini-pill recurring-pill">Recurring</span>':'<span class="mini-pill">Date only</span>'}
+        </div>
+      </th>
+
+      <td class="effort-single-value">
+        <div class="effort-value-wrap">
+          <input class="effort-template-input" type="number" min="1" step="5" placeholder="—" value="${Number(draft.effortMinutes)>0?Number(draft.effortMinutes):''}">
+          <span>min</span>
+        </div>
+      </td>
+
+      ${BULK_DAY_ORDER.map(day=>{
+        const dayRows=group.byDay[day];
+        if(!dayRows.length) return `<td class="effort-day-cell missing"><span>—</span></td>`;
+        const removed=draft.removedDays?.has(day) || dayRows.every(r=>r.status==='cancelled');
+        return `<td class="effort-day-cell ${removed?'removed':''}" data-day="${day}">
+          <label>
+            <input class="effort-remove-day" type="checkbox" ${removed?'checked':''}>
+            <span>Remove</span>
+          </label>
+        </td>`;
+      }).join('')}
+    </tr>`;
+  }).join('')||'<tr><td colspan="9" class="muted report-empty-cell">No existing tasks found for this week/filter.</td></tr>';
+
+  updateEffortSummary();
+}
+async function loadEffortAllocation(){
+  try{
+    updateEffortWeekUI();
+    setInlineMessage($('#effortResult'),'');
+    $('#effortMatrixRows').innerHTML='<tr><td colspan="9" class="muted report-empty-cell">Loading existing Firebase week…</td></tr>';
+
+    const dates=effortWeekDates();
+    const results=await Promise.all(dates.map(date=>getTasksForDate(date,{ensure:false})));
+    effortRowsData=results.flat();
+    effortDirty.clear();
+
+    const selected=$('#effortSlotFilter').value||'all';
+    $('#effortSlotFilter').innerHTML='<option value="all">All slots</option>'+
+      '<option value="AUTO">Hourly / automatic</option>'+
+      SLOT_DEFS.map(s=>`<option value="${s.id}">${escapeHtml(slotLabelForDate(s.id,dates[0]))}</option>`).join('')+
+      '<option value="MULTI">Multiple slots</option>';
+    if([...$('#effortSlotFilter').options].some(o=>o.value===selected)) $('#effortSlotFilter').value=selected;
+
+    renderEffortMatrix();
+
+    const found=new Set(effortRowsData.map(r=>r.date));
+    if(found.size<7){
+      setInlineMessage($('#effortResult'),`${found.size} saved day(s) found. Missing days stay blank and are not created.`,'warning');
+    }
+  }catch(error){
+    console.error(error);
+    setInlineMessage($('#effortResult'),'Could not load effort allocation data.','error');
+  }
+}
+function readEffortGroupDraft(rowEl){
+  const key=rowEl.dataset.effortGroup;
+  const group=effortGroups().find(g=>g.key===key);
+  if(!group) return;
+
+  const effortMinutes=Number(rowEl.querySelector('.effort-template-input')?.value)>0
+    ?Number(rowEl.querySelector('.effort-template-input').value)
+    :null;
+
+  const removedDays=new Set();
+  rowEl.querySelectorAll('.effort-day-cell[data-day]').forEach(cell=>{
+    if(cell.querySelector('.effort-remove-day')?.checked) removedDays.add(cell.dataset.day);
+  });
+
+  const originalEffort=Number(group.defaultEffort)||0;
+  const originalRemoved=new Set(
+    BULK_DAY_ORDER.filter(day=>{
+      const rows=group.byDay[day];
+      return rows.length&&rows.every(r=>r.status==='cancelled');
+    })
+  );
+
+  const sameEffort=Number(effortMinutes||0)===originalEffort;
+  const sameRemoved=
+    removedDays.size===originalRemoved.size &&
+    [...removedDays].every(d=>originalRemoved.has(d));
+
+  if(sameEffort&&sameRemoved) effortDirty.delete(key);
+  else effortDirty.set(key,{effortMinutes,removedDays});
+}
+async function saveWeeklyEffortSetup(){
+  if(!effortDirty.size){
+    showToast('There are no effort/removal changes to save.','info');
+    return;
+  }
+
+  const groups=effortGroups();
+  const changes=[...effortDirty.entries()]
+    .map(([key,draft])=>({group:groups.find(g=>g.key===key),draft}))
+    .filter(x=>x.group);
+
+  const ok=await confirmAction({
+    title:'Save weekly effort setup?',
+    message:`Save ${changes.length} changed task setup${changes.length===1?'':'s'}?`,
+    details:'Each task gets one effort value across all active days. Ticked Remove days are excluded. Staff assignment is not changed.',
+    confirmText:'Save Weekly Setup'
+  });
+  if(!ok) return;
+
+  const btn=$('#effortSaveTemplate');
+  setButtonLoading(btn,true,'Saving…');
+
+  try{
+    let updatedDaily=0, updatedFuture=0, removedCount=0;
+
+    for(const {group,draft} of changes){
+      const activeDays=BULK_DAY_ORDER.filter(day=>group.byDay[day].length&&!draft.removedDays.has(day));
+
+      // Update currently loaded week only for today/future daily records.
+      for(const day of activeDays){
+        for(const row of group.byDay[day]){
+          if(row.date<todayISO()||row.status==='cancelled') continue;
+          await updateDailyTask(row.id,{effortMinutes:draft.effortMinutes},user);
+          updatedDaily++;
+        }
+      }
+
+      // Remove selected days from currently loaded week if today/future.
+      for(const day of draft.removedDays){
+        for(const row of group.byDay[day]){
+          if(row.date<todayISO()||row.status==='cancelled') continue;
+          await cancelTaskToday(row.id,user);
+          removedCount++;
+        }
+      }
+
+      // Update recurring template per weekday, keeping the same effort across active days.
+      if(group.recurring){
+        for(const day of BULK_DAY_ORDER){
+          const rows=group.byDay[day];
+          if(!rows.length) continue;
+
+          const source=rows[0];
+          const effectiveFrom=source.date<todayISO()?nextSameWeekdayOnOrAfter(source.date,todayISO()):source.date;
+
+          if(draft.removedDays.has(day)){
+            await stopTaskFuture(source.templateTaskId,effectiveFrom,user);
+            updatedFuture++;
+          }else{
+            await saveFutureRule(source.templateTaskId,effectiveFrom,{
+              taskName:source.taskName,
+              slotId:source.slotId,
+              assignedTo:source.assignedTo||'',
+              effortMinutes:draft.effortMinutes
+            },user);
+            updatedFuture++;
+          }
+        }
+      }
+    }
+
+    setInlineMessage(
+      $('#effortResult'),
+      `✓ Weekly effort setup saved. ${updatedDaily} current/future daily record(s) updated, ${removedCount} daily task(s) removed, and ${updatedFuture} recurring weekday rule(s) updated.`,
+      'success'
+    );
+
+    effortDirty.clear();
+    await loadEffortAllocation();
+    await bindDate();
+  }catch(error){
+    console.error(error);
+    setInlineMessage($('#effortResult'),error.message||'Could not save weekly effort setup.','error');
+  }finally{
+    setButtonLoading(btn,false);
+  }
+}
+
+$('#effortPrevWeek').onclick=()=>{effortWeekAnchor=addDaysISO(effortWeekStart(effortWeekAnchor),-7);loadEffortAllocation();};
+$('#effortNextWeek').onclick=()=>{effortWeekAnchor=addDaysISO(effortWeekStart(effortWeekAnchor),7);loadEffortAllocation();};
+$('#effortThisWeek').onclick=()=>{effortWeekAnchor=todayISO();loadEffortAllocation();};
+$('#effortWeekPicker').onchange=e=>{if(e.target.value){effortWeekAnchor=e.target.value;loadEffortAllocation();}};
+$('#effortLoadWeek').onclick=loadEffortAllocation;
+
+$('#effortMatrixRows').addEventListener('input',e=>{
+  const row=e.target.closest('tr[data-effort-group]');
+  if(!row||!e.target.classList.contains('effort-template-input')) return;
+  readEffortGroupDraft(row);
+  row.classList.add('effort-row-dirty');
+  updateEffortSummary();
+});
+$('#effortMatrixRows').addEventListener('change',e=>{
+  const row=e.target.closest('tr[data-effort-group]');
+  if(!row||!e.target.classList.contains('effort-remove-day')) return;
+  readEffortGroupDraft(row);
+  renderEffortMatrix();
+});
+$('#effortSlotFilter').onchange=renderEffortMatrix;
+$('#effortOnlyMissing').onchange=renderEffortMatrix;
+$('#effortResetFilters').onclick=()=>{
+  $('#effortSlotFilter').value='all';
+  $('#effortOnlyMissing').checked=false;
+  renderEffortMatrix();
+};
+$('#effortSaveTemplate').onclick=saveWeeklyEffortSetup;
 
 async function checkSystemReady(){
   try{
@@ -1075,6 +1476,7 @@ try{
 }
 
 await loadPeople();
+  { const a=await getStaffAvailability(); staffAvailability=a?.week||structuredClone(DEFAULT_STAFF_AVAILABILITY); }
 updateDateUI();
 updateCoverDateUI();
 const systemReady=await checkSystemReady();

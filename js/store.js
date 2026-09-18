@@ -107,6 +107,21 @@ export async function createPerson(data){
   return id;
 }
 
+
+export async function getStaffAvailability(){
+  const snap=await getDoc(doc(db,'system','staffAvailability'));
+  return snap.exists()?snap.data():null;
+}
+
+export async function saveStaffAvailability(week,actor){
+  await setDoc(doc(db,'system','staffAvailability'),{
+    week,
+    updatedAt:serverTimestamp(),
+    updatedByUserId:actor?.id||'',
+    updatedByName:actor?.name||''
+  },{merge:true});
+}
+
 export async function getWeeklyTemplate(){
   const s=await getDocs(collection(db,'weeklyTemplates'));
   return s.docs.map(d=>({id:d.id,...d.data()}))
