@@ -230,3 +230,10 @@ V2.7.1 includes all functionality from V2.7:
 - double-tap focus mode with automatic current-slot handover
 - 60-minute / 30-minute / due-time slot alerts, with three due-time beeps once only
 - best-effort Screen Wake Lock
+
+## V2.8 — Bulk Task Setup
+Manager Bulk Setup provides one-table editing of recurring assignee and effort values.
+Filters: weekday, slot, Unassigned only, Effort not set only.
+Quick effort: 5/10/15/20/30/45/60 min.
+Supports row selection, copy Assignee Down, copy Effort Down, and one Save All Changes action.
+Historical records remain unchanged; incomplete generated today/future snapshots are refreshed.

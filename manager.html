@@ -12,6 +12,7 @@
   <button class="active" data-section="schedule">Schedule Editor</button>
   <button data-section="people">People & PINs</button>
   <button data-section="cover">Shift Cover</button>
+  <button data-section="bulk">Bulk Setup</button>
   <button data-section="reports">Reports</button>
 </nav>
 
@@ -171,6 +172,59 @@
       </div>
       <div id="coverPreviewRows" class="cover-preview-rows"></div>
     </article>
+  </div>
+</section>
+
+
+<section id="bulk" class="manager-section" hidden>
+  <div class="card elevated">
+    <div class="section-intro">
+      <div>
+        <span class="eyebrow">One-time setup tool</span>
+        <h2>Bulk Task Setup</h2>
+        <p class="muted">Update recurring task assignees and effort values quickly. Historical records are not changed.</p>
+      </div>
+      <button id="bulkSaveAll" class="btn">Save All Changes</button>
+    </div>
+
+    <div class="bulk-filter-bar">
+      <label class="bulk-filter-field"><span>Day</span>
+        <select id="bulkDayFilter">
+          <option value="all">All days</option><option value="mon">Monday</option><option value="tue">Tuesday</option>
+          <option value="wed">Wednesday</option><option value="thu">Thursday</option><option value="fri">Friday</option>
+          <option value="sat">Saturday</option><option value="sun">Sunday</option>
+        </select>
+      </label>
+      <label class="bulk-filter-field"><span>Slot</span><select id="bulkSlotFilter"><option value="all">All slots</option></select></label>
+      <label class="bulk-toggle-filter"><input id="bulkOnlyUnassigned" type="checkbox"> Unassigned only</label>
+      <label class="bulk-toggle-filter"><input id="bulkOnlyMissingEffort" type="checkbox"> Effort not set only</label>
+      <button id="bulkResetFilters" class="btn secondary small" type="button">Reset filters</button>
+    </div>
+
+    <div class="bulk-effort-shortcuts">
+      <span>Quick effort:</span>
+      <button type="button" class="bulk-effort-chip" data-minutes="5">5m</button>
+      <button type="button" class="bulk-effort-chip" data-minutes="10">10m</button>
+      <button type="button" class="bulk-effort-chip" data-minutes="15">15m</button>
+      <button type="button" class="bulk-effort-chip" data-minutes="20">20m</button>
+      <button type="button" class="bulk-effort-chip" data-minutes="30">30m</button>
+      <button type="button" class="bulk-effort-chip" data-minutes="45">45m</button>
+      <button type="button" class="bulk-effort-chip" data-minutes="60">60m</button>
+      <span class="muted">Select rows first.</span>
+    </div>
+
+    <div id="bulkSummary" class="bulk-summary"></div>
+    <div id="bulkResult" class="inline-message" hidden></div>
+
+    <div class="table-wrap bulk-table-wrap">
+      <table class="bulk-table">
+        <thead><tr>
+          <th><input id="bulkSelectAll" type="checkbox"></th>
+          <th>Task</th><th>Day</th><th>Slot</th><th>Assignee</th><th>Effort</th><th>Copy</th>
+        </tr></thead>
+        <tbody id="bulkRows"></tbody>
+      </table>
+    </div>
   </div>
 </section>
 
