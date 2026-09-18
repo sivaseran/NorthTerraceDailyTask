@@ -1,7 +1,7 @@
 import {getSession,clearSession} from './auth.js';
 import {
   SLOT_DEFS,todayISO,addDaysISO,formatLongDate,slotLabelForDate,slotCapacityMinutes,
-  getUsers,getAssignableUsers,getSystemState,validateUserUniqueness,saveUser,createPerson,
+  getUsers,getAssignableUsers,getSystemState,getWeeklyTemplate,bulkUpdateWeeklyTemplateRows,validateUserUniqueness,saveUser,createPerson,
   ensureTasksForDate,resetTasksForDate,watchTasksForDate,getTasksForDate,
   updateDailyTask,saveFutureRule,createTaskForDate,cancelTaskToday,stopTaskFuture,saveFutureShiftCover,
   workloadBySlot,capacityForDraft,completeTask
@@ -20,6 +20,8 @@ if(!user||user.role!=='manager') location.href='login.html';
 let selectedDate=todayISO(),tasks=[],people=[],unsubscribe=null;
 let coverDate=todayISO(),coverTasks=[];
 let advancedEditAll=false;
+let bulkRowsData=[];
+let bulkDirty=new Map();
 const isHistoricalDate=()=>selectedDate<todayISO();
 const personOptions=()=>`<option value="">Unassigned</option>`+people.map(p=>`<option value="${p.id}">${escapeHtml(p.name||p.id)}</option>`).join('');
 const slotOptions=selected=>SLOT_DEFS.map(s=>`<option value="${s.id}" ${s.id===selected?'selected':''}>${escapeHtml(slotLabelForDate(s.id,selectedDate))}</option>`).join('');
@@ -475,6 +477,7 @@ document.querySelectorAll('.manager-nav button').forEach(btn=>btn.onclick=async(
     if(!coverDate) coverDate=selectedDate||todayISO();
     await loadCoverDate();
   }
+  if(btn.dataset.section==='bulk') await loadBulkSetup();
 });
 
 function clearPerson(){
@@ -606,6 +609,111 @@ $('#coverFutureBtn').onclick=async()=>{
   }finally{
     setButtonLoading(btn,false);
   }
+};
+
+
+
+const DAY_LABELS={mon:'Monday',tue:'Tuesday',wed:'Wednesday',thu:'Thursday',fri:'Friday',sat:'Saturday',sun:'Sunday'};
+
+function activeVersionForBulk(dayData){
+  if(!dayData?.versions?.length) return null;
+  return dayData.versions.filter(v=>v.active!==false&&!v.effectiveTo)
+    .sort((a,b)=>String(a.effectiveFrom||'').localeCompare(String(b.effectiveFrom||''))).at(-1)||null;
+}
+function bulkRowKey(r){return `${r.templateTaskId}|${r.dayKey}`;}
+function bulkPersonOptions(selected=''){
+  return `<option value="">Unassigned</option>`+people.map(p=>`<option value="${p.id}" ${p.id===selected?'selected':''}>${escapeHtml(p.name||p.id)}</option>`).join('');
+}
+function bulkSlotLabel(id){return id==='AUTO'?'Hourly / automatic':slotLabelForDate(id,todayISO());}
+function filteredBulkRows(){
+  const d=$('#bulkDayFilter').value,s=$('#bulkSlotFilter').value;
+  const ua=$('#bulkOnlyUnassigned').checked,me=$('#bulkOnlyMissingEffort').checked;
+  return bulkRowsData.filter(r=>{
+    const x=bulkDirty.get(bulkRowKey(r))||r;
+    return (d==='all'||r.dayKey===d) && (s==='all'||r.slotId===s) && (!ua||!x.assigneeId) && (!me||!Number(x.effortMinutes));
+  });
+}
+function updateBulkSummary(){
+  const all=bulkRowsData.map(r=>bulkDirty.get(bulkRowKey(r))||r);
+  $('#bulkSummary').innerHTML=`
+    <span><strong>${filteredBulkRows().length}</strong> visible</span>
+    <span><strong>${bulkDirty.size}</strong> unsaved</span>
+    <span><strong>${all.filter(r=>!r.assigneeId).length}</strong> unassigned</span>
+    <span><strong>${all.filter(r=>!Number(r.effortMinutes)).length}</strong> effort not set</span>`;
+}
+function renderBulkRows(){
+  $('#bulkRows').innerHTML=filteredBulkRows().map(r=>{
+    const key=bulkRowKey(r),x=bulkDirty.get(key)||r;
+    return `<tr data-key="${escapeHtml(key)}">
+      <td><input class="bulk-row-select" type="checkbox"></td>
+      <td><strong>${escapeHtml(r.taskName)}</strong>${r.photoRequired?'<span class="mini-pill photo-pill">📷</span>':''}</td>
+      <td>${DAY_LABELS[r.dayKey]}</td><td>${escapeHtml(bulkSlotLabel(r.slotId))}</td>
+      <td><select class="bulk-assignee">${bulkPersonOptions(x.assigneeId||'')}</select></td>
+      <td><input class="bulk-effort" type="number" min="1" step="5" placeholder="—" value="${Number(x.effortMinutes)>0?Number(x.effortMinutes):''}"></td>
+      <td><button class="link-btn bulk-copy-assignee" type="button">Assignee ↓</button><br><button class="link-btn bulk-copy-effort" type="button">Effort ↓</button></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="7" class="muted report-empty-cell">No tasks match these filters.</td></tr>';
+  $('#bulkSelectAll').checked=false; updateBulkSummary();
+}
+async function loadBulkSetup(){
+  if(!people.length) await loadPeople();
+  const templates=await getWeeklyTemplate();
+  bulkRowsData=[];
+  for(const t of templates){
+    for(const dayKey of Object.keys(DAY_LABELS)){
+      const v=activeVersionForBulk(t.schedule?.[dayKey]);
+      if(!v) continue;
+      bulkRowsData.push({
+        templateTaskId:t.id,taskName:t.taskName||'Untitled task',dayKey,slotId:v.slotId||'',
+        assigneeId:v.assigneeId||'',effortMinutes:Number(v.effortMinutes)>0?Number(v.effortMinutes):null,
+        photoRequired:Boolean(t.photoRequired)
+      });
+    }
+  }
+  const order=['mon','tue','wed','thu','fri','sat','sun'];
+  bulkRowsData.sort((a,b)=>order.indexOf(a.dayKey)-order.indexOf(b.dayKey)||String(a.slotId).localeCompare(String(b.slotId))||String(a.taskName).localeCompare(String(b.taskName)));
+  $('#bulkSlotFilter').innerHTML='<option value="all">All slots</option>'+SLOT_DEFS.map(s=>`<option value="${s.id}">${escapeHtml(slotLabelForDate(s.id,todayISO()))}</option>`).join('')+'<option value="AUTO">Hourly / automatic</option>';
+  renderBulkRows();
+}
+function markBulkDirty(row){
+  const key=row.dataset.key,orig=bulkRowsData.find(r=>bulkRowKey(r)===key); if(!orig) return;
+  const draft={...orig,assigneeId:row.querySelector('.bulk-assignee').value,effortMinutes:Number(row.querySelector('.bulk-effort').value)>0?Number(row.querySelector('.bulk-effort').value):null};
+  const same=draft.assigneeId===orig.assigneeId&&Number(draft.effortMinutes||0)===Number(orig.effortMinutes||0);
+  if(same) bulkDirty.delete(key); else bulkDirty.set(key,draft);
+  row.classList.toggle('bulk-row-dirty',!same); updateBulkSummary();
+}
+function selectedBulkRows(){return [...document.querySelectorAll('#bulkRows tr[data-key]')].filter(r=>r.querySelector('.bulk-row-select')?.checked);}
+function copyDown(row,type){
+  const rows=[...document.querySelectorAll('#bulkRows tr[data-key]')],i=rows.indexOf(row); if(i<0)return;
+  const src=bulkRowsData.find(r=>bulkRowKey(r)===row.dataset.key); if(!src)return;
+  const val=type==='assignee'?row.querySelector('.bulk-assignee').value:row.querySelector('.bulk-effort').value;
+  for(let n=i+1;n<rows.length;n++){
+    const d=bulkRowsData.find(r=>bulkRowKey(r)===rows[n].dataset.key);
+    if(!d||d.dayKey!==src.dayKey||d.slotId!==src.slotId) break;
+    if(type==='assignee') rows[n].querySelector('.bulk-assignee').value=val; else rows[n].querySelector('.bulk-effort').value=val;
+    markBulkDirty(rows[n]);
+  }
+}
+$('#bulkRows').addEventListener('change',e=>{const r=e.target.closest('tr[data-key]');if(r&&(e.target.classList.contains('bulk-assignee')||e.target.classList.contains('bulk-effort')))markBulkDirty(r);});
+$('#bulkRows').addEventListener('click',e=>{const r=e.target.closest('tr[data-key]');if(!r)return;if(e.target.closest('.bulk-copy-assignee'))copyDown(r,'assignee');if(e.target.closest('.bulk-copy-effort'))copyDown(r,'effort');});
+['bulkDayFilter','bulkSlotFilter','bulkOnlyUnassigned','bulkOnlyMissingEffort'].forEach(id=>$('#'+id).addEventListener('change',renderBulkRows));
+$('#bulkResetFilters').onclick=()=>{$('#bulkDayFilter').value='all';$('#bulkSlotFilter').value='all';$('#bulkOnlyUnassigned').checked=false;$('#bulkOnlyMissingEffort').checked=false;renderBulkRows();};
+$('#bulkSelectAll').onchange=e=>document.querySelectorAll('#bulkRows .bulk-row-select').forEach(cb=>cb.checked=e.target.checked);
+document.querySelectorAll('.bulk-effort-chip').forEach(btn=>btn.onclick=()=>{
+  const rows=selectedBulkRows(); if(!rows.length){showToast('Select one or more rows first.','warning');return;}
+  rows.forEach(r=>{r.querySelector('.bulk-effort').value=btn.dataset.minutes;markBulkDirty(r);});
+});
+$('#bulkSaveAll').onclick=async()=>{
+  if(!bulkDirty.size){showToast('There are no bulk changes to save.','info');return;}
+  const ok=await confirmAction({title:'Save all recurring task changes?',message:`Apply ${bulkDirty.size} assignment/effort change${bulkDirty.size===1?'':'s'} going forward?`,details:'Historical records will not change. Incomplete today/future snapshots will be refreshed.',confirmText:'Save All Changes'});
+  if(!ok)return;
+  const btn=$('#bulkSaveAll');setButtonLoading(btn,true,'Saving…');
+  try{
+    const result=await bulkUpdateWeeklyTemplateRows([...bulkDirty.values()],user);
+    setInlineMessage($('#bulkResult'),`✓ Saved ${result.updated} recurring change(s). ${result.snapshotsUpdated} generated task record(s) refreshed.`,'success');
+    bulkDirty.clear();await loadBulkSetup();await bindDate();
+  }catch(e){console.error(e);setInlineMessage($('#bulkResult'),e.message||'Could not save bulk task setup.','error');}
+  finally{setButtonLoading(btn,false);}
 };
 
 

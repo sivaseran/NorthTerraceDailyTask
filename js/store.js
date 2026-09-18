@@ -441,6 +441,90 @@ export async function updateDailyTask(id,changes,actor){
 
 function previousISO(date){ return addDaysISO(date,-1); }
 
+
+export async function bulkUpdateWeeklyTemplateRows(changes,actor){
+  if(!Array.isArray(changes)||!changes.length) return {updated:0,snapshotsUpdated:0};
+
+  const templateSnap=await getDocs(collection(db,'weeklyTemplates'));
+  const docs=new Map(templateSnap.docs.map(d=>[d.id,{ref:d.ref,data:d.data()}]));
+  let updated=0;
+
+  const byTemplate=new Map();
+  for(const c of changes){
+    if(!c?.templateTaskId||!c?.dayKey) continue;
+    if(!byTemplate.has(c.templateTaskId)) byTemplate.set(c.templateTaskId,[]);
+    byTemplate.get(c.templateTaskId).push(c);
+  }
+
+  for(const [templateTaskId,items] of byTemplate){
+    const existing=docs.get(templateTaskId);
+    if(!existing) continue;
+    const data=structuredClone(existing.data);
+    data.schedule=data.schedule||{};
+    let changed=false;
+
+    for(const item of items){
+      const day=data.schedule[item.dayKey];
+      if(!day?.versions?.length) continue;
+      const active=day.versions.map((v,i)=>({v,i}))
+        .filter(({v})=>v.active!==false&&!v.effectiveTo)
+        .sort((a,b)=>String(a.v.effectiveFrom||'').localeCompare(String(b.v.effectiveFrom||'')));
+      const target=active.at(-1);
+      if(!target) continue;
+
+      day.versions[target.i]={
+        ...day.versions[target.i],
+        assigneeId:item.assigneeId||'',
+        assigneeKey:'',
+        legacyAssignee:'',
+        effortMinutes:Number(item.effortMinutes)>0?Number(item.effortMinutes):null,
+        updatedByUserId:actor?.id||'',
+        updatedByName:actor?.name||''
+      };
+      changed=true; updated++;
+    }
+
+    if(changed){
+      await updateDoc(existing.ref,{
+        schedule:data.schedule,
+        updatedAt:serverTimestamp(),
+        updatedByUserId:actor?.id||'',
+        updatedByName:actor?.name||''
+      });
+    }
+  }
+
+  const today=todayISO();
+  const futureSnap=await getDocs(query(collection(db,'dailyTasks'),where('date','>=',today)));
+  const users=await getUsers();
+  const names=new Map(users.map(u=>[u.id,u.name||'Unassigned']));
+  const byKey=new Map(changes.map(c=>[`${c.templateTaskId}|${c.dayKey}`,c]));
+
+  const matching=futureSnap.docs.filter(d=>{
+    const x=d.data();
+    return byKey.has(`${x.templateTaskId}|${dayKey(x.date)}`) && x.status!=='completed' && x.status!=='cancelled';
+  });
+
+  for(let i=0;i<matching.length;i+=400){
+    const batch=writeBatch(db);
+    matching.slice(i,i+400).forEach(d=>{
+      const x=d.data();
+      const c=byKey.get(`${x.templateTaskId}|${dayKey(x.date)}`);
+      batch.update(d.ref,{
+        assignedTo:c.assigneeId||'',
+        assignedName:c.assigneeId?(names.get(c.assigneeId)||'Unassigned'):'Unassigned',
+        effortMinutes:Number(c.effortMinutes)>0?Number(c.effortMinutes):null,
+        updatedAt:serverTimestamp(),
+        updatedByUserId:actor?.id||'',
+        updatedByName:actor?.name||''
+      });
+    });
+    await batch.commit();
+  }
+
+  return {updated,snapshotsUpdated:matching.length};
+}
+
 export async function saveFutureRule(templateTaskId,date,changes,actor){
   const ref=doc(db,'weeklyTemplates',templateTaskId);
   const snap=await getDoc(ref);
