@@ -1293,3 +1293,43 @@ body:not(.manager-page) .date-nav-center strong{
   .bulk-save-bar{align-items:stretch;flex-direction:column}
   .bulk-save-bar .btn{width:100%}
 }
+
+
+/* V2.8.2 — recurring checkpoint clarity */
+.checkpoint-pill{background:#edf6ff;color:#28638e}
+.bulk-auto-slot{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  font-size:11px;
+  font-weight:800;
+  color:#3e5664;
+}
+.bulk-auto-slot small{
+  color:var(--muted);
+  font-size:9px;
+  font-weight:650;
+}
+
+
+/* V2.8.3 — Weekly Bulk View */
+.weekly-bulk-table{min-width:1160px}
+.weekly-bulk-table td:nth-child(2){min-width:300px}
+.weekly-bulk-table td:nth-child(3){min-width:115px}
+.bulk-row-date{display:block;margin-top:2px;color:var(--muted);font-size:9px;font-weight:650}
+.bulk-day-divider td{
+  position:sticky;
+  top:38px;
+  z-index:1;
+  padding:7px 10px!important;
+  background:#eaf2f7!important;
+  border-top:1px solid #cfdee7;
+  border-bottom:1px solid #cfdee7;
+  color:#304854;
+}
+.bulk-day-divider strong{font-size:12px}
+.bulk-day-divider span{margin-left:8px;color:#6a7d88;font-size:10px}
+.bulk-day-divider em{
+  margin-left:8px;padding:2px 6px;border-radius:999px;
+  background:#fff4da;color:#865d0e;font-size:9px;font-style:normal;font-weight:800
+}
