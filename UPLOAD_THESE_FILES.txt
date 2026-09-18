@@ -1,19 +1,22 @@
-North Terrace V3.2.1 — GitHub upload files
+North Terrace V3.2.2 temperature-task repair
 
 Replace only:
 - js/seed.js
 - js/manager.js
 - service-worker.js
 
-This update renames the nine separate temperature tasks to:
-Check hot food temperature 06:30
-Check hot food temperature 07:30
-Check hot food temperature 08:30
-Check hot food temperature 09:30
-Check hot food temperature 10:30
-Check hot food temperature 11:30
-Check hot food temperature 12:30
-Check hot food temperature 13:30
-Check hot food temperature 14:30
-
-It also updates already-created V3 temperature templates and today/future daily task rows.
+This repair:
+- removes legacy temperature tasks such as "Check temperature 1.30PM"
+- guarantees exactly 9 canonical temperature tasks in the weekly template
+- names them:
+  Check hot food temperature 06:30
+  Check hot food temperature 07:30
+  Check hot food temperature 08:30
+  Check hot food temperature 09:30
+  Check hot food temperature 10:30
+  Check hot food temperature 11:30
+  Check hot food temperature 12:30
+  Check hot food temperature 13:30
+  Check hot food temperature 14:30
+- makes all 9 active Monday-Sunday
+- repairs today/future daily temperature rows
