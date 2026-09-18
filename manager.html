@@ -11,8 +11,10 @@
 <nav class="manager-nav">
   <button class="active" data-section="schedule">Schedule Editor</button>
   <button data-section="people">People & PINs</button>
+  <button data-section="availability">Staff Availability</button>
+  <button data-section="effort">Effort Allocation</button>
+  <button data-section="bulk">Staff Assignment</button>
   <button data-section="cover">Shift Cover</button>
-  <button data-section="bulk">Bulk Setup</button>
   <button data-section="reports">Reports</button>
 </nav>
 
@@ -90,6 +92,47 @@
       <button id="cancelPersonEdit" class="btn secondary" type="button">Cancel</button>
     </div>
     <div id="personResult" class="inline-message" hidden></div>
+  </div>
+</section>
+
+
+<section id="availability" class="manager-section" hidden>
+  <div class="card elevated">
+    <div class="section-intro">
+      <div>
+        <span class="eyebrow">Weekly staff rota</span>
+        <h2>Staff Availability</h2>
+        <p class="muted">These working hours control which people appear in Staff Assignment. Use comma-separated shifts when someone works two periods in one day.</p>
+      </div>
+      <button id="saveAvailability" class="btn" type="button">Save Availability</button>
+    </div>
+
+    <div class="availability-legend">
+      <span><strong>Example:</strong> 05:30-13:00, 15:00-20:00</span>
+      <span>Leave blank = not available for normal task assignment.</span>
+      <span>Delivery-only periods are intentionally not treated as shop-floor availability.</span>
+    </div>
+
+    <div id="availabilityResult" class="inline-message" hidden></div>
+
+    <div class="table-wrap availability-table-wrap">
+      <table class="availability-table">
+        <thead>
+          <tr>
+            <th class="availability-name-col">Staff</th>
+            <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th>
+          </tr>
+        </thead>
+        <tbody id="availabilityRows"></tbody>
+      </table>
+    </div>
+
+    <div class="availability-notes card compact-card">
+      <strong>Delivery-only notes from the supplied rota</strong>
+      <span>Uday — Monday delivery (~4h)</span>
+      <span>Pragash — Thursday delivery (~3h)</span>
+      <span>These are excluded from normal task assignment unless you manually enter working hours above.</span>
+    </div>
   </div>
 </section>
 
@@ -181,8 +224,8 @@
     <div class="section-intro">
       <div>
         <span class="eyebrow">Existing weekly schedule editor</span>
-        <h2>Bulk Edit Existing Tasks — Weekly View</h2>
-        <p class="muted">Loads the real Firebase daily-task records for Monday–Sunday. Nothing is created automatically.</p>
+        <h2>Staff Assignment — Weekly Matrix</h2>
+        <p class="muted">Assign staff after the weekly effort setup is saved. Each day shows only people working during that task's time.</p>
       </div>
     </div>
 
@@ -198,64 +241,108 @@
     </div>
 
     <div class="bulk-filter-bar">
-      <label class="bulk-filter-field"><span>Day</span>
-        <select id="bulkDayFilter">
-          <option value="all">All days</option>
-          <option value="mon">Monday</option><option value="tue">Tuesday</option><option value="wed">Wednesday</option>
-          <option value="thu">Thursday</option><option value="fri">Friday</option><option value="sat">Saturday</option><option value="sun">Sunday</option>
-        </select>
-      </label>
       <label class="bulk-filter-field"><span>Slot</span>
         <select id="bulkSlotFilter"><option value="all">All slots</option></select>
       </label>
       <label class="bulk-toggle-filter"><input id="bulkOnlyUnassigned" type="checkbox"> Unassigned only</label>
-      <label class="bulk-toggle-filter"><input id="bulkOnlyMissingEffort" type="checkbox"> Effort not set only</label>
-      <label class="bulk-toggle-filter"><input id="bulkIncludeRemoved" type="checkbox"> Include removed/cancelled</label>
       <button id="bulkResetFilters" class="btn secondary small" type="button">Reset filters</button>
-    </div>
-
-    <div class="bulk-effort-shortcuts">
-      <span>Quick effort:</span>
-      <button type="button" class="bulk-effort-chip" data-minutes="5">5m</button>
-      <button type="button" class="bulk-effort-chip" data-minutes="10">10m</button>
-      <button type="button" class="bulk-effort-chip" data-minutes="15">15m</button>
-      <button type="button" class="bulk-effort-chip" data-minutes="20">20m</button>
-      <button type="button" class="bulk-effort-chip" data-minutes="30">30m</button>
-      <button type="button" class="bulk-effort-chip" data-minutes="45">45m</button>
-      <button type="button" class="bulk-effort-chip" data-minutes="60">60m</button>
-      <span class="muted">Select rows first.</span>
+      <span class="assignment-filter-note">✓ Full shift coverage &nbsp; ◐ Partial coverage</span>
     </div>
 
     <div id="bulkSummary" class="bulk-summary"></div>
     <div id="bulkResult" class="inline-message" hidden></div>
 
     <div class="bulk-save-bar">
-      <button id="bulkSaveWeek" class="btn secondary" type="button">Save Changes to This Week</button>
-      <button id="bulkSaveFuture" class="btn" type="button">Apply Changed Tasks to Future Schedule</button>
-      <span id="bulkFutureHelp" class="muted">Past daily records stay protected. Future changes follow each row's own weekday.</span>
+      <button id="bulkSaveWeek" class="btn secondary" type="button">Save Assignments to This Week</button>
+      <button id="bulkSaveFuture" class="btn" type="button">Apply Assignments to Future Schedule</button>
+      <span class="muted">Availability filtering is advisory: full-shift staff are listed first, then partial-shift staff. Unassigned always remains available.</span>
     </div>
 
-    <div class="table-wrap bulk-table-wrap">
-      <table class="bulk-table existing-bulk-table weekly-bulk-table">
+    <div class="table-wrap bulk-matrix-wrap">
+      <table class="bulk-matrix-table">
         <thead>
           <tr>
-            <th><input id="bulkSelectAll" type="checkbox" aria-label="Select all visible tasks"></th>
-            <th>Task</th>
-            <th>Day</th>
-            <th>Slot</th>
-            <th>Assignee</th>
-            <th>Effort</th>
-            <th>Status</th>
-            <th>Remove</th>
+            <th class="bulk-task-sticky">Task / Slot</th>
+            <th data-day="mon">Monday</th>
+            <th data-day="tue">Tuesday</th>
+            <th data-day="wed">Wednesday</th>
+            <th data-day="thu">Thursday</th>
+            <th data-day="fri">Friday</th>
+            <th data-day="sat">Saturday</th>
+            <th data-day="sun">Sunday</th>
           </tr>
         </thead>
-        <tbody id="bulkRows"></tbody>
+        <tbody id="bulkMatrixRows"></tbody>
       </table>
     </div>
 
     <div class="bulk-note">
-      <strong>Weekly source view:</strong>
-      <span>You can use an already-saved week as your model. “Save Changes to This Week” updates only today/future daily records inside this loaded week. “Apply Changed Tasks to Future Schedule” updates the matching recurring weekday for each changed row.</span>
+      <strong>Assignment workflow:</strong>
+      <span>Complete Effort Allocation first. Then choose an available staff member for each active day. Task removals are handled on the Effort Allocation page, not here.</span>
+    </div>
+  </div>
+</section>
+
+
+<section id="effort" class="manager-section" hidden>
+  <div class="card elevated">
+    <div class="section-intro">
+      <div>
+        <span class="eyebrow">Weekly task workload setup</span>
+        <h2>Effort Allocation</h2>
+        <p class="muted">Set one effort value per task. That effort is reused on every day the task exists. Use the day checkboxes only to remove the task from specific days.</p>
+      </div>
+    </div>
+
+    <div class="date-navigator card compact-card effort-date-nav">
+      <button id="effortPrevWeek" class="btn secondary square-btn" type="button">←</button>
+      <div class="date-nav-center">
+        <strong id="effortWeekText"></strong>
+        <input id="effortWeekPicker" type="date" title="Choose any date inside the week">
+      </div>
+      <button id="effortNextWeek" class="btn secondary square-btn" type="button">→</button>
+      <button id="effortThisWeek" class="btn secondary small" type="button">This Week</button>
+      <button id="effortLoadWeek" class="btn small" type="button">Load Existing Week</button>
+    </div>
+
+    <div class="effort-toolbar">
+      <label class="bulk-filter-field"><span>Slot</span>
+        <select id="effortSlotFilter"><option value="all">All slots</option></select>
+      </label>
+      <label class="bulk-toggle-filter"><input id="effortOnlyMissing" type="checkbox"> Effort not set only</label>
+      <button id="effortResetFilters" class="btn secondary small" type="button">Reset filters</button>
+    </div>
+
+    <div id="effortSummary" class="bulk-summary"></div>
+    <div id="effortResult" class="inline-message" hidden></div>
+
+    <div class="bulk-save-bar">
+      <button id="effortSaveTemplate" class="btn" type="button">Save Weekly Effort Setup</button>
+      <span class="muted">One effort value is copied to every active day for that task. Days ticked “Remove” are excluded. Staff assignment is handled separately in Bulk Setup.</span>
+    </div>
+
+    <div class="table-wrap effort-template-wrap">
+      <table class="effort-template-table">
+        <thead>
+          <tr>
+            <th class="effort-task-sticky">Task / Slot</th>
+            <th>Effort</th>
+            <th data-effort-day="mon">Mon</th>
+            <th data-effort-day="tue">Tue</th>
+            <th data-effort-day="wed">Wed</th>
+            <th data-effort-day="thu">Thu</th>
+            <th data-effort-day="fri">Fri</th>
+            <th data-effort-day="sat">Sat</th>
+            <th data-effort-day="sun">Sun</th>
+          </tr>
+        </thead>
+        <tbody id="effortMatrixRows"></tbody>
+      </table>
+    </div>
+
+    <div class="bulk-note">
+      <strong>Workflow:</strong>
+      <span>1) Set the effort once. 2) Tick Remove only on days where the task should not appear. 3) Save Weekly Effort Setup. 4) Go to Bulk Setup to assign staff to the remaining daily tasks.</span>
     </div>
   </div>
 </section>

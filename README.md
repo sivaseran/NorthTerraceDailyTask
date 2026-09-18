@@ -290,3 +290,77 @@ Features:
 - Apply Changed Tasks to Future Schedule applies each changed row to its own matching weekday
 - historical source rows begin at the next occurrence of that weekday
 - hourly checkpoint tasks are consolidated per weekday/master task rather than across the entire week
+
+## V2.8.4 — Weekly Bulk Matrix
+
+Bulk Edit is now a matrix:
+- rows = task/master task
+- columns = Monday through Sunday
+- each existing day-cell contains Assignee + Effort + Remove
+- blank cells mean no saved Firebase task exists on that day and are never auto-created
+- hourly checkpoint tasks are collapsed into one master-task row/day cell
+- day cells preserve their own weekday when applying future changes
+- task/slot column is sticky; day headers are sticky for easier large-screen editing
+- Save This Week updates only today/future existing daily records
+- Apply to Future Schedule updates the recurring master task for that specific weekday
+
+## V2.8.5 — Separate Effort Allocation
+
+Manager navigation now includes a dedicated `Effort Allocation` tab.
+
+Bulk Setup:
+- weekly matrix remains for assignee / remove work
+- effort controls removed from this page
+
+Effort Allocation:
+- separate Monday–Sunday weekly matrix
+- tasks as rows, days as columns
+- only effort minutes are editable
+- existing Firebase daily tasks only (`ensure:false`)
+- blank cells are never auto-created
+- filter by slot
+- show only tasks/cells with missing effort
+- quick-select effort buttons: 5/10/15/20/30/45/60 minutes + Clear
+- Save Effort to This Week updates only today/future daily records
+- Apply Effort to Future Schedule updates the recurring task for the matching weekday
+- historical records remain protected
+
+## V2.8.6 — Weekly Effort Template
+
+Effort Allocation has been simplified:
+- one effort value per task
+- same effort reused on every active weekday
+- Monday–Sunday columns contain only a Remove checkbox
+- blank cells mean no existing task record exists on that day
+- Save Weekly Effort Setup updates current/future daily records and recurring weekday rules
+- no assignee editing on the Effort Allocation page
+- staff assignment remains a separate step in Bulk Setup
+
+## V2.9 FINAL — Effort → Availability → Assignment workflow
+
+Final manager workflow:
+
+1. Staff Availability
+   - Weekly rota stored in `system/staffAvailability`.
+   - Pre-populated from the supplied rota image.
+   - Corrected Friday hours:
+     - Moon 09:30–12:00
+     - Himmo 05:30–09:30
+   - Uday Monday delivery and Pragash Thursday delivery are intentionally excluded from normal shop-floor availability.
+   - Supports split shifts with comma-separated periods.
+
+2. Effort Allocation
+   - One effort value per task.
+   - Same effort is reused on every active weekday.
+   - Monday–Sunday columns are Remove controls only.
+
+3. Staff Assignment
+   - Tasks as rows and Monday–Sunday as columns.
+   - Assignment only; no effort or removal controls.
+   - Assignee dropdown is filtered by the weekly rota.
+   - Full task-window coverage is listed first.
+   - Partial coverage is listed second.
+   - Off-rota staff are hidden unless already assigned, in which case they remain visible with a warning.
+   - Unassigned is always available.
+
+All previous schedule editor, shift cover, reports, tablet general view and smart alert features are retained.
