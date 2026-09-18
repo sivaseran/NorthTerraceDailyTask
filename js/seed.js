@@ -5341,6 +5341,160 @@ export async function initializeV22(){
   };
 }
 
+
+function currentVersionForMigration(dayData){
+  if(!dayData) return null;
+  if(Array.isArray(dayData.versions)){
+    const active=dayData.versions
+      .filter(v=>v&&v.active!==false&&!v.effectiveTo)
+      .sort((a,b)=>String(a.effectiveFrom||'').localeCompare(String(b.effectiveFrom||'')));
+    return active.at(-1)||dayData.versions.at(-1)||null;
+  }
+  return dayData&&typeof dayData==='object'?dayData:null;
+}
+function v3SlotForTime(clock){
+  const [h,m]=String(clock).split(':').map(Number);
+  const x=h*60+m;
+  if(x<9*60) return 'S1';
+  if(x<14*60) return 'S2';
+  if(x<18*60) return 'S3';
+  if(x<20*60) return 'S4';
+  return 'S5';
+}
+function v3TempTemplate(clock){
+  const key=clock.replace(':','');
+  const dayVersion={
+    versions:[{
+      effectiveFrom:'2026-09-18',
+      active:true,
+      slotId:v3SlotForTime(clock),
+      assigneeId:'',
+      assigneeKey:'',
+      legacyAssignee:'',
+      effortMinutes:null,
+      sourceTime:clock
+    }]
+  };
+  return {
+    id:`temp_${key}`,
+    schemaVersion:3,
+    taskName:'Check hot food temperature',
+    photoRequired:false,
+    temperatureRequired:true,
+    recurring:true,
+    frequencyMinutes:null,
+    schedule:{
+      Mon:structuredClone(dayVersion),Tue:structuredClone(dayVersion),Wed:structuredClone(dayVersion),
+      Thu:structuredClone(dayVersion),Fri:structuredClone(dayVersion),Sat:structuredClone(dayVersion),Sun:structuredClone(dayVersion)
+    }
+  };
+}
+
+export async function ensureV30TaskModel(){
+  const stateRef=doc(db,'system','app');
+  const stateSnap=await getDoc(stateRef);
+  const state=stateSnap.exists()?stateSnap.data():{};
+  if(state?.v30Ready) return {changed:false};
+
+  const snap=await getDocs(collection(db,'weeklyTemplates'));
+  const templates=snap.docs.map(d=>({id:d.id,ref:d.ref,...d.data()}));
+  const oldTempIds=new Set(
+    templates
+      .filter(t=>/temperature/i.test(String(t.taskName||'')))
+      .map(t=>t.id)
+  );
+
+  // First make every non-temperature master task active on all seven days.
+  // Missing weekdays inherit the task's first available current rule.
+  const weekdays=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const batchItems=[];
+
+  for(const t of templates){
+    if(oldTempIds.has(t.id)) continue;
+
+    const schedule=structuredClone(t.schedule||{});
+    let base=null;
+    for(const day of weekdays){
+      base=currentVersionForMigration(schedule[day]);
+      if(base) break;
+    }
+    if(!base) continue;
+
+    let changed=false;
+    for(const day of weekdays){
+      if(currentVersionForMigration(schedule[day])) continue;
+      schedule[day]={
+        versions:[{
+          ...structuredClone(base),
+          effectiveFrom:'2026-09-18',
+          active:true,
+          effectiveTo:null
+        }]
+      };
+      changed=true;
+    }
+    if(changed||Number(t.schemaVersion)!==3){
+      batchItems.push({
+        ref:t.ref,
+        data:{schedule,schemaVersion:3,updatedAt:serverTimestamp()}
+      });
+    }
+  }
+
+  // Delete all legacy temperature/checkpoint templates.
+  for(const t of templates){
+    if(oldTempIds.has(t.id)) batchItems.push({ref:t.ref,delete:true});
+  }
+
+  // Add separate hourly hot-food temperature tasks 06:30 ... 14:30.
+  const clocks=['06:30','07:30','08:30','09:30','10:30','11:30','12:30','13:30','14:30'];
+  for(const clock of clocks){
+    const t=v3TempTemplate(clock);
+    const {id,...data}=t;
+    batchItems.push({
+      ref:doc(db,'weeklyTemplates',id),
+      data:{...data,updatedAt:serverTimestamp()}
+    });
+  }
+
+  for(let i=0;i<batchItems.length;i+=350){
+    const batch=writeBatch(db);
+    for(const item of batchItems.slice(i,i+350)){
+      if(item.delete) batch.delete(item.ref);
+      else batch.set(item.ref,item.data,{merge:true});
+    }
+    await batch.commit();
+  }
+
+  // Remove legacy temperature daily rows from today/future only.
+  const today=localTodayISO();
+  const dailySnap=await getDocs(collection(db,'dailyTasks'));
+  const obsolete=dailySnap.docs.filter(d=>{
+    const x=d.data();
+    return String(x.date||'')>=today &&
+      (oldTempIds.has(String(x.templateTaskId||'')) ||
+       /cooking and check temperature|check temperature every hour/i.test(String(x.taskName||'')));
+  });
+  if(obsolete.length){
+    await commitUpdates(obsolete,(batch,d)=>batch.delete(d.ref));
+  }
+
+  await setDoc(stateRef,{
+    v30Ready:true,
+    schemaVersion:'3.0',
+    v30MigratedAt:serverTimestamp(),
+    v30AllTasksAllDays:true,
+    v30TemperatureModel:'separate-hourly-0630-1430'
+  },{merge:true});
+
+  return {
+    changed:true,
+    oldTemperatureTemplatesRemoved:oldTempIds.size,
+    newTemperatureTasks:clocks.length
+  };
+}
+
+
 // Backward-compatible export for any stale cached page.
 export async function seedV2Template(){
   const result=await initializeV22();

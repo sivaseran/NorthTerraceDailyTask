@@ -1,12 +1,12 @@
 import {getSession,clearSession} from './auth.js';
 import {
   SLOT_DEFS,todayISO,addDaysISO,formatLongDate,slotLabelForDate,slotCapacityMinutes,
-  getUsers,getAssignableUsers,getSystemState,getStaffAvailability,saveStaffAvailability,getWeeklyTemplate,bulkUpdateWeeklyTemplateRows,validateUserUniqueness,saveUser,createPerson,
+  getUsers,getAssignableUsers,getSystemState,getStaffAvailability,saveStaffAvailability,getWeeklyTemplate,getSetupTasksForDate,bulkUpdateWeeklyTemplateRows,validateUserUniqueness,saveUser,createPerson,
   ensureTasksForDate,resetTasksForDate,watchTasksForDate,getTasksForDate,
   updateDailyTask,saveFutureRule,createTaskForDate,cancelTaskToday,stopTaskFuture,saveFutureShiftCover,
   workloadBySlot,capacityForDraft,completeTask
 } from './store.js';
-import {initializeV22,migrateParthToParthy} from './seed.js';
+import {initializeV22,migrateParthToParthy,ensureV30TaskModel} from './seed.js';
 import {initReports} from './reports.js';
 import {
   escapeHtml,statusView,showToast,confirmAction,setButtonLoading,setInlineMessage,
@@ -831,6 +831,8 @@ function matrixGroups(){
   const groups=new Map();
 
   for(const row of bulkRowsData){
+    // Tasks removed in Effort Allocation must not appear in Staff Assignment.
+    if(row.status==='cancelled') continue;
     const key=bulkMasterKey(row);
     if(!groups.has(key)) groups.set(key,[]);
     groups.get(key).push(row);
@@ -925,6 +927,7 @@ function renderBulkRows(){
       <th class="bulk-task-sticky bulk-task-info">
         <strong>${escapeHtml(group.taskName)}</strong>
         <div>
+          ${group.rows[0]?.temperatureRequired&&group.rows[0]?.sourceTime?`<span class="temperature-time-label">🌡 ${escapeHtml(group.rows[0].sourceTime)}</span>`:''}
           <span>${group.slotId==='AUTO'?'Hourly / automatic':group.slotId==='MULTI'?'Multiple slots':escapeHtml(slotLabelForDate(group.slotId,bulkWeekStart(bulkWeekAnchor)))}</span>
           ${group.recurring?'<span class="mini-pill recurring-pill">Recurring</span>':'<span class="mini-pill">Date only</span>'}
         </div>
@@ -943,7 +946,7 @@ async function loadBulkSetup(){
     $('#bulkMatrixRows').innerHTML='<tr><td colspan="8" class="muted report-empty-cell">Loading existing Firebase week…</td></tr>';
 
     const dates=bulkWeekDates();
-    const results=await Promise.all(dates.map(date=>getTasksForDate(date,{ensure:false})));
+    const results=await Promise.all(dates.map(date=>getSetupTasksForDate(date)));
     bulkRowsData=results.flat();
     bulkDirty.clear();
 
@@ -1016,6 +1019,7 @@ async function saveBulkWeek(){
     const names=new Map(people.map(p=>[p.id,p.name||'Unassigned']));
 
     for(const draft of writable){
+      if(draft._virtual) continue;
       await updateDailyTask(draft.id,{
         assignedTo:draft.assignedTo||'',
         assignedName:draft.assignedTo?(names.get(draft.assignedTo)||'Unassigned'):'Unassigned'
@@ -1210,6 +1214,7 @@ function renderEffortMatrix(){
       <th class="effort-task-sticky effort-task-info">
         <strong>${escapeHtml(group.taskName)}</strong>
         <div>
+          ${group.rows[0]?.temperatureRequired&&group.rows[0]?.sourceTime?`<span class="temperature-time-label">🌡 ${escapeHtml(group.rows[0].sourceTime)}</span>`:''}
           <span>${group.slotId==='AUTO'?'Hourly / automatic':group.slotId==='MULTI'?'Multiple slots':escapeHtml(slotLabelForDate(group.slotId,effortWeekStart(effortWeekAnchor)))}</span>
           ${group.recurring?'<span class="mini-pill recurring-pill">Recurring</span>':'<span class="mini-pill">Date only</span>'}
         </div>
@@ -1245,7 +1250,7 @@ async function loadEffortAllocation(){
     $('#effortMatrixRows').innerHTML='<tr><td colspan="9" class="muted report-empty-cell">Loading existing Firebase week…</td></tr>';
 
     const dates=effortWeekDates();
-    const results=await Promise.all(dates.map(date=>getTasksForDate(date,{ensure:false})));
+    const results=await Promise.all(dates.map(date=>getSetupTasksForDate(date)));
     effortRowsData=results.flat();
     effortDirty.clear();
 
@@ -1328,7 +1333,7 @@ async function saveWeeklyEffortSetup(){
       // Update currently loaded week only for today/future daily records.
       for(const day of activeDays){
         for(const row of group.byDay[day]){
-          if(row.date<todayISO()||row.status==='cancelled') continue;
+          if(row.date<todayISO()||row.status==='cancelled'||row._virtual) continue;
           await updateDailyTask(row.id,{effortMinutes:draft.effortMinutes},user);
           updatedDaily++;
         }
@@ -1337,7 +1342,7 @@ async function saveWeeklyEffortSetup(){
       // Remove selected days from currently loaded week if today/future.
       for(const day of draft.removedDays){
         for(const row of group.byDay[day]){
-          if(row.date<todayISO()||row.status==='cancelled') continue;
+          if(row.date<todayISO()||row.status==='cancelled'||row._virtual) continue;
           await cancelTaskToday(row.id,user);
           removedCount++;
         }
@@ -1475,7 +1480,8 @@ try{
   console.error('Parth → Parthy migration failed',error);
 }
 
-await loadPeople();
+await ensureV30TaskModel();
+  await loadPeople();
   { const a=await getStaffAvailability(); staffAvailability=a?.week||structuredClone(DEFAULT_STAFF_AVAILABILITY); }
 updateDateUI();
 updateCoverDateUI();

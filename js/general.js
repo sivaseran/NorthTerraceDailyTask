@@ -166,7 +166,7 @@ function renderDay(tasks,{skipAlertCheck=false}={}){
       <div class="ops-task-list live-slot-task-list">
         ${rows.map(t=>`<article class="ops-task-row ${t.status==='overdue'?'is-overdue-task':''}">
           <div class="ops-task-main">
-            <strong>${escapeHtml(t.taskName)}${t.checkpoint?` · ${escapeHtml(t.checkpoint)}`:''}</strong>
+            <strong>${escapeHtml(t.taskName)}${t.temperatureRequired&&t.sourceTime?` · ${escapeHtml(t.sourceTime)}`:(t.checkpoint?` · ${escapeHtml(t.checkpoint)}`:'')}</strong>
             <div class="ops-task-meta">
               <span class="${!t.assignedTo?'general-unassigned':''}">${escapeHtml(t.assignedName||'Unassigned')}</span>
               <span>•</span><span>${escapeHtml(fmtEffort(t.effortMinutes))}</span>

@@ -302,7 +302,7 @@ export async function getPlannedTasksForDate(date){
             effortMinutes:rule.effortMinutes??null,
             assignedTo:assigned.id, assignedName:assigned.name,
             legacyAssignee:rule.legacyAssignee||'',
-            photoRequired:Boolean(t.photoRequired), recurring:true, checkpoint:clock,
+            photoRequired:Boolean(t.photoRequired), temperatureRequired:Boolean(t.temperatureRequired), recurring:true, checkpoint:clock,
             status:'planned'
           });
         }
@@ -316,7 +316,7 @@ export async function getPlannedTasksForDate(date){
       effortMinutes:rule.effortMinutes??null,
       assignedTo:assigned.id,assignedName:assigned.name,
       legacyAssignee:rule.legacyAssignee||'',
-      photoRequired:Boolean(t.photoRequired),recurring:Boolean(t.recurring),status:'planned'
+      photoRequired:Boolean(t.photoRequired),temperatureRequired:Boolean(t.temperatureRequired),recurring:Boolean(t.recurring),status:'planned'
     });
   }
   return rows.map(row=>applyShiftCoverRulesToRow(row,date,coverRules,users));
@@ -373,6 +373,8 @@ async function plannedToDaily(row,users){
     legacyAssignee:row.legacyAssignee||'',
     status:'pending',
     photoRequired:Boolean(row.photoRequired),
+    temperatureRequired:Boolean(row.temperatureRequired),
+    temperatureC:null,
     recurring:Boolean(row.recurring),
     checkpoint:row.checkpoint||'',
     completedAt:null,
@@ -430,17 +432,73 @@ export async function getTasksForDate(date,{ensure=true}={}){
   const s=await getDocs(q);
   return sortTasks(s.docs.map(normaliseDaily));
 }
+
+export async function getSetupTasksForDate(date){
+  // Configuration screens should represent the CURRENT weekly template even when
+  // a historical daily snapshot is incomplete or a future snapshot has not yet
+  // been generated. Overlay any matching saved daily values onto planned rows.
+  const [planned,existing]=await Promise.all([
+    getPlannedTasksForDate(date),
+    getTasksForDate(date,{ensure:false})
+  ]);
+
+  const used=new Set();
+  const merged=planned.map(p=>{
+    let matchIndex=-1;
+
+    // New V3 temperature tasks are separate templates, so templateTaskId is enough.
+    // Legacy checkpoint tasks use checkpoint/source time as a secondary key.
+    for(let i=0;i<existing.length;i++){
+      if(used.has(i)) continue;
+      const e=existing[i];
+      if(e.templateTaskId!==p.templateTaskId) continue;
+      const pClock=String(p.checkpoint||p.sourceTime||'');
+      const eClock=String(e.checkpoint||e.sourceTime||'');
+      if(pClock&&eClock&&pClock!==eClock) continue;
+      matchIndex=i; break;
+    }
+
+    if(matchIndex>=0){
+      used.add(matchIndex);
+      const e=existing[matchIndex];
+      return {
+        ...p,
+        ...e,
+        id:e.id,
+        virtualId:p.virtualId,
+        _virtual:false,
+        temperatureRequired:Boolean(p.temperatureRequired||e.temperatureRequired)
+      };
+    }
+
+    return {
+      ...p,
+      id:p.virtualId,
+      _virtual:true,
+      status:'planned',
+      temperatureC:null
+    };
+  });
+
+  return sortTasks(merged);
+}
 export function watchTasksForDate(date,cb,onError=()=>{}){
   const q=query(collection(db,'dailyTasks'),where('date','==',date));
   return onSnapshot(q,s=>cb(sortTasks(s.docs.map(normaliseDaily))),onError);
 }
 
-export async function completeTask(id,user){
-  await updateDoc(doc(db,'dailyTasks',id),{
+export async function completeTask(id,user,extra={}){
+  const patch={
     status:'completed',completedAt:serverTimestamp(),
     completedByUserId:user.id,completedByName:user.name||'Staff',
     updatedAt:serverTimestamp()
-  });
+  };
+  if(Object.prototype.hasOwnProperty.call(extra,'temperatureC')){
+    const value=Number(extra.temperatureC);
+    if(!Number.isFinite(value)||value<-50||value>200) throw new Error('Enter a valid temperature in °C.');
+    patch.temperatureC=value;
+  }
+  await updateDoc(doc(db,'dailyTasks',id),patch);
 }
 export async function uncompleteTask(id){
   await updateDoc(doc(db,'dailyTasks',id),{
