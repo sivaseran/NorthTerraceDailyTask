@@ -237,3 +237,28 @@ Filters: weekday, slot, Unassigned only, Effort not set only.
 Quick effort: 5/10/15/20/30/45/60 min.
 Supports row selection, copy Assignee Down, copy Effort Down, and one Save All Changes action.
 Historical records remain unchanged; incomplete generated today/future snapshots are refreshed.
+
+## V2.8.1 — Bulk Edit Existing Firebase Tasks
+
+Bulk Setup now loads real `dailyTasks` records from a selected date with `ensure:false`, so opening the screen never creates or recreates tasks.
+
+Editable fields:
+- Task name
+- Slot
+- Assignee
+- Effort
+- Remove
+
+Two save scopes:
+1. Save Changes to This Date
+   - updates only the loaded daily records
+   - disabled for historical dates to preserve audit history
+
+2. Apply Changed Tasks to Future Schedule
+   - uses each row's existing `templateTaskId`
+   - applies name / slot / assignee / effort from the effective date onward
+   - Remove stops that recurring task from the effective date onward
+   - if the selected source date is historical, future changes start Today
+   - ad-hoc/date-only rows without a template are skipped
+
+This lets management use an already-existing daily schedule as the source instead of recreating tasks one by one.

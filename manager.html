@@ -180,24 +180,30 @@
   <div class="card elevated">
     <div class="section-intro">
       <div>
-        <span class="eyebrow">One-time setup tool</span>
-        <h2>Bulk Task Setup</h2>
-        <p class="muted">Update recurring task assignees and effort values quickly. Historical records are not changed.</p>
+        <span class="eyebrow">Existing schedule editor</span>
+        <h2>Bulk Edit Existing Tasks</h2>
+        <p class="muted">Load a date that already exists in Firebase, then change only what you need. No tasks are recreated one-by-one.</p>
       </div>
-      <button id="bulkSaveAll" class="btn">Save All Changes</button>
+    </div>
+
+    <div class="date-navigator card compact-card bulk-date-nav">
+      <button id="bulkPrevDate" class="btn secondary square-btn" type="button">←</button>
+      <div class="date-nav-center">
+        <strong id="bulkDateText"></strong>
+        <input id="bulkDatePicker" type="date">
+      </div>
+      <button id="bulkNextDate" class="btn secondary square-btn" type="button">→</button>
+      <button id="bulkToday" class="btn secondary small" type="button">Today</button>
+      <button id="bulkLoadDate" class="btn small" type="button">Load Existing Tasks</button>
     </div>
 
     <div class="bulk-filter-bar">
-      <label class="bulk-filter-field"><span>Day</span>
-        <select id="bulkDayFilter">
-          <option value="all">All days</option><option value="mon">Monday</option><option value="tue">Tuesday</option>
-          <option value="wed">Wednesday</option><option value="thu">Thursday</option><option value="fri">Friday</option>
-          <option value="sat">Saturday</option><option value="sun">Sunday</option>
-        </select>
+      <label class="bulk-filter-field"><span>Slot</span>
+        <select id="bulkSlotFilter"><option value="all">All slots</option></select>
       </label>
-      <label class="bulk-filter-field"><span>Slot</span><select id="bulkSlotFilter"><option value="all">All slots</option></select></label>
       <label class="bulk-toggle-filter"><input id="bulkOnlyUnassigned" type="checkbox"> Unassigned only</label>
       <label class="bulk-toggle-filter"><input id="bulkOnlyMissingEffort" type="checkbox"> Effort not set only</label>
+      <label class="bulk-toggle-filter"><input id="bulkIncludeRemoved" type="checkbox"> Include removed/cancelled</label>
       <button id="bulkResetFilters" class="btn secondary small" type="button">Reset filters</button>
     </div>
 
@@ -216,14 +222,32 @@
     <div id="bulkSummary" class="bulk-summary"></div>
     <div id="bulkResult" class="inline-message" hidden></div>
 
+    <div class="bulk-save-bar">
+      <button id="bulkSaveDate" class="btn secondary" type="button">Save Changes to This Date</button>
+      <button id="bulkSaveFuture" class="btn" type="button">Apply Changed Tasks to Future Schedule</button>
+      <span id="bulkFutureHelp" class="muted"></span>
+    </div>
+
     <div class="table-wrap bulk-table-wrap">
-      <table class="bulk-table">
-        <thead><tr>
-          <th><input id="bulkSelectAll" type="checkbox"></th>
-          <th>Task</th><th>Day</th><th>Slot</th><th>Assignee</th><th>Effort</th><th>Copy</th>
-        </tr></thead>
+      <table class="bulk-table existing-bulk-table">
+        <thead>
+          <tr>
+            <th><input id="bulkSelectAll" type="checkbox" aria-label="Select all visible tasks"></th>
+            <th>Task</th>
+            <th>Slot</th>
+            <th>Assignee</th>
+            <th>Effort</th>
+            <th>Status</th>
+            <th>Remove</th>
+          </tr>
+        </thead>
         <tbody id="bulkRows"></tbody>
       </table>
+    </div>
+
+    <div class="bulk-note">
+      <strong>How it works:</strong>
+      <span>“Save Changes to This Date” updates only the loaded daily records. “Apply Changed Tasks to Future Schedule” uses the existing task's recurring template where available and does not alter earlier history.</span>
     </div>
   </div>
 </section>
