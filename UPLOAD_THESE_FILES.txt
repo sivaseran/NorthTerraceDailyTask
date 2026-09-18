@@ -1,19 +1,19 @@
-North Terrace V3.2 Final — GitHub upload files
+North Terrace V3.2.1 — GitHub upload files
 
-Replace exactly these repository files:
-- manager.html
+Replace only:
+- js/seed.js
 - js/manager.js
-- js/store.js
-- css/style.css
 - service-worker.js
 
-Effort Allocation changes:
-- one Effort value per task
-- separate Time input for Monday through Sunday
-- entering/changing Monday copies that time to Tue–Sun
-- edit any other day afterwards for exceptions
-- clear a day's time to hide that task on that weekday
-- each day's time automatically determines its operational slot
-- task ordering within operational views follows the entered time
+This update renames the nine separate temperature tasks to:
+Check hot food temperature 06:30
+Check hot food temperature 07:30
+Check hot food temperature 08:30
+Check hot food temperature 09:30
+Check hot food temperature 10:30
+Check hot food temperature 11:30
+Check hot food temperature 12:30
+Check hot food temperature 13:30
+Check hot food temperature 14:30
 
-After GitHub Pages deploys, hard refresh once: Ctrl+Shift+R
+It also updates already-created V3 temperature templates and today/future daily task rows.
