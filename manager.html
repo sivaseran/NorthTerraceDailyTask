@@ -288,9 +288,9 @@
   <div class="card elevated">
     <div class="section-intro">
       <div>
-        <span class="eyebrow">Weekly task workload setup</span>
+        <span class="eyebrow">Weekly task setup</span>
         <h2>Effort Allocation</h2>
-        <p class="muted">Set one effort value per task. That effort is reused on every day the task exists. Use the day checkboxes only to remove the task from specific days.</p>
+        <p class="muted">Every master task is shown across Monday–Sunday. Set effort once, then enter the task time for each day. A blank time means the task does not run that day.</p>
       </div>
     </div>
 
@@ -302,7 +302,7 @@
       </div>
       <button id="effortNextWeek" class="btn secondary square-btn" type="button">→</button>
       <button id="effortThisWeek" class="btn secondary small" type="button">This Week</button>
-      <button id="effortLoadWeek" class="btn small" type="button">Load Existing Week</button>
+      <button id="effortLoadWeek" class="btn small" type="button">Reload Setup</button>
     </div>
 
     <div class="effort-toolbar">
@@ -311,21 +311,22 @@
       </label>
       <label class="bulk-toggle-filter"><input id="effortOnlyMissing" type="checkbox"> Effort not set only</label>
       <button id="effortResetFilters" class="btn secondary small" type="button">Reset filters</button>
+      <span class="effort-sort-note">Monday time copies to Tue–Sun. You can then change individual days.</span>
     </div>
 
     <div id="effortSummary" class="bulk-summary"></div>
     <div id="effortResult" class="inline-message" hidden></div>
 
     <div class="bulk-save-bar">
-      <button id="effortSaveTemplate" class="btn" type="button">Save Weekly Effort Setup</button>
-      <span class="muted">One effort value is copied to every active day for that task. Days ticked “Remove” are excluded. Staff assignment is handled separately in Bulk Setup.</span>
+      <button id="effortSaveTemplate" class="btn" type="button">Save Weekly Task Setup</button>
+      <span class="muted">Each day’s time decides its operational slot and order. Clear a day’s time to remove that task from that weekday and from Staff Assignment.</span>
     </div>
 
     <div class="table-wrap effort-template-wrap">
-      <table class="effort-template-table">
+      <table class="effort-template-table effort-daily-time-table">
         <thead>
           <tr>
-            <th class="effort-task-sticky">Task / Slot</th>
+            <th class="effort-task-sticky">Task</th>
             <th>Effort</th>
             <th data-effort-day="mon">Mon</th>
             <th data-effort-day="tue">Tue</th>
@@ -341,8 +342,8 @@
     </div>
 
     <div class="bulk-note">
-      <strong>Workflow:</strong>
-      <span>1) Set the effort once. 2) Tick Remove only on days where the task should not appear. 3) Save Weekly Effort Setup. 4) Go to Bulk Setup to assign staff to the remaining daily tasks.</span>
+      <strong>How it works:</strong>
+      <span>Enter Monday first and it will copy to the other six days. Change any day that needs a different time—for example toilet cleaning. Clear the time completely on a day to hide that task on that weekday. The saved time automatically places the task into the correct slot.</span>
     </div>
   </div>
 </section>

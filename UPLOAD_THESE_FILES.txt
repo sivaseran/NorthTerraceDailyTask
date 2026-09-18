@@ -1,0 +1,19 @@
+North Terrace V3.2 Final — GitHub upload files
+
+Replace exactly these repository files:
+- manager.html
+- js/manager.js
+- js/store.js
+- css/style.css
+- service-worker.js
+
+Effort Allocation changes:
+- one Effort value per task
+- separate Time input for Monday through Sunday
+- entering/changing Monday copies that time to Tue–Sun
+- edit any other day afterwards for exceptions
+- clear a day's time to hide that task on that weekday
+- each day's time automatically determines its operational slot
+- task ordering within operational views follows the entered time
+
+After GitHub Pages deploys, hard refresh once: Ctrl+Shift+R
