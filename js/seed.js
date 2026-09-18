@@ -5439,6 +5439,126 @@ export async function ensureV321TemperatureNames(){
   return {changed:true};
 }
 
+
+export async function ensureV322TemperatureRepair(){
+  const stateRef=doc(db,'system','app');
+  const stateSnap=await getDoc(stateRef);
+  const state=stateSnap.exists()?stateSnap.data():{};
+  if(state?.v322TemperatureRepairReady) return {changed:false};
+
+  const clocks=['06:30','07:30','08:30','09:30','10:30','11:30','12:30','13:30','14:30'];
+  const wantedIds=new Set(clocks.map(clock=>`temp_${clock.replace(':','')}`));
+
+  const templatesSnap=await getDocs(collection(db,'weeklyTemplates'));
+  const templates=templatesSnap.docs.map(d=>({id:d.id,ref:d.ref,...d.data()}));
+
+  // Remove every old/legacy temperature template except the 9 canonical ones.
+  const legacy=templates.filter(t=>{
+    if(wantedIds.has(t.id)) return false;
+    const name=String(t.taskName||'');
+    return /temperature/i.test(name);
+  });
+
+  // Preserve existing effort/assignee where a canonical temp task already exists.
+  const existingById=new Map(templates.filter(t=>wantedIds.has(t.id)).map(t=>[t.id,t]));
+
+  const batch=writeBatch(db);
+
+  for(const t of legacy) batch.delete(t.ref);
+
+  for(const clock of clocks){
+    const id=`temp_${clock.replace(':','')}`;
+    const existing=existingById.get(id);
+    let effortMinutes=null;
+    let assigneeId='';
+
+    if(existing?.schedule){
+      for(const day of ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']){
+        const versions=Array.isArray(existing.schedule?.[day]?.versions)
+          ?existing.schedule[day].versions
+          :[];
+        const latest=[...versions].sort((a,b)=>String(b.effectiveFrom||'').localeCompare(String(a.effectiveFrom||'')))[0];
+        if(latest){
+          if(effortMinutes===null&&Number(latest.effortMinutes)>0) effortMinutes=Number(latest.effortMinutes);
+          if(!assigneeId&&latest.assigneeId) assigneeId=latest.assigneeId;
+        }
+      }
+    }
+
+    const slotId=v3SlotForTime(clock);
+    const schedule={};
+    for(const day of ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']){
+      schedule[day]={versions:[{
+        effectiveFrom:'2026-09-18',
+        active:true,
+        slotId,
+        assigneeId,
+        assigneeKey:'',
+        legacyAssignee:'',
+        effortMinutes,
+        sourceTime:clock
+      }]};
+    }
+
+    batch.set(doc(db,'weeklyTemplates',id),{
+      schemaVersion:3,
+      taskName:`Check hot food temperature ${clock}`,
+      photoRequired:false,
+      temperatureRequired:true,
+      recurring:true,
+      frequencyMinutes:null,
+      schedule,
+      updatedAt:serverTimestamp()
+    },{merge:false});
+  }
+
+  await batch.commit();
+
+  // Remove legacy today/future temperature daily rows and rename canonical rows.
+  const today=localTodayISO();
+  const dailySnap=await getDocs(collection(db,'dailyTasks'));
+  const docs=dailySnap.docs.filter(d=>String(d.data().date||'')>=today);
+
+  for(let i=0;i<docs.length;i+=350){
+    const b=writeBatch(db);
+    let touched=0;
+    for(const d of docs.slice(i,i+350)){
+      const x=d.data();
+      const tid=String(x.templateTaskId||'');
+      const name=String(x.taskName||'');
+
+      if(wantedIds.has(tid)){
+        const m=tid.match(/^temp_(\d{2})(\d{2})$/);
+        const clock=m?`${m[1]}:${m[2]}`:'';
+        if(clock){
+          b.update(d.ref,{
+            taskName:`Check hot food temperature ${clock}`,
+            sourceTime:clock,
+            slotId:v3SlotForTime(clock),
+            updatedAt:serverTimestamp()
+          });
+          touched++;
+        }
+      }else if(/temperature/i.test(name)){
+        b.delete(d.ref);
+        touched++;
+      }
+    }
+    if(touched) await b.commit();
+  }
+
+  await setDoc(stateRef,{
+    v322TemperatureRepairReady:true,
+    v322TemperatureRepairAt:serverTimestamp()
+  },{merge:true});
+
+  return {
+    changed:true,
+    removedLegacyTemplates:legacy.length,
+    ensuredTemperatureTasks:clocks.length
+  };
+}
+
 export async function ensureV30TaskModel(){
   const stateRef=doc(db,'system','app');
   const stateSnap=await getDoc(stateRef);
