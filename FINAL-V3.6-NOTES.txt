@@ -1,0 +1,13 @@
+North Terrace Operations — V3.6 Final
+
+Final setup included:
+- 47 confirmed master tasks.
+- 294 active weekly task-days, all assigned.
+- Tuesday Paper Works moved to 13:15.
+- Sunday opens at 07:00: 06:30 temperature task removed on Sunday only.
+- Sunday temperature checks run hourly 07:00 through 14:00.
+- Sunday evening 13:30–22:00 rotation anchored at 27 Sep 2026:
+  27 Sep Parthy -> 4 Oct Pragash -> 11 Oct Prashanthy -> 18 Oct Suku -> repeat.
+- Sunday tasks at/after 13:30 automatically use the week's rotator.
+- Repeating 'Parth merged into Parthy' startup notification fixed; unresolved legacy Parth records migrate once only.
+- First V3.6 launch replaces old weekly templates and clears old operational daily/cover data, then uses this final setup.
