@@ -1,12 +1,13 @@
 import {getSession,clearSession} from './auth.js';
 import {
-  SLOT_DEFS,todayISO,addDaysISO,formatLongDate,slotLabelForDate,slotCapacityMinutes,
-  getUsers,getAssignableUsers,getSystemState,getStaffAvailability,saveStaffAvailability,getWeeklyTemplate,getSetupTasksForDate,bulkUpdateWeeklyTemplateRows,validateUserUniqueness,saveUser,createPerson,
-  ensureTasksForDate,resetTasksForDate,watchTasksForDate,getTasksForDate,
+  SLOT_DEFS,todayISO,addDaysISO,formatLongDate,slotLabelForDate,slotCapacityMinutes,sundayEveningRotatorForDate,
+  getUsers,getAssignableUsers,getSystemState,getStaffAvailability,saveStaffAvailability,getWeeklyTemplate,getSetupTasksForDate,reconcileDailyTasksForDate,bulkUpdateWeeklyTemplateRows,validateUserUniqueness,saveUser,createPerson,
+  ensureTasksForDate,clearDailyTasksFrom,clearAllOperationalData,resetTasksForDate,watchTasksForDate,getTasksForDate,
   updateDailyTask,saveFutureRule,createTaskForDate,cancelTaskToday,stopTaskFuture,saveFutureShiftCover,
   workloadBySlot,capacityForDraft,completeTask
 } from './store.js';
 import {initializeV22,migrateParthToParthy,ensureV30TaskModel,ensureV321TemperatureNames,ensureV322TemperatureRepair,reconcileTemperatureTasks} from './seed.js';
+import {ensureFinalV36Schedule} from './final-config.js';
 import {initReports} from './reports.js';
 import {
   escapeHtml,statusView,showToast,confirmAction,setButtonLoading,setInlineMessage,
@@ -659,6 +660,10 @@ function validateShiftText(text){
 }
 function dayKeyLower(date){return bulkDayKey(date);}
 function availabilityTextFor(userId,date){
+  const rotator=sundayEveningRotatorForDate(date);
+  if(rotator && dayKeyLower(date)==='sun' && ['staff1','staff9','staff3','staff4'].includes(userId)){
+    return userId===rotator?'13:30-22:00':'';
+  }
   return staffAvailability?.[userId]?.[dayKeyLower(date)]||'';
 }
 function slotWindowForDate(slotId,date){
@@ -1113,6 +1118,81 @@ $('#bulkResetFilters').onclick=()=>{
 $('#bulkSaveWeek').onclick=saveBulkWeek;
 $('#bulkSaveFuture').onclick=saveBulkFuture;
 
+async function goLiveTomorrow(){
+  if(!bulkRowsData.length){
+    showToast('Load the Staff Assignment week first.','warning');
+    return;
+  }
+
+  const startDate=addDaysISO(todayISO(),1);
+
+  const ok=await confirmAction({
+    title:'Reset old operational data and go live tomorrow?',
+    message:`Delete all existing daily task and shift-cover records, then build a fresh live schedule from ${formatLongDate(startDate)}?`,
+    details:'Users, PINs, staff availability and the weekly task template are kept. Old daily task history, completed-task history, shift-cover records and reports based on those records will be deleted.',
+    confirmText:'Reset & Go Live'
+  });
+  if(!ok) return;
+
+  const btn=$('#goLiveTomorrow');
+  setButtonLoading(btn,true,'Resetting & rebuilding…');
+
+  try{
+    // Save the current assignment matrix into the weekly recurring source first.
+    const assignmentMap=new Map();
+    for(const row of bulkRowsData){
+      if(!row.templateTaskId||row.status==='cancelled') continue;
+      assignmentMap.set(`${row.templateTaskId}|${bulkDayKey(row.date)}`,row);
+    }
+
+    let assignmentsSaved=0;
+    for(const row of assignmentMap.values()){
+      const effectiveFrom=row.date<startDate
+        ?nextSameWeekdayOnOrAfter(row.date,startDate)
+        :row.date;
+
+      await saveFutureRule(row.templateTaskId,effectiveFrom,{
+        taskName:row.taskName,
+        slotId:row.slotId,
+        assignedTo:row.assignedTo||'',
+        effortMinutes:row.effortMinutes,
+        sourceTime:row.sourceTime||row.checkpoint||''
+      },user);
+      assignmentsSaved++;
+    }
+
+    // Full operational reset: no legacy daily history to reconcile.
+    const removed=await clearAllOperationalData();
+
+    // Fresh 14-day runway starting tomorrow.
+    let createdDays=0,createdTasks=0;
+    for(let i=0;i<14;i++){
+      const date=addDaysISO(startDate,i);
+      const result=await ensureTasksForDate(date);
+      createdDays++;
+      createdTasks+=Number(result.count)||0;
+    }
+
+    bulkDirty.clear();
+
+    setInlineMessage(
+      $('#bulkResult'),
+      `✓ Clean launch ready. ${assignmentsSaved} assignment rule(s) saved, ${removed} old operational record(s) deleted, and ${createdTasks} fresh task record(s) created across ${createdDays} days from ${formatLongDate(startDate)}.`,
+      'success'
+    );
+
+    showToast('Old operational data cleared. Tomorrow’s schedule is ready.','success',{title:'Clean launch ready'});
+    await loadBulkSetup();
+  }catch(error){
+    console.error(error);
+    setInlineMessage($('#bulkResult'),error.message||'Could not complete the reset and rebuild.','error');
+  }finally{
+    setButtonLoading(btn,false);
+  }
+}
+$('#goLiveTomorrow').onclick=goLiveTomorrow;
+
+
 
 
 
@@ -1442,9 +1522,19 @@ async function saveWeeklyEffortSetup(){
       }
     }
 
+    // Synchronise the actual daily snapshots immediately so Staff Assignment,
+    // General View and staff phones all see the same saved time/effort/slot list.
+    let syncedCreated=0,syncedUpdated=0,syncedRemoved=0;
+    for(const date of dates){
+      const sync=await reconcileDailyTasksForDate(date);
+      syncedCreated+=sync.created||0;
+      syncedUpdated+=sync.updated||0;
+      syncedRemoved+=sync.removed||0;
+    }
+
     setInlineMessage(
       $('#effortResult'),
-      `✓ Weekly task setup saved. ${activeSaved} active task-day rule(s) saved and ${hiddenSaved} task-day rule(s) hidden.`,
+      `✓ Weekly task setup saved and synced. ${activeSaved} active rule(s), ${hiddenSaved} hidden rule(s). Daily views: ${syncedCreated} created, ${syncedUpdated} refreshed, ${syncedRemoved} removed.`,
       'success'
     );
     effortDirty.clear();
@@ -1587,10 +1677,10 @@ try{
   console.error('Parth → Parthy migration failed',error);
 }
 
-await ensureV30TaskModel();
-  await ensureV321TemperatureNames();
-  await ensureV322TemperatureRepair();
-  await reconcileTemperatureTasks();
+const finalSetup=await ensureFinalV36Schedule();
+  if(finalSetup.applied){
+    showToast('Final 47-task weekly schedule loaded. Sunday evening rotation is active from 27 September 2026.','success',{title:'Final setup ready'});
+  }
   await loadPeople();
   { const a=await getStaffAvailability(); staffAvailability=a?.week||structuredClone(DEFAULT_STAFF_AVAILABILITY); }
 updateDateUI();

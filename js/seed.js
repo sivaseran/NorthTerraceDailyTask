@@ -5144,7 +5144,8 @@ export async function migrateParthToParthy(){
   const usersSnap=await getDocs(collection(db,"users"));
   const oldParthDocs=usersSnap.docs.filter(d=>{
     const x=d.data();
-    return d.id!=="staff1" && isParthName(x.name);
+    const alreadyMerged=x.active===false && String(x.mergedInto||"")==="staff1";
+    return d.id!=="staff1" && isParthName(x.name) && !alreadyMerged;
   });
   const oldParthIds=new Set(oldParthDocs.map(d=>d.id));
 

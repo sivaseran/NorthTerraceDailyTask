@@ -1,3 +1,4 @@
+import {ensureFinalV36Schedule} from './final-config.js';
 import {
   SLOT_DEFS,todayISO,addDaysISO,formatLongDate,weekStartISO,weekEndISO,slotLabelForDate,slotEndForDate,
   ensureTasksForDate,getTasksForDate,watchTasksForDate,getPlannedTasksForDate,percent,dayKey
@@ -5,6 +6,8 @@ import {
 import {loginWithPin} from './auth.js';
 import {completeTask} from './store.js';
 import {escapeHtml,statusView,showToast,confirmAction,promptPin,initNetworkStatus,registerAppServiceWorker} from './ui.js';
+
+await ensureFinalV36Schedule();
 
 const $=s=>document.querySelector(s);
 let selectedDate=todayISO();

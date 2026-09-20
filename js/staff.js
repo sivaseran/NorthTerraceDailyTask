@@ -1,6 +1,9 @@
+import {ensureFinalV36Schedule} from './final-config.js';
 import {getSession,clearSession} from './auth.js';
 import {todayISO,formatLongDate,ensureTasksForDate,watchTasksForDate,completeTask,percent,SLOT_DEFS,slotLabelForDate} from './store.js';
 import {escapeHtml,statusView,showToast,initNetworkStatus,registerAppServiceWorker} from './ui.js';
+await ensureFinalV36Schedule();
+
 const $=s=>document.querySelector(s),user=getSession();
 if(!user||(user.role!=='staff'&&user.role!=='assignee')) location.href='login.html';
 $('#staffTitle').textContent=user.name||'Staff';$('#staffDate').textContent=formatLongDate(todayISO());

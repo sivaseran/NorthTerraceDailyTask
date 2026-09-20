@@ -1,3 +1,4 @@
+import {SUNDAY_ROTATION_ANCHOR,SUNDAY_ROTATION} from './final-config.js';
 import {
   db,collection,doc,getDoc,getDocs,setDoc,updateDoc,deleteDoc,query,where,
   onSnapshot,serverTimestamp,writeBatch
@@ -30,6 +31,23 @@ export function formatLongDate(value){
 }
 export function todayISO(){ return isoDate(new Date()); }
 export function compareISO(a,b){ return String(a).localeCompare(String(b)); }
+
+
+export function sundayEveningRotatorForDate(date){
+  if(!date||String(date)<SUNDAY_ROTATION_ANCHOR) return '';
+  const d=dateFromISO(date);
+  if(d.getDay()!==0) return '';
+  const anchor=dateFromISO(SUNDAY_ROTATION_ANCHOR);
+  const weeks=Math.floor((d-anchor)/(7*24*60*60*1000));
+  if(weeks<0) return '';
+  return SUNDAY_ROTATION[((weeks%SUNDAY_ROTATION.length)+SUNDAY_ROTATION.length)%SUNDAY_ROTATION.length]||'';
+}
+
+export function isSundayEveningRotationTime(date,clock){
+  const userId=sundayEveningRotatorForDate(date);
+  const minutes=hmToMinutes(clock);
+  return Boolean(userId && minutes!==null && minutes>=13*60+30);
+}
 
 export function weekStartISO(value){
   const d=dateFromISO(value), js=d.getDay(), delta=js===0?-6:1-js;
@@ -286,7 +304,12 @@ export async function getPlannedTasksForDate(date){
   for(const t of templates){
     const rule=ruleForDate(t,date);
     if(!rule||rule.active===false) continue;
-    const assigned=await resolveAssignee(rule,users);
+    let assigned=await resolveAssignee(rule,users);
+    if(isSundayEveningRotationTime(date,rule.sourceTime||'')){
+      const rotationId=sundayEveningRotatorForDate(date);
+      const rotationUser=users.find(u=>u.id===rotationId);
+      assigned={id:rotationId,name:rotationUser?.name||'Sunday rotation'};
+    }
     if(t.recurring&&t.frequencyMinutes){
       const source=String(rule.sourceTime||'');
       const mm=[...source.matchAll(/(\d{1,2}):(\d{2})/g)];
@@ -390,21 +413,123 @@ async function plannedToDaily(row,users){
   };
 }
 
-export async function ensureTasksForDate(date){
-  const q=query(collection(db,'dailyTasks'),where('date','==',date));
-  const existing=await getDocs(q);
-  if(!existing.empty) return {created:false,count:existing.size};
-  if(date<todayISO()) return {created:false,count:0}; // never fabricate historical completion data
-  const planned=await getPlannedTasksForDate(date);
-  if(!planned.length) return {created:false,count:0};
-  const batch=writeBatch(db);
-  for(const row of planned){
-    batch.set(doc(db,'dailyTasks',row.virtualId),await plannedToDaily(row));
-  }
-  await batch.commit();
-  return {created:true,count:planned.length};
+function plannedMatch(existing,planned){
+  if(String(existing.templateTaskId||'')!==String(planned.templateTaskId||'')) return false;
+  const pClock=String(planned.checkpoint||planned.sourceTime||'');
+  const eClock=String(existing.checkpoint||existing.sourceTime||'');
+  if(pClock&&eClock&&pClock!==eClock) return false;
+  return true;
 }
 
+export async function reconcileDailyTasksForDate(date){
+  // Historical completion/audit records are immutable.
+  if(date<todayISO()) return {created:0,updated:0,removed:0};
+
+  const [planned,existingSnap]=await Promise.all([
+    getPlannedTasksForDate(date),
+    getDocs(query(collection(db,'dailyTasks'),where('date','==',date)))
+  ]);
+
+  const existing=existingSnap.docs.map(d=>({id:d.id,ref:d.ref,...d.data()}));
+  const used=new Set();
+  const operations=[];
+
+  for(const p of planned){
+    const matchIndex=existing.findIndex((e,i)=>!used.has(i)&&plannedMatch(e,p));
+
+    if(matchIndex<0){
+      operations.push({
+        type:'set',
+        ref:doc(db,'dailyTasks',p.virtualId),
+        data:await plannedToDaily(p)
+      });
+      continue;
+    }
+
+    used.add(matchIndex);
+    const e=existing[matchIndex];
+
+    // Preserve a deliberate day-only staff override. If assignment still equals
+    // the old original assignment, follow the weekly template assignment.
+    const hasDayOverride=
+      String(e.assignedTo||'')!==String(e.originalAssignedTo||'');
+    const assignedTo=hasDayOverride?(e.assignedTo||''):(p.assignedTo||'');
+    const assignedName=hasDayOverride?(e.assignedName||'Unassigned'):(p.assignedName||'Unassigned');
+
+    const patch={
+      taskName:p.taskName,
+      slotId:p.slotId,
+      sourceTime:p.sourceTime||'',
+      effortMinutes:p.effortMinutes??null,
+      photoRequired:Boolean(p.photoRequired),
+      temperatureRequired:Boolean(p.temperatureRequired),
+      recurring:Boolean(p.recurring),
+      checkpoint:p.checkpoint||'',
+      originalAssignedTo:p.assignedTo||'',
+      originalAssignedName:p.assignedName||'Unassigned',
+      assignedTo,
+      assignedName,
+      updatedAt:serverTimestamp()
+    };
+
+    // A task that was previously removed but is active again must return.
+    if(e.status==='cancelled'){
+      patch.status='pending';
+      patch.cancelledAt=null;
+    }
+
+    operations.push({type:'update',ref:e.ref,data:patch});
+  }
+
+  // Anything left is a saved template task that no longer belongs on this day.
+  // Keep completed rows for audit, and leave ad-hoc tasks alone.
+  existing.forEach((e,i)=>{
+    if(used.has(i)) return;
+    if(!e.templateTaskId||e.adHoc||e.status==='completed') return;
+    operations.push({type:'delete',ref:e.ref});
+  });
+
+  let created=0,updated=0,removed=0;
+  for(let i=0;i<operations.length;i+=350){
+    const batch=writeBatch(db);
+    for(const op of operations.slice(i,i+350)){
+      if(op.type==='set'){ batch.set(op.ref,op.data); created++; }
+      else if(op.type==='update'){ batch.update(op.ref,op.data); updated++; }
+      else if(op.type==='delete'){ batch.delete(op.ref); removed++; }
+    }
+    await batch.commit();
+  }
+
+  return {created,updated,removed};
+}
+
+export async function ensureTasksForDate(date){
+  const result=await reconcileDailyTasksForDate(date);
+  const q=query(collection(db,'dailyTasks'),where('date','==',date));
+  const snap=await getDocs(q);
+  return {created:result.created>0,count:snap.size,...result};
+}
+
+
+
+export async function clearAllOperationalData(){
+  const collectionsToClear=['dailyTasks','shiftCover','shiftCoverRules'];
+  let removed=0;
+
+  for(const collectionName of collectionsToClear){
+    const snap=await getDocs(collection(db,collectionName));
+    const docs=[...snap.docs];
+
+    for(let i=0;i<docs.length;i+=400){
+      const batch=writeBatch(db);
+      for(const d of docs.slice(i,i+400)) batch.delete(d.ref);
+      await batch.commit();
+      removed+=Math.min(400,docs.length-i);
+    }
+  }
+
+  return removed;
+}
 
 export async function clearDailyTasksFrom(date){
   const q=query(collection(db,'dailyTasks'),where('date','>=',date));
@@ -439,9 +564,10 @@ export async function getTasksForDate(date,{ensure=true}={}){
 }
 
 export async function getSetupTasksForDate(date){
-  // Configuration screens should represent the CURRENT weekly template even when
-  // a historical daily snapshot is incomplete or a future snapshot has not yet
-  // been generated. Overlay any matching saved daily values onto planned rows.
+  // For today/future, first make the saved daily snapshot match the current
+  // weekly template. This keeps Staff Assignment and General View consistent.
+  if(date>=todayISO()) await reconcileDailyTasksForDate(date);
+
   const [planned,existing]=await Promise.all([
     getPlannedTasksForDate(date),
     getTasksForDate(date,{ensure:false})
@@ -450,38 +576,40 @@ export async function getSetupTasksForDate(date){
   const used=new Set();
   const merged=planned.map(p=>{
     let matchIndex=-1;
-
-    // New V3 temperature tasks are separate templates, so templateTaskId is enough.
-    // Legacy checkpoint tasks use checkpoint/source time as a secondary key.
     for(let i=0;i<existing.length;i++){
       if(used.has(i)) continue;
-      const e=existing[i];
-      if(e.templateTaskId!==p.templateTaskId) continue;
-      const pClock=String(p.checkpoint||p.sourceTime||'');
-      const eClock=String(e.checkpoint||e.sourceTime||'');
-      if(pClock&&eClock&&pClock!==eClock) continue;
-      matchIndex=i; break;
+      if(plannedMatch(existing[i],p)){ matchIndex=i; break; }
     }
 
-    if(matchIndex>=0){
-      used.add(matchIndex);
-      const e=existing[matchIndex];
+    if(matchIndex<0){
       return {
         ...p,
-        ...e,
-        id:e.id,
-        virtualId:p.virtualId,
-        _virtual:false,
-        temperatureRequired:Boolean(p.temperatureRequired||e.temperatureRequired)
+        id:p.virtualId,
+        _virtual:true,
+        status:'planned',
+        temperatureC:null
       };
     }
 
+    used.add(matchIndex);
+    const e=existing[matchIndex];
+
+    // Template configuration wins; saved operational state/assignment wins.
     return {
+      ...e,
       ...p,
-      id:p.virtualId,
-      _virtual:true,
-      status:'planned',
-      temperatureC:null
+      id:e.id,
+      virtualId:p.virtualId,
+      _virtual:false,
+      assignedTo:e.assignedTo||'',
+      assignedName:e.assignedName||'Unassigned',
+      originalAssignedTo:e.originalAssignedTo||p.assignedTo||'',
+      originalAssignedName:e.originalAssignedName||p.assignedName||'Unassigned',
+      status:e.status,
+      completedAt:e.completedAt||null,
+      completedByUserId:e.completedByUserId||'',
+      completedByName:e.completedByName||'',
+      temperatureC:e.temperatureC??null
     };
   });
 
