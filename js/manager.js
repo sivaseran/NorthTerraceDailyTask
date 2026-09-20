@@ -29,7 +29,13 @@ let effortRowsData=[];
 let effortDirty=new Map();
 let staffAvailability={};
 const isHistoricalDate=()=>selectedDate<todayISO();
-const personOptions=()=>`<option value="">Unassigned</option>`+people.map(p=>`<option value="${p.id}">${escapeHtml(p.name||p.id)}</option>`).join('');
+const personOptions=(selectedId='',selectedName='')=>{
+  const hasSelected=selectedId&&people.some(p=>p.id===selectedId);
+  const currentMissing=selectedId&&!hasSelected
+    ? `<option value="${escapeHtml(selectedId)}" selected>${escapeHtml(selectedName||'Current assignee')} (current)</option>`
+    : '';
+  return `<option value="">Unassigned</option>`+currentMissing+people.map(p=>`<option value="${p.id}" ${p.id===selectedId?'selected':''}>${escapeHtml(p.name||p.id)}</option>`).join('');
+};
 const slotOptions=selected=>SLOT_DEFS.map(s=>`<option value="${s.id}" ${s.id===selected?'selected':''}>${escapeHtml(slotLabelForDate(s.id,selectedDate))}</option>`).join('');
 const effortText=v=>Number(v)>0?`${Number(v)} min`:'Not set';
 
@@ -50,12 +56,18 @@ function updateDateUI(){
     $('#toggleAdvancedEdit').textContent='▾ Advanced: Edit all tasks';
   }
 }
+
+// Populate the Schedule Editor date immediately, before any Firebase/network startup work.
+// This prevents the date picker from appearing blank while setup/status checks are running.
+updateDateUI();
+
 function draftFromRow(row){
   return {
     taskName:row.querySelector('.edit-task-name').value.trim(),
     slotId:row.querySelector('.edit-slot').value,
     effortMinutes:row.querySelector('.edit-effort').value.trim()?Number(row.querySelector('.edit-effort').value):null,
     assignedTo:row.querySelector('.edit-assignee').value,
+    sourceTime:row.querySelector('.edit-time')?.value||'',
     photoRequired:row.querySelector('.edit-photo').checked
   };
 }
@@ -114,9 +126,10 @@ function taskEditor(t){
       ${t.legacyAssignee&&(!t.assignedTo)?`<div class="legacy-editor-note">Original source assignment: ${escapeHtml(t.legacyAssignee)}</div>`:''}
       <div class="editor-grid">
         <div class="field editor-name"><label>Task</label><input class="edit-task-name" value="${escapeHtml(t.taskName||'')}"></div>
+        <div class="field"><label>Time</label><input class="edit-time" type="time" value="${escapeHtml(t.sourceTime||'')}"></div>
         <div class="field"><label>Slot</label><select class="edit-slot">${slotOptions(t.slotId)}</select></div>
         <div class="field"><label>Task effort (min)</label><input class="edit-effort" type="number" min="1" step="5" placeholder="Optional" value="${Number(t.effortMinutes)>0?Number(t.effortMinutes):''}"></div>
-        <div class="field"><label>Assignee</label><select class="edit-assignee">${personOptions()}</select></div>
+        <div class="field"><label>Assignee</label><select class="edit-assignee">${personOptions(t.assignedTo||'',t.assignedName||'')}</select></div>
         <label class="check-field"><input class="edit-photo" type="checkbox" ${t.photoRequired?'checked':''}> Photo required</label>
       </div>
       <div class="editor-actions">
@@ -135,6 +148,7 @@ function newTaskEditor(slotId){
   return `<div class="new-task-editor" data-new-slot="${slotId}" hidden>
     <div class="editor-grid">
       <div class="field editor-name"><label>New task name</label><input class="new-task-name" placeholder="Task name"></div>
+      <div class="field"><label>Time</label><input class="new-time" type="time"></div>
       <div class="field"><label>Slot</label><select class="new-slot">${slotOptions(slotId)}</select></div>
       <div class="field"><label>Task effort (min)</label><input class="new-effort" type="number" min="1" step="5" placeholder="Optional"></div>
       <div class="field"><label>Assignee</label><select class="new-assignee">${personOptions()}</select></div>
@@ -392,6 +406,7 @@ async function createFromBox(box,scope){
     slotId:box.querySelector('.new-slot').value,
     effortMinutes:box.querySelector('.new-effort').value?Number(box.querySelector('.new-effort').value):null,
     assignedTo:box.querySelector('.new-assignee').value,
+    sourceTime:box.querySelector('.new-time')?.value||'',
     photoRequired:box.querySelector('.new-photo').checked
   };
   const msg=box.querySelector('.new-message');

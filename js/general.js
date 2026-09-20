@@ -1,7 +1,7 @@
 import {ensureFinalV36Schedule} from './final-config.js';
 import {
   SLOT_DEFS,todayISO,addDaysISO,formatLongDate,weekStartISO,weekEndISO,slotLabelForDate,slotEndForDate,
-  ensureTasksForDate,getTasksForDate,watchTasksForDate,getPlannedTasksForDate,percent,dayKey
+  ensureTasksForDate,getTasksForDate,watchTasksForDate,getPlannedTasksForDate,percent,dayKey,slotForClock
 } from './store.js';
 import {loginWithPin} from './auth.js';
 import {completeTask} from './store.js';
@@ -169,7 +169,7 @@ function renderDay(tasks,{skipAlertCheck=false}={}){
       <div class="ops-task-list live-slot-task-list">
         ${rows.map(t=>`<article class="ops-task-row ${t.status==='overdue'?'is-overdue-task':''}">
           <div class="ops-task-main">
-            <strong>${escapeHtml(t.taskName)}${t.temperatureRequired&&t.sourceTime?` · ${escapeHtml(t.sourceTime)}`:(t.checkpoint?` · ${escapeHtml(t.checkpoint)}`:'')}</strong>
+            <strong>${escapeHtml(t.taskName)}${t.checkpoint?` · ${escapeHtml(t.checkpoint)}`:''}</strong>
             <div class="ops-task-meta">
               <span class="${!t.assignedTo?'general-unassigned':''}">${escapeHtml(t.assignedName||'Unassigned')}</span>
               <span>•</span><span>${escapeHtml(fmtEffort(t.effortMinutes))}</span>
@@ -550,12 +550,23 @@ async function renderWeek(){
   clearSlotAlertTimers();
   const start=weekStartISO(selectedDate);
   const dates=Array.from({length:7},(_,i)=>addDaysISO(start,i));
-  const plans=[];
-  for(const date of dates){
-    let rows=await getTasksForDate(date,{ensure:false});
+  const plans=await Promise.all(dates.map(async date=>{
+    // Today/future must be reconciled against the latest weekly template before
+    // the week grid is rendered. Previously the week view could use an older
+    // dailyTasks snapshot, so a changed exact time/slot appeared correctly in
+    // Day View but disappeared from the expected slot in Week View.
+    let rows=await getTasksForDate(date,{ensure:date>=todayISO()});
     if(!rows.length&&date>=todayISO()) rows=await getPlannedTasksForDate(date);
-    plans.push({date,rows});
-  }
+
+    // Exact sourceTime is the source of truth for slot placement. This also
+    // protects the weekly display if a legacy snapshot still carries an old
+    // slotId after a time edit.
+    rows=rows.map(row=>({
+      ...row,
+      slotId:row.sourceTime?(slotForClock(row.sourceTime,date)||row.slotId):row.slotId
+    }));
+    return {date,rows};
+  }));
   $('#weekSummary').innerHTML=plans.map(({date,rows})=>`<article class="week-day-card ${date===todayISO()?'is-today':''}">
     <div class="week-day-top"><strong>${dayKey(date).toUpperCase()}</strong>${date===todayISO()?'<span class="today-chip">Today</span>':''}</div>
     <div class="week-day-total">${rows.filter(t=>t.status!=='cancelled').length}</div>

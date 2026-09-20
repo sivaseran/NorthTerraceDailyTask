@@ -1,6 +1,6 @@
 import {db,collection,doc,getDoc,getDocs,setDoc,writeBatch,serverTimestamp} from './firebase.js';
 
-export const FINAL_SETUP_VERSION='v3.6-final-2026-09-21';
+export const FINAL_SETUP_VERSION='v3.6.4-final-2026-09-21';
 export const SUNDAY_ROTATION_ANCHOR='2026-09-27';
 export const SUNDAY_ROTATION=['staff1','staff9','staff3','staff4']; // Parthy, Pragash, Prashanthy, Suku
 
@@ -5104,7 +5104,7 @@ async function writeTemplates(){
         ...payload,
         updatedAt:serverTimestamp(),
         updatedByUserId:'system',
-        updatedByName:'Final V3.6 setup'
+        updatedByName:'Final V3.6.4 setup'
       });
     }
     await batch.commit();
