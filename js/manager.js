@@ -1349,17 +1349,17 @@ function effortGroups(){
       };
     });
 
-    // Monday is the default template time. If Monday is missing, use the first
-    // active weekday so the task is still easy to initialise across the week.
-    const firstExistingTime=BULK_DAY_ORDER.map(day=>byDay[day].time).find(Boolean)||inferredRuleTime(base)||'';
-    const mondayTime=byDay.mon.time||firstExistingTime;
-
-    // User wants every task populated across all days initially. Missing weekday
-    // rules therefore inherit Monday/default time in the setup screen; clearing a
-    // time explicitly removes that weekday.
+    // LIVE MODE: never invent a weekday time. Once operations are running,
+    // blank/inactive weekdays are meaningful and must remain blank until a manager
+    // explicitly adds a time again.
+    const activeWeek=template._currentActiveWeek||{};
     const defaultDayTimes={};
     BULK_DAY_ORDER.forEach(day=>{
-      defaultDayTimes[day]=byDay[day].time||mondayTime;
+      if(Object.prototype.hasOwnProperty.call(activeWeek,day)){
+        defaultDayTimes[day]=activeWeek[day]?.time||'';
+      }else{
+        defaultDayTimes[day]=byDay[day].time||'';
+      }
     });
 
     const efforts=BULK_DAY_ORDER
@@ -1487,9 +1487,36 @@ async function loadEffortAllocation(){
   try{
     updateEffortWeekUI();
     setInlineMessage($('#effortResult'),'');
-    $('#effortMatrixRows').innerHTML='<tr><td colspan="9" class="muted report-empty-cell">Loading master weekly task setup…</td></tr>';
+    $('#effortMatrixRows').innerHTML='<tr><td colspan="9" class="muted report-empty-cell">Loading current active weekly setup…</td></tr>';
 
-    effortRowsData=await getWeeklyTemplate();
+    // Load the CURRENT ACTIVE week first, then use weeklyTemplates only as the
+    // recurring metadata behind those active tasks. This prevents removed weekdays
+    // (and removed tasks) from being silently re-populated by old/default rules.
+    const dates=effortWeekDates();
+    const [templates,...activeDays]=await Promise.all([
+      getWeeklyTemplate(),
+      ...dates.map(date=>getSetupTasksForDate(date))
+    ]);
+
+    const activeMap=new Map();
+    activeDays.forEach((rows,i)=>{
+      const day=BULK_DAY_ORDER[i];
+      for(const row of rows){
+        if(!row.templateTaskId||row.status==='cancelled') continue;
+        const time=String(row.checkpoint||row.sourceTime||'');
+        if(!activeMap.has(row.templateTaskId)) activeMap.set(row.templateTaskId,{});
+        const week=activeMap.get(row.templateTaskId);
+        // A recurring checkpoint can create several rows; keep the earliest visible
+        // time for the weekday as the task's setup time.
+        if(!week[day]||timeSortValue(time)<timeSortValue(week[day].time||'')){
+          week[day]={time:validHHMM(time)?time:slotStartTime(row.slotId)||'',effortMinutes:Number(row.effortMinutes)||null};
+        }
+      }
+    });
+
+    effortRowsData=templates
+      .filter(t=>activeMap.has(t.id))
+      .map(t=>({...t,_currentActiveWeek:activeMap.get(t.id)}));
     effortDirty.clear();
 
     const selected=$('#effortSlotFilter').value||'all';
@@ -1532,8 +1559,8 @@ function readEffortGroupDraft(rowEl,{copyMonday=false}={}){
   }
 }
 async function saveWeeklyEffortSetup(){
-  // Save the complete master-week model, not only touched rows. This guarantees
-  // missing weekday rules are created from the visible times.
+  // Save only the CURRENT ACTIVE weekly model shown on screen. Blank weekdays stay blank;
+  // removed tasks not present in this live week are not recreated.
   const groups=effortGroups();
   const changes=groups.map(group=>({group,draft:effortDraftForGroup(group)}));
 
@@ -1547,8 +1574,8 @@ async function saveWeeklyEffortSetup(){
 
   const ok=await confirmAction({
     title:'Save complete weekly task setup?',
-    message:`Save ${changes.length} master task${changes.length===1?'':'s'} across Monday–Sunday?`,
-    details:'A day with a time is active. A blank time is removed from that weekday. Each time automatically determines the operational slot and task order.',
+    message:`Save ${changes.length} current active task${changes.length===1?'':'s'} across Monday–Sunday?`,
+    details:'A day with a time is active. A blank time stays removed from that weekday. Tasks not present in the live week are not recreated. Each time determines the operational slot and task order.',
     confirmText:'Save Weekly Setup'
   });
   if(!ok) return;

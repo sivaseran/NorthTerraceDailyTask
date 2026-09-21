@@ -567,57 +567,16 @@ export async function getTasksForDate(date,{ensure=true}={}){
 }
 
 export async function getSetupTasksForDate(date){
-  // For today/future, first make the saved daily snapshot match the current
-  // weekly template. This keeps Staff Assignment and General View consistent.
-  if(date>=todayISO()) await reconcileDailyTasksForDate(date);
-
-  const [planned,existing]=await Promise.all([
-    getPlannedTasksForDate(date),
-    getTasksForDate(date,{ensure:false})
-  ]);
-
-  const used=new Set();
-  const merged=planned.map(p=>{
-    let matchIndex=-1;
-    for(let i=0;i<existing.length;i++){
-      if(used.has(i)) continue;
-      if(plannedMatch(existing[i],p)){ matchIndex=i; break; }
-    }
-
-    if(matchIndex<0){
-      return {
-        ...p,
-        id:p.virtualId,
-        _virtual:true,
-        status:'planned',
-        temperatureC:null
-      };
-    }
-
-    used.add(matchIndex);
-    const e=existing[matchIndex];
-
-    // Template configuration wins; saved operational state/assignment wins.
-    return {
-      ...e,
-      ...p,
-      id:e.id,
-      virtualId:p.virtualId,
-      _virtual:false,
-      assignedTo:e.dayOnlyOverride?(e.assignedTo||''):(p.assignedTo||''),
-      assignedName:e.dayOnlyOverride?(e.assignedName||'Unassigned'):(p.assignedName||'Unassigned'),
-      originalAssignedTo:e.originalAssignedTo||p.assignedTo||'',
-      originalAssignedName:e.originalAssignedName||p.assignedName||'Unassigned',
-      status:e.status,
-      completedAt:e.completedAt||null,
-      completedByUserId:e.completedByUserId||'',
-      completedByName:e.completedByName||'',
-      temperatureC:e.temperatureC??null
-    };
-  });
-
-  return sortTasks(merged);
+  // LIVE EDITOR SOURCE OF TRUTH: Staff Assignment must show only records that
+  // currently exist for the selected date. Do not reconcile, seed, or synthesise
+  // missing template tasks while merely opening the editor.
+  const existing=await getTasksForDate(date,{ensure:false});
+  return sortTasks(existing.filter(row=>row.status!=='cancelled').map(row=>({
+    ...row,
+    _virtual:false
+  })));
 }
+
 export function watchTasksForDate(date,cb,onError=()=>{}){
   const q=query(collection(db,'dailyTasks'),where('date','==',date));
   return onSnapshot(q,s=>cb(sortTasks(s.docs.map(normaliseDaily))),onError);
