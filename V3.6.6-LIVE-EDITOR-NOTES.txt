@@ -1,0 +1,8 @@
+V3.6.6 LIVE EDITOR FIX
+
+- Effort Allocation now loads the current active week rather than auto-filling all template weekdays.
+- Blank weekdays remain blank and are not recreated unless a manager enters a time.
+- Tasks not present in the live week are not automatically reintroduced when saving.
+- Staff Assignment now loads only currently existing active daily task records; opening the page does not reconcile/seed missing tasks.
+- Entering a time on a blank weekday adds that weekday back to the recurring schedule when saved.
+- Clearing a time removes that weekday going forward when the weekly setup is saved.
