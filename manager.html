@@ -26,15 +26,6 @@
     <button id="mgrNextDate" class="btn secondary square-btn">→</button>
     <button id="mgrToday" class="btn secondary small">Today</button>
   </div>
-  <div id="systemInitBanner" class="system-init-banner" hidden>
-    <div>
-      <span class="eyebrow">One-time initialization</span>
-      <h3>Finish North Terrace V2 setup</h3>
-      <p>This is required only once. It will apply the confirmed staff roster/PINs and ensure the five-slot schedule is V2-ready. After completion, this message disappears permanently.</p>
-    </div>
-    <button id="initializeV2Btn" class="btn" type="button">Finish V2 Setup</button>
-    <div id="systemInitResult" class="inline-message" hidden></div>
-  </div>
   <div id="historicalReadOnlyBanner" class="historical-readonly-banner" hidden>
     <div>
       <strong>Historical schedule — read only</strong>
@@ -237,7 +228,7 @@
       </div>
       <button id="bulkNextWeek" class="btn secondary square-btn" type="button">→</button>
       <button id="bulkThisWeek" class="btn secondary small" type="button">This Week</button>
-      <button id="bulkLoadWeek" class="btn small" type="button">Load Existing Week</button>
+      <button id="bulkLoadWeek" class="btn small" type="button">Refresh Week</button>
     </div>
 
     <div class="bulk-filter-bar">
@@ -255,7 +246,7 @@
     <div class="bulk-save-bar">
       <button id="bulkSaveWeek" class="btn secondary" type="button">Save Assignments to This Week</button>
       <button id="bulkSaveFuture" class="btn" type="button">Apply Assignments to Future Schedule</button>
-      <span class="muted">Availability filtering is advisory: full-shift staff are listed first, then partial-shift staff. Unassigned always remains available.</span>
+      <span class="muted">Save changes to this week for date-specific edits, or apply changed recurring assignments to the future schedule.</span>
     </div>
 
     <div class="table-wrap bulk-matrix-wrap">
@@ -277,8 +268,8 @@
     </div>
 
     <div class="bulk-note">
-      <strong>Assignment workflow:</strong>
-      <span>Complete Effort Allocation first. Then choose an available staff member for each active day. Task removals are handled on the Effort Allocation page, not here.</span>
+      <strong>Live editor:</strong>
+      <span>This page loads the current saved week only. Blank or removed task-days stay blank. Change an assignee and save only the scope you intend.</span>
     </div>
   </div>
 </section>
@@ -288,9 +279,9 @@
   <div class="card elevated">
     <div class="section-intro">
       <div>
-        <span class="eyebrow">Weekly task setup</span>
+        <span class="eyebrow">Live weekly editor</span>
         <h2>Effort Allocation</h2>
-        <p class="muted">Every master task is shown across Monday–Sunday. Set effort once, then enter the task time for each day. A blank time means the task does not run that day.</p>
+        <p class="muted">Loads the current active weekly pattern only. Edit effort or weekday times; a blank time means the task does not run that weekday.</p>
       </div>
     </div>
 
@@ -302,8 +293,7 @@
       </div>
       <button id="effortNextWeek" class="btn secondary square-btn" type="button">→</button>
       <button id="effortThisWeek" class="btn secondary small" type="button">This Week</button>
-      <button id="effortLoadWeek" class="btn small" type="button">Reload Setup</button>
-      <button id="repairTemperatureTasks" class="btn secondary small" type="button">Repair Temperature Tasks</button>
+      <button id="effortLoadWeek" class="btn small" type="button">Refresh Current Data</button>
     </div>
 
     <div class="effort-toolbar">
@@ -312,7 +302,7 @@
       </label>
       <label class="bulk-toggle-filter"><input id="effortOnlyMissing" type="checkbox"> Effort not set only</label>
       <button id="effortResetFilters" class="btn secondary small" type="button">Reset filters</button>
-      <span class="effort-sort-note">Monday time copies to Tue–Sun. You can then change individual days.</span>
+      <span class="effort-sort-note">Each weekday is independent. Blank days stay inactive until you enter a time.</span>
     </div>
 
     <div id="effortSummary" class="bulk-summary"></div>
@@ -344,7 +334,7 @@
 
     <div class="bulk-note">
       <strong>How it works:</strong>
-      <span>Enter Monday first and it will copy to the other six days. Change any day that needs a different time—for example toilet cleaning. Clear the time completely on a day to hide that task on that weekday. The saved time automatically places the task into the correct slot.</span>
+      <span>Edit only the days you need. Clear a time to remove that task from that weekday going forward; enter a time to add it back. Saving changed rows does not repopulate other blank weekdays.</span>
     </div>
   </div>
 </section>

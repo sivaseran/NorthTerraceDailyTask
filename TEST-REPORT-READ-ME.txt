@@ -1,0 +1,80 @@
+North Terrace Operations — V3.7.0 Live Final
+End-to-End Validation Report
+Date: 21 Sep 2026
+Baseline: V3.6.6 currently deployed in GitHub
+
+IMPORTANT LIVE-SYSTEM SAFETY
+- No destructive test writes were performed against the production Firebase database.
+- The final startup logic was changed so it never deletes dailyTasks, shiftCover, or shiftCoverRules.
+- It never overwrites a non-empty weeklyTemplates collection.
+- Existing live assignments, completions, day removals, shift-cover records and reports are preserved.
+
+VALIDATION COMPLETED
+1. JavaScript syntax
+   PASS — all JS modules and service-worker.js pass node --check.
+
+2. HTML ↔ JavaScript selector integrity
+   PASS — Login, Staff, Manager and General View have no missing referenced element IDs.
+
+3. Local file/module integrity
+   PASS — all relative JavaScript imports exist.
+   PASS — all local HTML src/href references exist.
+   PASS — all service-worker cached assets exist.
+
+4. Schedule Editor
+   PASS — current date is populated immediately.
+   PASS — selected date is explicitly fetched/rendered before the Firestore live listener is attached.
+   PASS — exact task time is used for staff availability.
+   PASS — current assignee remains selectable and other active staff groups are available.
+
+5. Manager live status
+   PASS — connection status initialization now runs immediately after manager-session validation, before long Firebase startup checks.
+
+6. Effort Allocation live editor
+   PASS — loads only the current active week from saved daily task records.
+   PASS — removed/blank weekdays remain blank.
+   PASS — a completely unrelated task/day is not rewritten when another row is saved.
+   PASS — only dirty/changed task rows are saved.
+   PASS — clearing a weekday time calls the recurring remove/stop rule for that weekday going forward.
+   PASS — Monday no longer auto-copies to other weekdays.
+
+7. Staff Assignment live editor
+   PASS — loads existing saved task-days only (no automatic task synthesis while opening the editor).
+   PASS — removed task-days stay absent.
+   PASS — rows are ordered by actual task time, then operational slot/task name.
+   PASS — assignment availability uses exact task time + effort window.
+
+8. General View
+   PASS — Day View uses live saved task records.
+   PASS — Week View derives slot from exact sourceTime, preventing stale slot snapshots from hiding moved tasks.
+   PASS — temperature task titles do not append the time a second time.
+   PASS — current slot / collapse / focus-view code remains present.
+
+9. Tablet layout
+   PASS — operations-board treatment remains active at 768px portrait tablet width.
+   PASS — compact phone-specific treatment starts at 640px and below.
+   Browser CSS smoke test: 768px keeps double-tap focus hint visible; 600px uses compact phone treatment.
+
+10. Confirmed task configuration
+   PASS — 47 master tasks in final recovery template.
+   PASS — Tuesday Paper Works = 13:15, Prashanthy, 45 min.
+   PASS — Sunday 06:30 hot-food task is inactive.
+   PASS — Sunday hot-food checks run 07:00 through 14:00 hourly.
+   PASS — no accidental 00:15 / 00:30 task times remain.
+
+11. Sunday evening rotation
+   PASS — anchor 27 Sep 2026.
+   PASS — order: Parthy → Pragash → Prashanthy → Suku → repeat.
+   PASS — rotation applies from 13:30 onward on Sundays.
+
+12. Maintenance/setup controls
+   PASS — Reset & Go Live Tomorrow removed.
+   PASS — Repair Temperature Tasks removed.
+   PASS — Finish V2 Setup removed from normal manager UI.
+
+13. PWA/service worker
+   PASS — cache key bumped to north-terrace-v3-7-0-live-final.
+   PASS — all cached asset paths resolve in the final package.
+
+LIMITATION
+A full browser test against the actual live Firebase database was deliberately not used for save/complete/delete operations because it would alter production data on the first live day. The code paths, DOM bindings, data rules, schedule configuration and responsive CSS were validated non-destructively.
