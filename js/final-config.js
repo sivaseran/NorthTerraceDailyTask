@@ -1,6 +1,6 @@
 import {db,collection,doc,getDoc,getDocs,setDoc,writeBatch,serverTimestamp} from './firebase.js';
 
-export const FINAL_SETUP_VERSION='v3.6.4-final-2026-09-21';
+export const FINAL_SETUP_VERSION='v3.7.0-live-safe-2026-09-21';
 export const SUNDAY_ROTATION_ANCHOR='2026-09-27';
 export const SUNDAY_ROTATION=['staff1','staff9','staff3','staff4']; // Parthy, Pragash, Prashanthy, Suku
 
@@ -5094,8 +5094,10 @@ async function deleteCollection(name){
   return docs.length;
 }
 
-async function writeTemplates(){
-  await deleteCollection('weeklyTemplates');
+async function seedTemplatesIfEmpty(){
+  const existing=await getDocs(collection(db,'weeklyTemplates'));
+  if(!existing.empty) return false;
+
   for(let i=0;i<FINAL_WEEKLY_TASKS.length;i+=200){
     const batch=writeBatch(db);
     for(const t of FINAL_WEEKLY_TASKS.slice(i,i+200)){
@@ -5104,30 +5106,34 @@ async function writeTemplates(){
         ...payload,
         updatedAt:serverTimestamp(),
         updatedByUserId:'system',
-        updatedByName:'Final V3.6.5 setup'
+        updatedByName:'V3.7 live-safe recovery'
       });
     }
     await batch.commit();
   }
+  return true;
 }
 
 export async function ensureFinalV36Schedule(){
   const appRef=doc(db,'system','app');
   const appSnap=await getDoc(appRef);
-  if(appSnap.exists() && appSnap.data()?.finalSetupVersion===FINAL_SETUP_VERSION) return {applied:false};
+  if(appSnap.exists() && appSnap.data()?.finalSetupVersion===FINAL_SETUP_VERSION){
+    return {applied:false,seededTemplates:false};
+  }
 
-  await writeTemplates();
-  const removedDaily=await deleteCollection('dailyTasks');
-  const removedCover=await deleteCollection('shiftCover');
-  const removedCoverRules=await deleteCollection('shiftCoverRules');
+  // LIVE-SAFE startup: never replace weeklyTemplates and never delete dailyTasks,
+  // shiftCover or shiftCoverRules. If a completely empty installation is opened,
+  // restore only the template; otherwise current Firebase data remains authoritative.
+  const seededTemplates=await seedTemplatesIfEmpty();
 
   await setDoc(appRef,{
     finalSetupVersion:FINAL_SETUP_VERSION,
     finalSetupAppliedAt:serverTimestamp(),
     sundayRotationAnchor:SUNDAY_ROTATION_ANCHOR,
     sundayRotationStaff:SUNDAY_ROTATION,
-    finalTaskCount:FINAL_WEEKLY_TASKS.length
+    finalTaskCount:FINAL_WEEKLY_TASKS.length,
+    liveDataPreserved:true
   },{merge:true});
 
-  return {applied:true,removedDaily,removedCover,removedCoverRules,taskCount:FINAL_WEEKLY_TASKS.length};
+  return {applied:true,seededTemplates,taskCount:FINAL_WEEKLY_TASKS.length};
 }

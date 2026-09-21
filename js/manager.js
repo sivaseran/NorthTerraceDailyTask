@@ -2,11 +2,11 @@ import {getSession,clearSession} from './auth.js';
 import {
   SLOT_DEFS,todayISO,addDaysISO,formatLongDate,slotLabelForDate,slotCapacityMinutes,sundayEveningRotatorForDate,
   getUsers,getAssignableUsers,getSystemState,getStaffAvailability,saveStaffAvailability,getWeeklyTemplate,getSetupTasksForDate,reconcileDailyTasksForDate,bulkUpdateWeeklyTemplateRows,validateUserUniqueness,saveUser,createPerson,
-  ensureTasksForDate,clearDailyTasksFrom,clearAllOperationalData,resetTasksForDate,watchTasksForDate,getTasksForDate,
+  ensureTasksForDate,clearDailyTasksFrom,resetTasksForDate,watchTasksForDate,getTasksForDate,
   updateDailyTask,saveFutureRule,createTaskForDate,cancelTaskToday,stopTaskFuture,saveFutureShiftCover,
   workloadBySlot,capacityForDraft,completeTask
 } from './store.js';
-import {initializeV22,migrateParthToParthy,ensureV30TaskModel,ensureV321TemperatureNames,ensureV322TemperatureRepair,reconcileTemperatureTasks} from './seed.js';
+import {initializeV22,migrateParthToParthy} from './seed.js';
 import {ensureFinalV36Schedule} from './final-config.js';
 import {initReports} from './reports.js';
 import {
@@ -17,6 +17,11 @@ import {
 const $=s=>document.querySelector(s);
 const user=getSession();
 if(!user||user.role!=='manager') location.href='login.html';
+
+// Start connection indicator immediately. Manager startup performs several async
+// checks; the status pill must not remain on ‘Checking…’ while those run.
+initNetworkStatus();
+registerAppServiceWorker();
 
 let selectedDate=todayISO(),tasks=[],people=[],unsubscribe=null;
 let coverDate=todayISO(),coverTasks=[];
@@ -220,8 +225,24 @@ async function bindDate(){
   if(unsubscribe){unsubscribe();unsubscribe=null;}
   updateDateUI();
   $('#managerSlots').innerHTML='<div class="card"><div class="empty-state"><h3>Loading schedule…</h3></div></div>';
-  if(selectedDate>=todayISO()) await ensureTasksForDate(selectedDate);
-  unsubscribe=watchTasksForDate(selectedDate,renderSchedule,()=>showToast('Live manager schedule unavailable.','error'));
+
+  // First render: fetch the selected date explicitly. Firestore onSnapshot is
+  // then attached for subsequent live updates. This avoids the blank first-load
+  // Schedule Editor that previously appeared until the manager changed dates.
+  try{
+    if(selectedDate>=todayISO()) await ensureTasksForDate(selectedDate);
+    const initialRows=await getTasksForDate(selectedDate,{ensure:false});
+    renderSchedule(initialRows);
+  }catch(error){
+    console.error('Initial schedule load failed',error);
+    $('#managerSlots').innerHTML='<div class="card elevated"><div class="empty-state"><h3>Could not load this schedule</h3><p>Check the connection and try Refresh Current Data.</p></div></div>';
+  }
+
+  unsubscribe=watchTasksForDate(
+    selectedDate,
+    renderSchedule,
+    ()=>showToast('Live manager schedule unavailable.','error')
+  );
 }
 async function loadPeople(){
   people=await getAssignableUsers();
@@ -1187,85 +1208,6 @@ $('#bulkResetFilters').onclick=()=>{
 $('#bulkSaveWeek').onclick=saveBulkWeek;
 $('#bulkSaveFuture').onclick=saveBulkFuture;
 
-async function goLiveTomorrow(){
-  if(!bulkRowsData.length){
-    showToast('Load the Staff Assignment week first.','warning');
-    return;
-  }
-
-  const startDate=addDaysISO(todayISO(),1);
-
-  const ok=await confirmAction({
-    title:'Reset old operational data and go live tomorrow?',
-    message:`Delete all existing daily task and shift-cover records, then build a fresh live schedule from ${formatLongDate(startDate)}?`,
-    details:'Users, PINs, staff availability and the weekly task template are kept. Old daily task history, completed-task history, shift-cover records and reports based on those records will be deleted.',
-    confirmText:'Reset & Go Live'
-  });
-  if(!ok) return;
-
-  const btn=$('#goLiveTomorrow');
-  setButtonLoading(btn,true,'Resetting & rebuilding…');
-
-  try{
-    // Save the current assignment matrix into the weekly recurring source first.
-    const assignmentMap=new Map();
-    for(const row of bulkRowsData){
-      if(!row.templateTaskId||row.status==='cancelled') continue;
-      assignmentMap.set(`${row.templateTaskId}|${bulkDayKey(row.date)}`,row);
-    }
-
-    let assignmentsSaved=0;
-    for(const row of assignmentMap.values()){
-      const effectiveFrom=row.date<startDate
-        ?nextSameWeekdayOnOrAfter(row.date,startDate)
-        :row.date;
-
-      await saveFutureRule(row.templateTaskId,effectiveFrom,{
-        taskName:row.taskName,
-        slotId:row.slotId,
-        assignedTo:row.assignedTo||'',
-        effortMinutes:row.effortMinutes,
-        sourceTime:row.sourceTime||row.checkpoint||''
-      },user);
-      assignmentsSaved++;
-    }
-
-    // Full operational reset: no legacy daily history to reconcile.
-    const removed=await clearAllOperationalData();
-
-    // Fresh 14-day runway starting tomorrow.
-    let createdDays=0,createdTasks=0;
-    for(let i=0;i<14;i++){
-      const date=addDaysISO(startDate,i);
-      const result=await ensureTasksForDate(date);
-      createdDays++;
-      createdTasks+=Number(result.count)||0;
-    }
-
-    bulkDirty.clear();
-
-    setInlineMessage(
-      $('#bulkResult'),
-      `✓ Clean launch ready. ${assignmentsSaved} assignment rule(s) saved, ${removed} old operational record(s) deleted, and ${createdTasks} fresh task record(s) created across ${createdDays} days from ${formatLongDate(startDate)}.`,
-      'success'
-    );
-
-    showToast('Old operational data cleared. Tomorrow’s schedule is ready.','success',{title:'Clean launch ready'});
-    await loadBulkSetup();
-  }catch(error){
-    console.error(error);
-    setInlineMessage($('#bulkResult'),error.message||'Could not complete the reset and rebuild.','error');
-  }finally{
-    setButtonLoading(btn,false);
-  }
-}
-$('#goLiveTomorrow').onclick=goLiveTomorrow;
-
-
-
-
-
-
 function effortWeekStart(date){
   const d=new Date(date+'T12:00:00');
   const diff=(d.getDay()+6)%7;
@@ -1559,86 +1501,104 @@ function readEffortGroupDraft(rowEl,{copyMonday=false}={}){
   }
 }
 async function saveWeeklyEffortSetup(){
-  // Save only the CURRENT ACTIVE weekly model shown on screen. Blank weekdays stay blank;
-  // removed tasks not present in this live week are not recreated.
-  const groups=effortGroups();
-  const changes=groups.map(group=>({group,draft:effortDraftForGroup(group)}));
+  // LIVE EDITOR: save only rows the manager actually changed. This prevents an
+  // unrelated task/day from being rewritten or re-created when saving one edit.
+  if(!effortDirty.size){
+    setInlineMessage($('#effortResult'),'No changes to save.','info');
+    showToast('No weekly task changes to save.','info');
+    return;
+  }
+
+  const groupMap=new Map(effortGroups().map(g=>[g.key,g]));
+  const changes=[...effortDirty.entries()]
+    .map(([key,draft])=>({group:groupMap.get(key),draft}))
+    .filter(x=>x.group);
 
   const invalid=changes.find(({draft})=>
     BULK_DAY_ORDER.some(day=>draft.dayTimes[day]&&!validHHMM(draft.dayTimes[day]))
   );
   if(invalid){
+    setInlineMessage($('#effortResult'),'Please use valid HH:MM task times.','error');
     showToast('Please use valid HH:MM task times.','warning');
     return;
   }
 
-  const ok=await confirmAction({
-    title:'Save complete weekly task setup?',
-    message:`Save ${changes.length} current active task${changes.length===1?'':'s'} across Monday–Sunday?`,
-    details:'A day with a time is active. A blank time stays removed from that weekday. Tasks not present in the live week are not recreated. Each time determines the operational slot and task order.',
-    confirmText:'Save Weekly Setup'
-  });
-  if(!ok) return;
-
   const btn=$('#effortSaveTemplate');
+  setInlineMessage($('#effortResult'),`Saving ${changes.length} changed task${changes.length===1?'':'s'}…`,'info');
   setButtonLoading(btn,true,'Saving…');
 
   try{
-    let activeSaved=0,hiddenSaved=0;
+    let activeSaved=0,hiddenSaved=0,unchangedSkipped=0;
     const dates=effortWeekDates();
 
     for(const {group,draft} of changes){
       const sourceBase=effortBaseRule(group.template);
+      const effortChanged=Number(draft.effortMinutes||0)!==Number(group.defaultEffort||0);
 
       for(let i=0;i<BULK_DAY_ORDER.length;i++){
         const day=BULK_DAY_ORDER[i];
-        const time=draft.dayTimes[day]||'';
+        const newTime=draft.dayTimes[day]||'';
+        const oldTime=group.defaultDayTimes[day]||'';
+        const timeChanged=newTime!==oldTime;
+
+        // If neither the weekday time nor the task effort changed, leave this
+        // weekday completely untouched.
+        if(!timeChanged&&!effortChanged){
+          unchangedSkipped++;
+          continue;
+        }
+
         const sourceDate=dates[i];
         const effectiveFrom=sourceDate<todayISO()
           ?nextSameWeekdayOnOrAfter(sourceDate,todayISO())
           :sourceDate;
         const currentRule=group.byDay[day]?.rule;
-        const currentlyActive=Boolean(currentRule&&currentRule.active!==false);
+        const currentlyActive=Boolean(oldTime);
 
-        if(time){
-          const slotId=slotFromTime(time,currentRule?.slotId||sourceBase.slotId||'S1');
+        if(newTime){
+          const slotId=slotFromTime(newTime,currentRule?.slotId||sourceBase.slotId||'S1');
           await saveFutureRule(group.templateTaskId,effectiveFrom,{
             active:true,
             taskName:group.taskName,
             slotId,
             assignedTo:currentRule?.assigneeId||sourceBase.assigneeId||'',
             effortMinutes:draft.effortMinutes,
-            sourceTime:time
+            sourceTime:newTime
           },user);
           activeSaved++;
         }else if(currentlyActive){
+          // Blank means remove this weekday from this date forward.
           await stopTaskFuture(group.templateTaskId,effectiveFrom,user);
           hiddenSaved++;
         }
       }
     }
 
-    // Synchronise the actual daily snapshots immediately so Staff Assignment,
-    // General View and staff phones all see the same saved time/effort/slot list.
+    // Update the current visible week immediately so all operational screens see
+    // the same saved active pattern. Reconciliation does not invent blank days;
+    // it follows the recurring rules just saved above.
     let syncedCreated=0,syncedUpdated=0,syncedRemoved=0;
     for(const date of dates){
+      if(date<todayISO()) continue;
       const sync=await reconcileDailyTasksForDate(date);
       syncedCreated+=sync.created||0;
       syncedUpdated+=sync.updated||0;
       syncedRemoved+=sync.removed||0;
     }
 
+    effortDirty.clear();
     setInlineMessage(
       $('#effortResult'),
-      `✓ Weekly task setup saved and synced. ${activeSaved} active rule(s), ${hiddenSaved} hidden rule(s). Daily views: ${syncedCreated} created, ${syncedUpdated} refreshed, ${syncedRemoved} removed.`,
+      `✓ Saved ${changes.length} changed task${changes.length===1?'':'s'}. ${activeSaved} active weekday rule(s) updated, ${hiddenSaved} weekday(s) removed.`,
       'success'
     );
-    effortDirty.clear();
+    showToast('Weekly task changes saved.','success');
     await loadEffortAllocation();
     await bindDate();
   }catch(error){
-    console.error(error);
+    console.error('saveWeeklyEffortSetup failed',error);
     setInlineMessage($('#effortResult'),error.message||'Could not save weekly task setup.','error');
+    showToast(error.message||'Could not save weekly task setup.','error');
   }finally{
     setButtonLoading(btn,false);
   }
@@ -1665,17 +1625,9 @@ $('#effortMatrixRows').addEventListener('change',e=>{
   if(!row) return;
 
   if(e.target.classList.contains('effort-day-time-input')){
-    const day=e.target.dataset.day;
-    if(day==='mon'&&e.target.value){
-      // Monday is the quick-fill master: populate all other weekdays.
-      BULK_DAY_ORDER.slice(1).forEach(other=>{
-        const input=row.querySelector(`.effort-day-time-input[data-day="${other}"]`);
-        if(input) input.value=e.target.value;
-      });
-      readEffortGroupDraft(row,{copyMonday:true});
-    }else{
-      readEffortGroupDraft(row);
-    }
+    // LIVE EDITOR: each weekday is independent. Never copy Monday (or any other
+    // day) into blank weekdays because blank means intentionally inactive.
+    readEffortGroupDraft(row);
     renderEffortMatrix(); // re-order rows immediately based on Monday/first active time
   }
 });
@@ -1689,81 +1641,24 @@ $('#effortResetFilters').onclick=()=>{
 $('#effortSaveTemplate').onclick=saveWeeklyEffortSetup;
 
 
-$('#repairTemperatureTasks').onclick=async()=>{
-  const btn=$('#repairTemperatureTasks');
-  setButtonLoading(btn,true,'Repairing…');
-  try{
-    const result=await reconcileTemperatureTasks();
-    await loadEffortAllocation();
-    await bindDate();
-    setInlineMessage(
-      $('#effortResult'),
-      `✓ Temperature tasks repaired. ${result.legacyRemoved.length} legacy temperature template(s) removed and exactly ${result.canonicalCount} hourly hot-food temperature tasks confirmed.`,
-      'success'
-    );
-    showToast('Temperature task list repaired.','success');
-  }catch(error){
-    console.error(error);
-    setInlineMessage($('#effortResult'),error.message||'Could not repair temperature tasks.','error');
-  }finally{
-    setButtonLoading(btn,false);
-  }
-};
-
-
 async function checkSystemReady(){
   try{
     const state=await getSystemState();
-    const ready=Boolean(state?.v22Ready);
-    $('#systemInitBanner').hidden=ready;
-    return ready;
+    if(state?.v22Ready) return true;
+    // Legacy compatibility only: if an old deployment never completed the V2
+    // migration, run the idempotent migration silently instead of exposing a
+    // maintenance/setup button in the live manager UI.
+    await initializeV22();
+    return true;
   }catch(error){
-    $('#systemInitBanner').hidden=false;
-    setInlineMessage($('#systemInitResult'),'Could not verify system initialization. Check your connection.','error');
+    console.error('System readiness check failed',error);
     return false;
   }
 }
 
-$('#initializeV2Btn').onclick=async()=>{
-  const ok=await confirmAction({
-    title:'Finish North Terrace V2 setup?',
-    message:'Apply the confirmed staff roster/PINs and make sure the five-slot schedule is V2-ready?',
-    details:'If your weekly template is already V2, it will be preserved. If old V1 data is detected, the weekly template is migrated and only today/future old snapshots are regenerated. Historical records are not deleted.',
-    confirmText:'Finish V2 Setup'
-  });
-  if(!ok) return;
-
-  const btn=$('#initializeV2Btn');
-  setButtonLoading(btn,true,'Finishing setup…');
-
-  try{
-    const result=await initializeV22();
-    setInlineMessage(
-      $('#systemInitResult'),
-      result.templateMigrated
-        ? `✓ V2 initialized. ${result.masterTasks} master tasks and ${result.rosterCount} staff records applied. Today/future old-format tasks will regenerate automatically.`
-        : `✓ V2 initialized. Existing V2 schedule preserved and ${result.rosterCount} staff records/PINs applied.`,
-      'success'
-    );
-    showToast('North Terrace V2 setup complete.','success',{title:'Ready'});
-    await loadPeople();
-    selectedDate=todayISO();
-    await ensureTasksForDate(selectedDate);
-    await bindDate();
-    setTimeout(()=>{$('#systemInitBanner').hidden=true;},1000);
-  }catch(error){
-    console.error(error);
-    setInlineMessage($('#systemInitResult'),'Could not finish V2 setup. Please try again.','error');
-  }finally{
-    setButtonLoading(btn,false);
-  }
-};
-
 $('#logout').onclick=()=>{clearSession();location.href='login.html';};
 
 initReports({root:document.querySelector('#reports'),userProvider:()=>user});
-initNetworkStatus();registerAppServiceWorker();
-
 try{
   const merge=await migrateParthToParthy();
   if(merge.duplicateUsers||merge.templateTasks||merge.dailyTasks){
@@ -1775,7 +1670,13 @@ try{
 
 const finalSetup=await ensureFinalV36Schedule();
   if(finalSetup.applied){
-    showToast('Final 47-task weekly schedule loaded. Sunday evening rotation is active from 27 September 2026.','success',{title:'Final setup ready'});
+    showToast(
+      finalSetup.seededTemplates
+        ?'Weekly template was missing and has been restored without deleting live task history.'
+        :'Live configuration verified. Existing tasks, assignments, completion history and shift cover were preserved.',
+      'success',
+      {title:'Live setup verified'}
+    );
   }
   await loadPeople();
   { const a=await getStaffAvailability(); staffAvailability=a?.week||structuredClone(DEFAULT_STAFF_AVAILABILITY); }
@@ -1786,7 +1687,7 @@ if(systemReady){
   await bindDate();
 }else{
   $('#managerSlots').innerHTML=`<div class="card elevated"><div class="empty-state">
-    <h3>One-time V2 setup required</h3>
-    <p>Use the “Finish V2 Setup” banner above. After it completes, the schedule will load here and the setup message will disappear permanently.</p>
+    <h3>Could not load the live schedule</h3>
+    <p>Refresh the page and check the connection status. No task data has been changed.</p>
   </div></div>`;
 }
