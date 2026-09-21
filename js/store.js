@@ -408,6 +408,7 @@ async function plannedToDaily(row,users){
     completedAt:null,
     completedByUserId:'',
     completedByName:'',
+    dayOnlyOverride:false,
     createdAt:serverTimestamp(),
     updatedAt:serverTimestamp()
   };
@@ -449,10 +450,11 @@ export async function reconcileDailyTasksForDate(date){
     used.add(matchIndex);
     const e=existing[matchIndex];
 
-    // Preserve a deliberate day-only staff override. If assignment still equals
-    // the old original assignment, follow the weekly template assignment.
-    const hasDayOverride=
-      String(e.assignedTo||'')!==String(e.originalAssignedTo||'');
+    // Only preserve an assignment as a date-only override when the manager
+    // explicitly saved it for this date. Older snapshots used assignment
+    // differences as an implicit override, which could make stale assignees
+    // win over the latest weekly template.
+    const hasDayOverride=Boolean(e.dayOnlyOverride);
     const assignedTo=hasDayOverride?(e.assignedTo||''):(p.assignedTo||'');
     const assignedName=hasDayOverride?(e.assignedName||'Unassigned'):(p.assignedName||'Unassigned');
 
@@ -469,6 +471,7 @@ export async function reconcileDailyTasksForDate(date){
       originalAssignedName:p.assignedName||'Unassigned',
       assignedTo,
       assignedName,
+      dayOnlyOverride:hasDayOverride,
       updatedAt:serverTimestamp()
     };
 
@@ -601,8 +604,8 @@ export async function getSetupTasksForDate(date){
       id:e.id,
       virtualId:p.virtualId,
       _virtual:false,
-      assignedTo:e.assignedTo||'',
-      assignedName:e.assignedName||'Unassigned',
+      assignedTo:e.dayOnlyOverride?(e.assignedTo||''):(p.assignedTo||''),
+      assignedName:e.dayOnlyOverride?(e.assignedName||'Unassigned'):(p.assignedName||'Unassigned'),
       originalAssignedTo:e.originalAssignedTo||p.assignedTo||'',
       originalAssignedName:e.originalAssignedName||p.assignedName||'Unassigned',
       status:e.status,

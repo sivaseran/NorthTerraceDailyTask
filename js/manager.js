@@ -29,12 +29,19 @@ let effortRowsData=[];
 let effortDirty=new Map();
 let staffAvailability={};
 const isHistoricalDate=()=>selectedDate<todayISO();
+function canonicalPersonId(selectedId='',selectedName=''){
+  if(selectedId&&people.some(p=>p.id===selectedId)) return selectedId;
+  const wanted=String(selectedName||'').trim().toLowerCase();
+  const byName=wanted?people.find(p=>String(p.name||'').trim().toLowerCase()===wanted):null;
+  return byName?.id||selectedId||'';
+}
 const personOptions=(selectedId='',selectedName='')=>{
-  const hasSelected=selectedId&&people.some(p=>p.id===selectedId);
-  const currentMissing=selectedId&&!hasSelected
-    ? `<option value="${escapeHtml(selectedId)}" selected>${escapeHtml(selectedName||'Current assignee')} (current)</option>`
+  const canonical=canonicalPersonId(selectedId,selectedName);
+  const hasSelected=canonical&&people.some(p=>p.id===canonical);
+  const currentMissing=canonical&&!hasSelected
+    ? `<option value="${escapeHtml(canonical)}" selected>${escapeHtml(selectedName||'Current assignee')} (current)</option>`
     : '';
-  return `<option value="">Unassigned</option>`+currentMissing+people.map(p=>`<option value="${p.id}" ${p.id===selectedId?'selected':''}>${escapeHtml(p.name||p.id)}</option>`).join('');
+  return `<option value="">Unassigned</option>`+currentMissing+people.map(p=>`<option value="${p.id}" ${p.id===canonical?'selected':''}>${escapeHtml(p.name||p.id)}</option>`).join('');
 };
 const slotOptions=selected=>SLOT_DEFS.map(s=>`<option value="${s.id}" ${s.id===selected?'selected':''}>${escapeHtml(slotLabelForDate(s.id,selectedDate))}</option>`).join('');
 const effortText=v=>Number(v)>0?`${Number(v)} min`:'Not set';
@@ -129,7 +136,7 @@ function taskEditor(t){
         <div class="field"><label>Time</label><input class="edit-time" type="time" value="${escapeHtml(t.sourceTime||'')}"></div>
         <div class="field"><label>Slot</label><select class="edit-slot">${slotOptions(t.slotId)}</select></div>
         <div class="field"><label>Task effort (min)</label><input class="edit-effort" type="number" min="1" step="5" placeholder="Optional" value="${Number(t.effortMinutes)>0?Number(t.effortMinutes):''}"></div>
-        <div class="field"><label>Assignee</label><select class="edit-assignee">${personOptions(t.assignedTo||'',t.assignedName||'')}</select></div>
+        <div class="field"><label>Assignee</label><select class="edit-assignee">${editorPersonOptions(t)}</select></div>
         <label class="check-field"><input class="edit-photo" type="checkbox" ${t.photoRequired?'checked':''}> Photo required</label>
       </div>
       <div class="editor-actions">
@@ -386,10 +393,10 @@ async function saveRow(row,scope){
   try{
     const assigned=people.find(p=>p.id===draft.assignedTo);
     if(scope==='day'){
-      await updateDailyTask(t.id,{...draft,assignedName:assigned?.name||'Unassigned'},user);
+      await updateDailyTask(t.id,{...draft,assignedName:assigned?.name||'Unassigned',dayOnlyOverride:true},user);
     }else{
       await saveFutureRule(t.templateTaskId,selectedDate,draft,user);
-      await updateDailyTask(t.id,{...draft,assignedName:assigned?.name||'Unassigned'},user);
+      await updateDailyTask(t.id,{...draft,assignedName:assigned?.name||'Unassigned',dayOnlyOverride:false},user);
     }
     setInlineMessage(msg,scope==='day'?'✓ Saved for this date only.':`✓ Saved for every ${new Date(selectedDate+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'})} from this date onward.`,'success');
     showToast('Schedule saved.','success');
@@ -695,24 +702,29 @@ function availabilityForRows(person,date,rows){
   const shifts=parseShiftText(availabilityTextFor(person.id,date));
   if(!shifts.length) return {level:'none',label:'Off rota',shiftText:''};
 
-  const checkpoints=rows.map(r=>parseTimeMinutes(r.checkpoint)).filter(v=>v!==null);
-  if(checkpoints.length){
-    const covered=checkpoints.filter(cp=>shifts.some(s=>cp>=s.start&&cp<=s.end)).length;
-    const level=covered===checkpoints.length?'full':covered>0?'partial':'none';
-    return {level,label:level==='full'?'Full':'Partial',shiftText:availabilityTextFor(person.id,date)};
+  // Prefer the exact task/checkpoint time and effort. Using the whole operational
+  // slot made valid staff look only partially available (or disappear) when a
+  // task sat near a slot boundary.
+  const exactWindows=rows.map(r=>{
+    const start=parseTimeMinutes(r.checkpoint||r.sourceTime||'');
+    if(start===null) return null;
+    const effort=Math.max(1,Number(r.effortMinutes)||1);
+    return {start,end:start+effort};
+  }).filter(Boolean);
+
+  if(exactWindows.length){
+    const fullyCovered=exactWindows.filter(w=>shifts.some(s=>s.start<=w.start&&s.end>=w.end)).length;
+    const overlapped=exactWindows.filter(w=>shifts.some(s=>Math.max(s.start,w.start)<Math.min(s.end,w.end))).length;
+    const level=fullyCovered===exactWindows.length?'full':overlapped>0?'partial':'none';
+    return {level,label:level==='full'?'Full':level==='partial'?'Partial':'Off rota',shiftText:availabilityTextFor(person.id,date)};
   }
 
   const windows=rows.map(r=>slotWindowForDate(r.slotId,date)).filter(Boolean);
   if(!windows.length) return {level:'partial',label:'Partial',shiftText:availabilityTextFor(person.id,date)};
   const start=Math.min(...windows.map(w=>w.start)),end=Math.max(...windows.map(w=>w.end));
-
   const full=shifts.some(s=>s.start<=start&&s.end>=end);
   const overlap=shifts.some(s=>Math.max(s.start,start)<Math.min(s.end,end));
-  return {
-    level:full?'full':overlap?'partial':'none',
-    label:full?'Full':overlap?'Partial':'Off rota',
-    shiftText:availabilityTextFor(person.id,date)
-  };
+  return {level:full?'full':overlap?'partial':'none',label:full?'Full':overlap?'Partial':'Off rota',shiftText:availabilityTextFor(person.id,date)};
 }
 function availablePersonOptions(date,rows,selected=''){
   const full=[],partial=[];
@@ -739,6 +751,34 @@ function availablePersonOptions(date,rows,selected=''){
   if(selected&&!availableIds.has(selected)){
     const current=people.find(p=>p.id===selected);
     if(current) options.push(`<optgroup label="Current assignment"><option value="${current.id}" selected>⚠ ${escapeHtml(current.name||current.id)} · outside rota</option></optgroup>`);
+  }
+  return options.join('');
+}
+
+function editorPersonOptions(task){
+  const selected=canonicalPersonId(task.assignedTo||'',task.assignedName||'');
+  const full=[],partial=[],other=[];
+  for(const p of people){
+    const a=availabilityForRows(p,selectedDate,[task]);
+    if(a.level==='full') full.push({p,a});
+    else if(a.level==='partial') partial.push({p,a});
+    else other.push({p,a});
+  }
+  const options=['<option value="">Unassigned</option>'];
+  const add=(label,list,prefix)=>{
+    if(!list.length) return;
+    options.push(`<optgroup label="${label}">`);
+    for(const {p,a} of list){
+      const shift=a.shiftText?` · ${escapeHtml(a.shiftText)}`:'';
+      options.push(`<option value="${p.id}" ${p.id===selected?'selected':''}>${prefix} ${escapeHtml(p.name||p.id)}${shift}</option>`);
+    }
+    options.push('</optgroup>');
+  };
+  add('✓ Available at task time',full,'✓');
+  add('◐ Partially available',partial,'◐');
+  add('Other active staff',other,'○');
+  if(selected&&!people.some(p=>p.id===selected)){
+    options.push(`<optgroup label="Current assignment"><option value="${escapeHtml(selected)}" selected>⚠ ${escapeHtml(task.assignedName||'Current assignee')}</option></optgroup>`);
   }
   return options.join('');
 }
@@ -858,20 +898,32 @@ function matrixGroups(){
     groups.get(key).push(row);
   }
 
-  return [...groups.entries()].map(([key,rows])=>({
-    key,
-    rows,
-    taskName:bulkMasterLabel(rows),
-    slotId:bulkMasterSlot(rows),
-    recurring:Boolean(rows.some(r=>r.templateTaskId)),
-    checkpoint:Boolean(rows.some(r=>r.checkpoint)),
-    byDay:Object.fromEntries(BULK_DAY_ORDER.map(day=>[
-      day,
-      rows.filter(r=>bulkDayKey(r.date)===day)
-    ]))
-  })).sort((a,b)=>{
-    const slotRank=id=>id==='AUTO'?-1:SLOT_DEFS.findIndex(s=>s.id===id);
-    return slotRank(a.slotId)-slotRank(b.slotId)||String(a.taskName).localeCompare(String(b.taskName));
+  return [...groups.entries()].map(([key,rows])=>{
+    const times=rows
+      .filter(r=>cellDraft(r).status!=='cancelled')
+      .map(r=>String(cellDraft(r).checkpoint||cellDraft(r).sourceTime||''))
+      .filter(validHHMM)
+      .sort();
+    const sortTime=times[0]||'';
+    const derivedSlot=sortTime?slotFromTime(sortTime,bulkMasterSlot(rows)):bulkMasterSlot(rows);
+    return {
+      key,
+      rows,
+      taskName:bulkMasterLabel(rows),
+      slotId:bulkMasterSlot(rows),
+      sortSlotId:derivedSlot,
+      sortTime,
+      recurring:Boolean(rows.some(r=>r.templateTaskId)),
+      checkpoint:Boolean(rows.some(r=>r.checkpoint)),
+      byDay:Object.fromEntries(BULK_DAY_ORDER.map(day=>[
+        day,
+        rows.filter(r=>bulkDayKey(r.date)===day)
+      ]))
+    };
+  }).sort((a,b)=>{
+    const slotRank=id=>SLOT_DEFS.findIndex(s=>s.id===id);
+    const ar=slotRank(a.sortSlotId),br=slotRank(b.sortSlotId);
+    return ar-br||timeSortValue(a.sortTime)-timeSortValue(b.sortTime)||String(a.taskName).localeCompare(String(b.taskName));
   });
 }
 function filteredMatrixGroups(){
@@ -931,6 +983,7 @@ function renderMatrixCell(dayRows,group){
       ${availablePersonOptions(activeRows[0].date,activeRows,base.assignedTo||'')}
     </select>
     <div class="assignment-cell-meta">
+      ${base.sourceTime?`<span>🕒 ${escapeHtml(base.sourceTime)} · ${escapeHtml(slotLabelForDate(slotFromTime(base.sourceTime,base.slotId),base.date))}</span>`:''}
       ${group.checkpoint?`<span>${activeRows.length} checkpoints</span>`:`<span>${statusView(base.status)}</span>`}
       ${avail?.level==='full'?'<span class="availability-badge full">✓ Full</span>':''}
       ${avail?.level==='partial'?'<span class="availability-badge partial">◐ Partial</span>':''}
@@ -948,7 +1001,8 @@ function renderBulkRows(){
         <strong>${escapeHtml(group.taskName)}</strong>
         <div>
           ${group.rows[0]?.temperatureRequired&&group.rows[0]?.sourceTime?`<span class="temperature-time-label">🌡 ${escapeHtml(group.rows[0].sourceTime)}</span>`:''}
-          <span>${group.slotId==='AUTO'?'Hourly / automatic':group.slotId==='MULTI'?'Multiple slots':escapeHtml(slotLabelForDate(group.slotId,bulkWeekStart(bulkWeekAnchor)))}</span>
+          ${group.sortTime?`<span>🕒 ${escapeHtml(group.sortTime)}</span>`:''}
+          <span>${group.slotId==='AUTO'?'Hourly / automatic':escapeHtml(slotLabelForDate(group.sortSlotId||group.slotId,bulkWeekStart(bulkWeekAnchor)))}</span>
           ${group.recurring?'<span class="mini-pill recurring-pill">Recurring</span>':'<span class="mini-pill">Date only</span>'}
         </div>
       </th>
