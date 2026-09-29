@@ -1,11 +1,25 @@
 {
-  "name": "North Terrace Operations",
-  "short_name": "NT Operations",
-  "description": "Live daily task management for North Terrace Service Station.",
-  "start_url": "./index.html",
-  "scope": "./",
+  "id": "/NorthTerraceDailyTask/",
+  "name": "North Terrace General View",
+  "short_name": "NT General",
+  "description": "Live common operations board for North Terrace Service Station.",
+  "start_url": "/NorthTerraceDailyTask/",
+  "scope": "/NorthTerraceDailyTask/",
   "display": "standalone",
-  "background_color": "#f3f6f8",
-  "theme_color": "#20252b",
-  "icons": []
+  "background_color": "#1A1F2B",
+  "theme_color": "#1A1F2B",
+  "icons": [
+    {
+      "src": "/NorthTerraceDailyTask/icons/general-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/NorthTerraceDailyTask/icons/general-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }

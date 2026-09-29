@@ -1,23 +1,57 @@
-const CACHE='north-terrace-v3-7-0-live-final';
+const CACHE='north-terrace-general-v3-8';
+const CACHE_PREFIX='north-terrace-general-';
 const ASSETS=[
-  './','./index.html','./login.html','./staff.html','./manager.html','./css/style.css',
-  './js/firebase-config.js','./js/firebase.js','./js/auth.js','./js/store.js','./js/ui.js',
-  './js/general.js','./js/staff.js','./js/manager.js','./js/reports.js','./js/seed.js',
-  './js/login.js','./js/final-config.js','./manifest.json'
+  '/NorthTerraceDailyTask/',
+  '/NorthTerraceDailyTask/index.html',
+  '/NorthTerraceDailyTask/login.html',
+  '/NorthTerraceDailyTask/staff.html',
+  '/NorthTerraceDailyTask/manager.html',
+  '/NorthTerraceDailyTask/css/style.css',
+  '/NorthTerraceDailyTask/js/firebase-config.js',
+  '/NorthTerraceDailyTask/js/firebase.js',
+  '/NorthTerraceDailyTask/js/auth.js',
+  '/NorthTerraceDailyTask/js/store.js',
+  '/NorthTerraceDailyTask/js/ui.js',
+  '/NorthTerraceDailyTask/js/general.js',
+  '/NorthTerraceDailyTask/js/staff.js',
+  '/NorthTerraceDailyTask/js/manager.js',
+  '/NorthTerraceDailyTask/js/reports.js',
+  '/NorthTerraceDailyTask/js/seed.js',
+  '/NorthTerraceDailyTask/js/login.js',
+  '/NorthTerraceDailyTask/js/final-config.js',
+  '/NorthTerraceDailyTask/manifest.json',
+  '/NorthTerraceDailyTask/icons/general-192.png',
+  '/NorthTerraceDailyTask/icons/general-512.png'
 ];
-self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS))));
-self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
-self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))));
-self.addEventListener('message',e=>{if(e.data?.type==='SKIP_WAITING')self.skipWaiting();});
+
+self.addEventListener('install',event=>{
+  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)));
+});
+
+self.addEventListener('activate',event=>{
+  event.waitUntil(
+    caches.keys()
+      .then(keys=>Promise.all(keys.filter(key=>key.startsWith(CACHE_PREFIX)&&key!==CACHE).map(key=>caches.delete(key))))
+      .then(()=>self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch',event=>{
+  event.respondWith(caches.match(event.request).then(cached=>cached||fetch(event.request)));
+});
+
+self.addEventListener('message',event=>{
+  if(event.data?.type==='SKIP_WAITING') self.skipWaiting();
+});
 
 self.addEventListener('notificationclick',event=>{
   event.notification.close();
   event.waitUntil(
     clients.matchAll({type:'window',includeUncontrolled:true}).then(windowClients=>{
       for(const client of windowClients){
-        if('focus' in client) return client.focus();
+        if(client.url.includes('/NorthTerraceDailyTask/') && 'focus' in client) return client.focus();
       }
-      if(clients.openWindow) return clients.openWindow('./index.html');
+      if(clients.openWindow) return clients.openWindow('/NorthTerraceDailyTask/');
     })
   );
 });
