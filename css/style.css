@@ -2047,3 +2047,173 @@ body:not(.manager-page) .date-nav-center strong{
 .go-live-btn{
   font-weight:900;
 }
+
+/* ============================================================
+   V3.8 — North Terrace visual family + hybrid mobile General View
+   Visual/responsive layer only. Operational/Firebase logic unchanged.
+   ============================================================ */
+:root{
+  --charcoal:#1A1F2B;
+  --charcoal-dark:#111722;
+  --charcoal-soft:#232B3D;
+  --blue:#3DB4F2;
+  --blue-dark:#2588BD;
+  --blue-soft:#102f47;
+  --green:#4CD97B;
+  --green-soft:#123526;
+  --amber:#f0ad3d;
+  --amber-soft:#3b2d13;
+  --red:#F0716B;
+  --red-soft:#3d2022;
+  --bg:#121923;
+  --card:#232B3D;
+  --border:#2C3648;
+  --border-strong:#40506a;
+  --text:#F2F3F5;
+  --muted:#8A93A6;
+  --shadow:0 10px 30px rgba(0,0,0,.22);
+  --shadow-lg:0 24px 70px rgba(0,0,0,.36);
+  --focus:0 0 0 4px rgba(61,180,242,.22);
+}
+body.nt-theme{background:linear-gradient(180deg,#111722 0,#151d29 42%,#121923 100%);color:var(--text);min-height:100vh}
+body.nt-theme .topbar{background:linear-gradient(115deg,#111722,#1A1F2B);border-bottom:1px solid #2C3648;box-shadow:0 8px 28px rgba(0,0,0,.24)}
+body.nt-theme .brand-mark{background:linear-gradient(145deg,#2588BD,#3DB4F2);box-shadow:0 0 0 1px rgba(255,255,255,.08),0 7px 22px rgba(61,180,242,.28)}
+body.nt-theme .brand-kicker{color:#9edcff}
+body.nt-theme .topbar p,body.nt-theme .clock{color:#8A93A6}
+body.nt-theme .card,body.nt-theme .stat-card,body.nt-theme .ops-slot-card,body.nt-theme .manager-slot-card,body.nt-theme table,
+body.nt-theme .segmented,body.nt-theme .manager-nav,body.nt-theme .date-navigator,body.nt-theme .task-item,
+body.nt-theme .week-day-card,body.nt-theme .week-shift-card{background:#232B3D;color:#F2F3F5;border-color:#2C3648}
+body.nt-theme .stat-card,body.nt-theme .ops-slot-card,body.nt-theme .manager-slot-card{box-shadow:0 8px 24px rgba(0,0,0,.16)}
+body.nt-theme .stat-card span,body.nt-theme .stat-card small,body.nt-theme .muted,body.nt-theme .page-heading p,
+body.nt-theme .ops-slot-head p,body.nt-theme .manager-slot-head p,body.nt-theme .ops-task-meta,body.nt-theme .task-meta,
+body.nt-theme .slot-progress{color:#8A93A6}
+body.nt-theme .eyebrow,body.nt-theme .slot-kicker{color:#3DB4F2}
+body.nt-theme .ops-slot-head,body.nt-theme .manager-slot-head{background:linear-gradient(180deg,#232B3D,#202838);border-color:#2C3648}
+body.nt-theme .live-slot-card.is-current-slot{border-color:#3DB4F2;box-shadow:0 0 0 1px rgba(61,180,242,.24),0 12px 30px rgba(0,0,0,.22)}
+body.nt-theme .live-slot-card.is-current-slot>.live-slot-head{background:linear-gradient(135deg,#173a55,#232B3D)}
+body.nt-theme .current-slot-chip{background:#2588BD}
+body.nt-theme .slot-chevron{background:#1B3A52;color:#dff5ff}
+body.nt-theme .ops-task-row{border-color:#2C3648}
+body.nt-theme .ops-task-row:hover{background:#273247}
+body.nt-theme .ops-task-row.is-overdue-task{background:#342326;box-shadow:inset 3px 0 0 #F0716B}
+body.nt-theme .ops-task-row.is-overdue-task:hover{background:#3b272a}
+body.nt-theme .btn{background:#2588BD;color:#fff}
+body.nt-theme .btn:hover:not(:disabled){background:#3DB4F2}
+body.nt-theme .btn.secondary{background:#1B3A52;color:#F2F3F5;border-color:#40506a}
+body.nt-theme .btn.secondary:hover:not(:disabled){background:#244d6c}
+body.nt-theme .btn.ghost{border-color:#40506a;color:#F2F3F5}
+body.nt-theme .segmented button,body.nt-theme .manager-nav button{color:#8A93A6}
+body.nt-theme .segmented button:hover,body.nt-theme .manager-nav button:hover{background:#1B3A52;color:#F2F3F5}
+body.nt-theme .segmented .active,body.nt-theme .manager-nav .active{background:#1B3A52;color:#fff;box-shadow:inset 0 0 0 1px #3DB4F2}
+body.nt-theme input,body.nt-theme select,body.nt-theme .field input,body.nt-theme .field select{background:#182130;color:#F2F3F5;border-color:#40506a}
+body.nt-theme input:focus,body.nt-theme select:focus,body.nt-theme .field input:focus,body.nt-theme .field select:focus{border-color:#3DB4F2}
+body.nt-theme th{background:#1A1F2B;color:#8A93A6;border-color:#2C3648}
+body.nt-theme td{border-color:#2C3648}
+body.nt-theme tbody tr:hover{background:#273247}
+body.nt-theme .capacity-strip{background:#1A1F2B;border-color:#2C3648}
+body.nt-theme .manager-task-editor{background:#232B3D;border-color:#2C3648}
+body.nt-theme .manager-task-editor:hover{background:#273247}
+body.nt-theme .new-task-editor{background:#173149;border-color:#2588BD}
+body.nt-theme .read-only-editor{background:#1b2330}
+body.nt-theme .live-slot-card.is-slot-focused{background:#121923}
+body.nt-theme .live-slot-card.is-slot-focused>.live-slot-head{background:linear-gradient(135deg,#173a55,#232B3D);border-color:#2588BD}
+body.nt-theme .live-slot-card.is-slot-focused .live-slot-task-list{background:#232B3D;border-color:#2C3648}
+body.nt-theme .progress-track{background:#111722}
+body.nt-theme .progress-fill{background:linear-gradient(90deg,#2588BD,#3DB4F2)}
+body.nt-theme .connection-pill{background:#202838;border-color:#40506a}
+body.nt-theme .connection-pill.online .connection-dot{background:#4CD97B}
+.mobile-label{display:none}
+
+/* General View — phone-first hybrid. Tablet/desktop rules above remain primary. */
+@media(max-width:640px){
+  body.general-page .topbar{
+    min-height:58px;
+    padding:8px 10px;
+    align-items:center;
+    gap:8px;
+    flex-wrap:nowrap;
+  }
+  body.general-page .brand{gap:8px;flex:1;min-width:0}
+  body.general-page .brand-mark{width:34px;height:34px;border-radius:9px;font-size:16px}
+  body.general-page .brand-kicker{font-size:9px;letter-spacing:.13em;margin:0}
+  body.general-page .topbar h1{font-size:13px;line-height:1.05;margin-top:1px}
+  body.general-page .topbar .brand-text p{display:none}
+  body.general-page .top-actions{display:flex;flex-wrap:nowrap;gap:5px;align-items:center}
+  body.general-page .top-actions .clock{display:none}
+  body.general-page .connection-pill{padding:5px 7px;font-size:10px;gap:5px}
+  body.general-page .connection-dot{width:7px;height:7px}
+  body.general-page .top-actions .btn{min-height:32px;padding:5px 8px;border-radius:8px;font-size:10px;white-space:nowrap}
+  body.general-page .desktop-label{display:none}
+  body.general-page .mobile-label{display:inline}
+  body.general-page .container{width:calc(100% - 20px);margin:10px auto 28px}
+
+  body.general-page .page-heading{margin:0 0 6px;justify-content:flex-end;align-items:center}
+  body.general-page .page-heading>div:first-child{display:none}
+  body.general-page .segmented{width:auto;padding:3px;border-radius:10px;background:#1A1F2B}
+  body.general-page .segmented button{min-height:32px;padding:5px 12px;font-size:11px;border-radius:7px}
+
+  body.general-page .date-navigator{
+    display:grid;
+    grid-template-columns:36px 1fr 36px;
+    gap:6px;
+    padding:6px;
+    margin:0 0 8px;
+    border-radius:11px;
+  }
+  body.general-page .date-nav-center{min-width:0;order:0;display:block;text-align:center}
+  body.general-page .date-nav-center strong{display:block;width:auto;font-size:12px;line-height:36px;overflow:hidden;text-overflow:ellipsis}
+  body.general-page #datePicker,body.general-page #goToday{display:none}
+  body.general-page .square-btn{width:36px;min-height:36px;padding:5px;border-radius:8px}
+
+  body.general-page .stats-grid{
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:5px;
+    margin:7px 0 8px;
+  }
+  body.general-page .stat-card{padding:8px 5px 7px;border-radius:10px;text-align:center;min-width:0}
+  body.general-page .stat-card::before{left:0;right:0;top:0;bottom:auto;width:auto;height:2px}
+  body.general-page .stat-card span{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.general-page .stat-card strong{font-size:20px;margin-top:2px}
+  body.general-page .stat-card small{font-size:8px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  body.general-page #slotSchedule{display:flex;flex-direction:column}
+  body.general-page #slotSchedule .live-slot-card.is-current-slot{order:-1;margin-top:4px}
+  body.general-page .live-slot-card{margin-top:7px;border-radius:11px}
+  body.general-page .live-slot-head{padding:9px 10px;align-items:center}
+  body.general-page .live-slot-kicker-row{gap:4px}
+  body.general-page .slot-kicker{font-size:8px}
+  body.general-page .current-slot-chip,body.general-page .slot-attention-chip{font-size:8px;padding:3px 5px}
+  body.general-page .live-slot-title h3{font-size:15px;margin:1px 0}
+  body.general-page .live-slot-title p{font-size:9px}
+  body.general-page .live-slot-head-actions{flex-direction:row;align-items:center;gap:5px}
+  body.general-page .slot-progress{font-size:9px}
+  body.general-page .slot-chevron{width:24px;height:24px;border-radius:7px}
+  body.general-page .ops-task-row{grid-template-columns:1fr auto;padding:9px 10px;gap:8px;align-items:center}
+  body.general-page .ops-task-main strong{font-size:12px!important;line-height:1.25}
+  body.general-page .ops-task-meta{font-size:9px!important;margin-top:3px;gap:4px}
+  body.general-page .ops-task-actions{justify-content:flex-end;gap:5px}
+  body.general-page .ops-task-actions .btn{min-height:31px;padding:5px 8px;font-size:10px}
+  body.general-page .badge,body.general-page .status-pill{font-size:9px;padding:4px 6px}
+  body.general-page .live-slot-card.is-collapsed .live-slot-head{padding:8px 10px}
+  body.general-page .live-slot-card.is-collapsed .live-slot-title h3{font-size:13px}
+  body.general-page .live-slot-card.is-collapsed .live-slot-title p{font-size:8px}
+}
+
+/* Tablet: preserve the operations-board feel and give it a little more room. */
+@media(min-width:641px) and (max-width:1050px){
+  body.general-page .container{width:96%;margin-top:18px}
+  body.general-page .topbar{padding-left:20px;padding-right:20px}
+  body.general-page .ops-slot-card.is-current-slot{border-width:2px}
+}
+
+/* Staff PWA — same visual family, focused touch targets. */
+@media(max-width:640px){
+  body.staff-pwa-page .topbar{min-height:58px;padding:8px 10px;align-items:center}
+  body.staff-pwa-page .brand-mark{width:34px;height:34px;border-radius:9px;font-size:16px}
+  body.staff-pwa-page .brand-kicker{font-size:9px}
+  body.staff-pwa-page .topbar h1{font-size:14px}
+  body.staff-pwa-page .topbar p{display:none}
+  body.staff-pwa-page .top-actions .btn{min-height:34px;padding:6px 9px;font-size:10px}
+  body.staff-pwa-page .container{width:calc(100% - 20px);margin-top:12px}
+  body.staff-pwa-page .task-item{padding:11px;border-radius:11px}
+}
