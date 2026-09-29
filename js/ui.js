@@ -232,7 +232,7 @@ export function tableSkeleton(cols=5, rows=5) {
 
 export function registerAppServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.register('./service-worker.js').then(reg => {
+  navigator.serviceWorker.register('/NorthTerraceDailyTask/service-worker.js', { scope: '/NorthTerraceDailyTask/' }).then(reg => {
     reg.update().catch(() => {});
     reg.addEventListener('updatefound', () => {
       const worker = reg.installing;
