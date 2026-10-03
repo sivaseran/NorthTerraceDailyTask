@@ -2,6 +2,8 @@ import {ensureFinalV36Schedule} from '../js/final-config.js';
 import {getSession,clearSession} from '../js/auth.js';
 import {todayISO,formatLongDate,ensureTasksForDate,watchTasksForDate,completeTask,percent,SLOT_DEFS,slotLabelForDate} from '../js/store.js';
 import {escapeHtml,statusView,showToast,initNetworkStatus} from '../js/ui.js';
+import {ensureHotFoodDay} from '../js/hot-food-engine.js';
+import {completeHotFoodTask} from '../js/hot-food-ui.js';
 await ensureFinalV36Schedule();
 
 const $=s=>document.querySelector(s),user=getSession();
@@ -17,7 +19,7 @@ function render(all){
       ${rows.map(t=>`<article class="task-item">
         <div class="task-time">${t.temperatureRequired&&t.sourceTime?escapeHtml(t.sourceTime):(t.checkpoint?escapeHtml(t.checkpoint):'◷')}</div>
         <div>
-          <h3>${escapeHtml(t.taskName)}</h3>
+          <h3>${t.hotFood?'<span class="hf-badge">HOT FOOD</span> ':''}${escapeHtml(t.taskName)}</h3>
           <div class="task-meta">${Number(t.effortMinutes)>0?`${t.effortMinutes} min effort · `:''}${t.photoRequired?'📷 Send photo to WhatsApp group':'No photo required'}</div>
         </div>
         <div>${statusView(t.status)}</div>
@@ -29,7 +31,8 @@ function render(all){
     b.disabled=true;
     b.textContent='Saving…';
     try{
-      await completeTask(b.dataset.id,user);
+      const task=tasks.find(t=>t.id===b.dataset.id);
+      if(task?.hotFood) await completeHotFoodTask(task,user); else await completeTask(b.dataset.id,user);
       showToast('Task completed.','success');
     }catch(error){
       b.disabled=false;
@@ -38,6 +41,6 @@ function render(all){
     }
   });
 }
-await ensureTasksForDate(todayISO());watchTasksForDate(todayISO(),render,()=>showToast('Live updates unavailable.','error'));
+await ensureTasksForDate(todayISO());await ensureHotFoodDay(todayISO());watchTasksForDate(todayISO(),render,()=>showToast('Live updates unavailable.','error'));
 $('#logout').onclick=()=>{clearSession();location.href='./';};
 initNetworkStatus();if('serviceWorker' in navigator) navigator.serviceWorker.register('/NorthTerraceDailyTask/staff-app/sw.js',{scope:'/NorthTerraceDailyTask/staff-app/'}).catch(()=>{});
