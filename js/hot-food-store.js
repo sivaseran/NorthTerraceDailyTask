@@ -105,7 +105,7 @@ const dateInRange=(d,a,b)=>String(d||'')>=a&&String(d||'')<=b;
 export async function getHotFoodComplianceData(startDate,endDate){
   const [bs,cs,ts]=await Promise.all([getDocs(collection(db,'hotFoodBatches')),getDocs(collection(db,'hotFoodChecks')),getDocs(collection(db,'dailyTasks'))]);
   const batches=bs.docs.map(d=>({id:d.id,...d.data()})).filter(x=>dateInRange(x.date,startDate,endDate)).sort((a,b)=>String(a.date+a.timeOutOven).localeCompare(String(b.date+b.timeOutOven)));
-  const checks=cs.docs.map(d=>({id:d.id,...d.data()})).filter(x=>dateInRange(x.date,startDate,endDate)).sort((a,b)=>String(a.date+(a.actualReadingTime||'')).localeCompare(String(b.date+(b.actualReadingTime||'')));
+  const checks=cs.docs.map(d=>({id:d.id,...d.data()})).filter(x=>dateInRange(x.date,startDate,endDate)).sort((a,b)=>String(a.date+(a.actualReadingTime||'')).localeCompare(String(b.date+(b.actualReadingTime||''))));
   const tasks=ts.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.hotFood===true&&dateInRange(x.date,startDate,endDate));
   const exceptions=tasks.filter(x=>!['completed','cancelled'].includes(x.status)).map(x=>({date:x.date,type:'incomplete_task',taskId:x.id,description:`${x.taskName||'Hot Food task'} ${x.sourceTime||x.checkpoint||''} is ${x.status||'pending'}`}));
   return {batches,checks,tasks,exceptions};
