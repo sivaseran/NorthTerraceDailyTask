@@ -9,6 +9,7 @@ import {
 import {initializeV22,migrateParthToParthy} from './seed.js';
 import {ensureFinalV36Schedule} from './final-config.js';
 import {initReports} from './reports.js';
+import {initHotFoodManager} from './hot-food-manager.js';
 import {
   escapeHtml,statusView,showToast,confirmAction,setButtonLoading,setInlineMessage,
   setFieldError,clearFieldError,initNetworkStatus,registerAppServiceWorker
@@ -529,6 +530,7 @@ document.querySelectorAll('.manager-nav button').forEach(btn=>btn.onclick=async(
   }
   if(btn.dataset.section==='bulk') await loadBulkSetup();
   if(btn.dataset.section==='effort') await loadEffortAllocation();
+  if(btn.dataset.section==='hotfood') await initHotFoodManager();
 });
 
 function clearPerson(){

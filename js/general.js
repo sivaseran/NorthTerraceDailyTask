@@ -6,6 +6,8 @@ import {
 import {loginWithPin} from './auth.js';
 import {completeTask} from './store.js';
 import {escapeHtml,statusView,showToast,confirmAction,promptPin,initNetworkStatus,registerAppServiceWorker} from './ui.js';
+import {ensureHotFoodDay} from './hot-food-engine.js';
+import {completeHotFoodTask,renderStartHotFoodButton} from './hot-food-ui.js';
 
 await ensureFinalV36Schedule();
 
@@ -169,7 +171,7 @@ function renderDay(tasks,{skipAlertCheck=false}={}){
       <div class="ops-task-list live-slot-task-list">
         ${rows.map(t=>`<article class="ops-task-row ${t.status==='overdue'?'is-overdue-task':''}">
           <div class="ops-task-main">
-            <strong>${escapeHtml(t.taskName)}${t.checkpoint?` · ${escapeHtml(t.checkpoint)}`:''}</strong>
+            <strong>${t.hotFood?'<span class="hf-badge">HOT FOOD</span> ':''}${escapeHtml(t.taskName)}${t.checkpoint?` · ${escapeHtml(t.checkpoint)}`:''}</strong>
             <div class="ops-task-meta">
               <span class="${!t.assignedTo?'general-unassigned':''}">${escapeHtml(t.assignedName||'Unassigned')}</span>
               <span>•</span><span>${escapeHtml(fmtEffort(t.effortMinutes))}</span>
@@ -187,6 +189,10 @@ function renderDay(tasks,{skipAlertCheck=false}={}){
   }).join('') || `<div class="card elevated"><div class="empty-state"><h3>No saved schedule for this date</h3><p>${selectedDate<todayISO()?'Historical records are available only from dates when the app generated the daily schedule.':'No tasks are planned for this day.'}</p></div></div>`;
 
   document.body.classList.toggle('general-slot-focus-active',Boolean(focusedSlotId));
+  if(selectedDate===todayISO()) renderStartHotFoodButton(selectedDate,document.querySelector('#todayView'),async()=>{
+    const pin=await promptPin({title:'Start Hot Food',message:'Enter your staff PIN.'}); if(!pin)return null;
+    try{const u=await loginWithPin(pin); if(u.role!=='staff'&&u.role!=='assignee')throw new Error('Wrong PIN'); return u;}catch(e){showToast(e.message||'Wrong PIN','error');return null;}
+  }).catch(()=>{});
 
 }
 
@@ -434,7 +440,7 @@ async function completeFromGeneral(task){
   if(!pin) return;
   try{
     const user=await loginWithPin(pin);
-    if(user.role!=='staff'&&user.role!=='assignee') throw new Error('Use a staff/assignee PIN to complete tasks.');
+    if(user.role!=='staff'&&user.role!=='assignee') throw new Error(task.hotFood?'Wrong PIN':'Use a staff/assignee PIN to complete tasks.');
     if(task.assignedTo&&task.assignedTo!==user.id){
       const ok=await confirmAction({
         title:'Complete another person’s task?',
@@ -444,7 +450,8 @@ async function completeFromGeneral(task){
       });
       if(!ok) return;
     }
-    await completeTask(task.id,user);
+    if(task.hotFood) await completeHotFoodTask(task,user);
+    else await completeTask(task.id,user);
     showToast(`Completed by ${user.name||'staff'}.`,'success',{title:'Task completed'});
   }catch(error){
     showToast(error.message||'Could not complete the task.','error',{title:'Completion failed'});
@@ -533,6 +540,7 @@ async function bindDay(){
   clearSlotAlertTimers();
   $('#slotSchedule').innerHTML='<div class="card elevated"><div class="empty-state"><h3>Loading schedule…</h3><p>Connecting to the live task list.</p></div></div>';
   if(selectedDate>=todayISO()) await ensureTasksForDate(selectedDate);
+  if(selectedDate>=todayISO()) await ensureHotFoodDay(selectedDate);
   unsubscribe=watchTasksForDate(
     selectedDate,
     rows=>{
