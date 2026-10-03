@@ -1,4 +1,4 @@
-const CACHE='north-terrace-general-v3-8';
+const CACHE='north-terrace-general-v3-8-hotfood-final-20261003';
 const CACHE_PREFIX='north-terrace-general-';
 const ASSETS=[
   '/NorthTerraceDailyTask/',
@@ -16,6 +16,10 @@ const ASSETS=[
   '/NorthTerraceDailyTask/js/staff.js',
   '/NorthTerraceDailyTask/js/manager.js',
   '/NorthTerraceDailyTask/js/reports.js',
+  '/NorthTerraceDailyTask/js/hot-food-store.js',
+  '/NorthTerraceDailyTask/js/hot-food-manager.js',
+  '/NorthTerraceDailyTask/js/hot-food-engine.js',
+  '/NorthTerraceDailyTask/js/hot-food-ui.js',
   '/NorthTerraceDailyTask/js/seed.js',
   '/NorthTerraceDailyTask/js/login.js',
   '/NorthTerraceDailyTask/js/final-config.js',

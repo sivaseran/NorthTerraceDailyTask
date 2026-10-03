@@ -17,6 +17,7 @@
   <button data-section="bulk">Staff Assignment</button>
   <button data-section="cover">Shift Cover</button>
   <button data-section="reports">Reports</button>
+  <button data-section="hotfood">Hot Food / Compliance</button>
 </nav>
 
 <section id="schedule" class="manager-section">
@@ -485,7 +486,42 @@
 </section>
 
 
+<section id="hotfood" class="manager-section" hidden>
+  <div class="page-heading hf-heading"><div><span class="eyebrow">Controlled compliance module</span><h2>Hot Food / Compliance</h2><p>Production, hot holding, sign-off and audit controls. The module is isolated from normal Daily Tasks and can be disabled safely.</p></div><span id="hfStateBadge" class="hf-state-badge disabled">DISABLED</span></div>
+  <div id="hfDisabledNotice" class="hf-disabled-notice"><strong>Hot Food is currently disabled.</strong><span>Existing North Terrace features continue normally. Configure products and the cooking plan here, then enable the module from Settings when ready.</span></div>
+  <nav class="hf-subnav">
+    <button class="active" data-hf-target="products">Products</button><button data-hf-target="plan">Initial Cooking Plan</button><button data-hf-target="reports">Compliance Reports</button><button data-hf-target="signoff">Weekly Sign-off</button><button data-hf-target="audit">Audit History</button><button data-hf-target="settings">Settings</button>
+  </nav>
 
+  <div class="hf-panel" data-hf-panel="products">
+    <div class="card elevated"><div class="section-intro"><div><span class="eyebrow">Product master</span><h3>Hot Food Products</h3><p class="muted">Staff can only select active products. Deactivating a product never removes historical records.</p></div></div>
+      <div class="table-wrap"><table><thead><tr><th>Final Product</th><th>Status</th><th></th></tr></thead><tbody id="hfProductRows"></tbody></table></div>
+      <div class="hf-add-row"><input id="hfNewProduct" placeholder="New final product name"><button id="hfAddProduct" class="btn" type="button">+ Add Product</button></div>
+    </div>
+  </div>
+
+  <div class="hf-panel" data-hf-panel="plan" hidden>
+    <div class="card elevated"><div class="section-intro"><div><span class="eyebrow">Weekly plan</span><h3>Initial Cooking Plan</h3><p class="muted">Planned quantity by weekday. Blank or 0 means not planned. Staff can adjust the actual cooking without changing this plan.</p></div><div><span id="hfPlanDirty" class="hf-unsaved" hidden>Unsaved changes</span> <button id="hfSavePlan" class="btn" type="button">Save Changes</button></div></div>
+      <div class="table-wrap"><table class="hf-plan-table"><thead><tr><th>Product</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th></tr></thead><tbody id="hfPlanRows"></tbody></table></div>
+    </div>
+  </div>
+
+  <div class="hf-panel" data-hf-panel="reports" hidden><div class="card elevated"><div class="section-intro"><div><span class="eyebrow">Compliance output</span><h3>Compliance Reports</h3><p class="muted">Production and Hot Holding reports generated directly from operational records.</p></div><div class="hf-report-actions"><button id="hfReportToday" class="btn secondary small">Today</button><button id="hfReportWeek" class="btn secondary small">This Week</button><button id="hfPrintReport" class="btn small">Print / Save PDF</button></div></div><div class="form-grid"><label class="field"><span class="field-label">From</span><input id="hfReportFrom" type="date"></label><label class="field"><span class="field-label">To</span><input id="hfReportTo" type="date"></label></div><div id="hfReportStatus" class="hf-report-status"></div><div id="hfReportPreview" class="hf-report-preview"></div></div></div>
+  <div class="hf-panel" data-hf-panel="signoff" hidden><div class="card elevated"><span class="eyebrow">Monday-Sunday</span><h3>Weekly Sign-off</h3><p class="muted">Review the compliance week. Signed weeks lock staff edits; Manager can reopen and re-sign with full audit history.</p><label class="field"><span class="field-label">Any date in week</span><input id="hfSignoffDate" type="date"></label><div id="hfSignoffSummary" class="hf-signoff-summary"></div><label class="field"><span class="field-label">Manager comment (required when exceptions exist)</span><textarea id="hfSignoffComment" rows="3"></textarea></label><div class="hf-report-actions"><button id="hfSignWeek" class="btn">Sign Off Week</button><button id="hfReopenWeek" class="btn secondary">Reopen Week</button></div></div></div>
+
+  <div class="hf-panel" data-hf-panel="audit" hidden><div class="card elevated"><div class="section-intro"><div><span class="eyebrow">Immutable change trail</span><h3>Audit History</h3><p class="muted">Operational events and corrections are retained here.</p></div></div><div class="form-grid"><label class="field"><span class="field-label">Staff</span><input id="hfAuditStaff" placeholder="Filter staff"></label><label class="field"><span class="field-label">Event type</span><input id="hfAuditType" placeholder="e.g. cooking, correction"></label><label class="field"><span class="field-label">From date</span><input id="hfAuditFrom" type="date"></label><label class="field"><span class="field-label">To date</span><input id="hfAuditTo" type="date"></label></div><div class="table-wrap"><table><thead><tr><th>When</th><th>By</th><th>Event</th><th>Details</th></tr></thead><tbody id="hfAuditRows"></tbody></table></div></div></div>
+
+  <div class="hf-panel" data-hf-panel="settings" hidden>
+    <div class="card elevated"><div class="section-intro"><div><span class="eyebrow">Feature flag</span><h3>Module control</h3><p class="muted">Deploy safely with Hot Food off, then enable it when ready. It cannot be disabled while active batches or outstanding Hot Food tasks exist.</p></div><label class="hf-switch"><input id="hfEnableToggle" type="checkbox"><span></span><b>Hot Food enabled</b></label></div></div>
+    <div class="card elevated"><span class="eyebrow">Going-forward rules</span><h3>Compliance Settings</h3><div class="form-grid hf-settings-grid">
+      <label class="field"><span class="field-label">Core cooking pass °C</span><input id="hfCorePass" type="number" step="0.1"></label>
+      <label class="field"><span class="field-label">Hot holding pass °C</span><input id="hfHoldingPass" type="number" step="0.1"></label>
+      <label class="field"><span class="field-label">Next :55 eligibility (min)</span><input id="hfEligibility" type="number" min="0"></label>
+      <label class="field"><span class="field-label">No new cooking after</span><input id="hfCutoff" type="time"></label>
+      <label class="field"><span class="field-label">Holding duration (min)</span><input id="hfHoldingMinutes" type="number" min="1"></label>
+    </div><button id="hfSaveSettings" class="btn" type="button">Save Settings</button></div>
+  </div>
+</section>
 
 </main>
 <script type="module" src="js/manager.js"></script>
