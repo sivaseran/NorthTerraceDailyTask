@@ -89,6 +89,49 @@ export async function saveInitialCookingPlan(plan,actor){
   await addHotFoodAudit('initial_plan_changed',{},actor);
 }
 
+
+
+const INITIAL_BASELINE_PRODUCTS=[
+  ['Sausage Roll',5],['Potato dog',2],['Bacon cheese',1],['Cheese onion',1],
+  ['Steak Bake',1],['Chicken tikka',1],['Cornish Pasty',1]
+];
+
+// One-time live-data migration for the agreed North Terrace baseline.
+// It creates only missing products and fills only blank plan cells, so later Manager edits are preserved.
+export async function ensureInitialCookingBaseline(actor={}){
+  const markerRef=doc(db,'hotFoodConfig','baseline_20261005');
+  const marker=await getDoc(markerRef);
+  if(marker.exists()) return {changed:false};
+
+  const existing=await getHotFoodProducts();
+  const byName=new Map(existing.map(x=>[String(x.name||'').trim().toLowerCase(),x]));
+  const ids=[];
+  for(const [name] of INITIAL_BASELINE_PRODUCTS){
+    let product=byName.get(name.toLowerCase());
+    if(!product){
+      const id=`hf_product_baseline_${name.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'')}`;
+      await setDoc(doc(db,'hotFoodProducts',id),{name,active:true,createdByBaseline:true,updatedAt:serverTimestamp(),updatedByUserId:actor?.id||'',updatedByName:actor?.name||''},{merge:true});
+      product={id,name,active:true};
+    }
+    ids.push([product.id,name]);
+  }
+
+  const current=await getInitialCookingPlan();
+  const next=structuredClone(current||{});
+  for(const [id,name] of ids){
+    next[id]=next[id]||{};
+    const qty=INITIAL_BASELINE_PRODUCTS.find(x=>x[0]===name)[1];
+    for(const day of ['Mon','Tue','Wed','Thu','Fri']){
+      if(next[id][day]===undefined||next[id][day]===null||next[id][day]==='') next[id][day]=qty;
+    }
+    // Saturday/Sunday intentionally remain blank: staff start Hot Food manually if needed.
+  }
+  await setDoc(doc(db,'hotFoodConfig','initialCookingPlan'),{plan:next,updatedAt:serverTimestamp(),updatedByUserId:actor?.id||'',updatedByName:actor?.name||''},{merge:true});
+  await setDoc(markerRef,{applied:true,appliedAt:serverTimestamp(),products:ids.map(x=>x[1])});
+  await addHotFoodAudit('initial_baseline_applied',{weekdays:['Mon','Tue','Wed','Thu','Fri'],weekend:'manual_start'},actor);
+  return {changed:true};
+}
+
 export async function addHotFoodAudit(type,details={},actor={}){
   const id=`${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
   await setDoc(doc(db,'hotFoodAudit',id),{

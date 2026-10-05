@@ -256,12 +256,9 @@ async function loadPeople(){
     return ai-bi || String(a.name||'').localeCompare(String(b.name||''));
   });
   $('#peopleRows').innerHTML=visible.map(p=>`<tr>
-    <td>${p.role==='manager'?'Manager':escapeHtml(p.staffId||'—')}</td>
-    <td><strong>${escapeHtml(p.name||p.id)}</strong></td>
+    <td><strong>${escapeHtml(p.role==='manager'?'Manager':(p.name||p.id))}</strong>${p.role==='manager'?'<small class="people-sub">Protected manager account</small>':(p.active===false?'<small class="people-sub">Inactive</small>':'')}</td>
     <td><span class="pin-display">${escapeHtml(p.pin||'—')}</span></td>
-    <td>${escapeHtml(p.role||'')}</td>
-    <td><span class="status-dot ${p.active!==false?'active':'inactive'}"></span>${p.active!==false?'Active':'Inactive'}</td>
-    <td><button class="btn secondary small edit-person" data-id="${p.id}">Edit</button></td>
+    <td class="people-actions"><button class="btn secondary small edit-person" data-id="${p.id}">Edit</button>${p.role==='manager'?'':`<button class="btn danger-outline small remove-person" data-id="${p.id}">Remove</button>`}</td>
   </tr>`).join('');
   const coverPeople=people.map(p=>`<option value="${p.id}">${escapeHtml(p.name||p.id)}</option>`).join('');
   const currentFrom=$('#coverFrom')?.value||'';
@@ -548,6 +545,14 @@ $('#openAddPerson').onclick=()=>{clearPerson();openPersonEditor('add');};
 $('#closePersonEditor').onclick=closePersonEditor;
 $('#cancelPersonEdit').onclick=closePersonEditor;
 $('#peopleRows').addEventListener('click',async e=>{
+  const remove=e.target.closest('.remove-person');
+  if(remove){
+    const all=await getUsers(),p=all.find(x=>x.id===remove.dataset.id);if(!p||p.role==='manager')return;
+    const ok=await confirmAction({title:`Remove ${p.name||'staff member'}?`,message:'This revokes access and removes them from active staff lists. Historical task and completion records are kept.',confirmText:'Remove'});
+    if(!ok)return;
+    await saveUser(p.id,{active:false,updatedAt:new Date().toISOString()});
+    showToast(`${p.name||'Staff member'} removed from active staff.`,'success');await loadPeople();return;
+  }
   const b=e.target.closest('.edit-person');if(!b)return;
   const all=await getUsers(),p=all.find(x=>x.id===b.dataset.id);if(!p)return;
   $('#personEditId').value=p.id;$('#personName').value=p.name||'';$('#personRole').value=p.role||'assignee';$('#personStaffId').value=p.staffId||'';$('#personPin').value=p.pin||'';$('#personPinConfirm').value=p.pin||'';$('#personActive').value=String(p.active!==false);

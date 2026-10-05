@@ -3,7 +3,7 @@ import {escapeHtml,showToast,confirmAction,setButtonLoading} from './ui.js';
 import {
   HOT_FOOD_DAYS,getHotFoodConfig,saveHotFoodConfig,setHotFoodEnabled,
   getHotFoodProducts,saveHotFoodProduct,setHotFoodProductActive,
-  getInitialCookingPlan,saveInitialCookingPlan,getHotFoodAudit,getHotFoodComplianceData,getWeekSignoff,signOffHotFoodWeek,reopenHotFoodWeek,mondayOf,sundayOf,managerCorrectHotFoodRecord
+  getInitialCookingPlan,saveInitialCookingPlan,ensureInitialCookingBaseline,getHotFoodAudit,getHotFoodComplianceData,getWeekSignoff,signOffHotFoodWeek,reopenHotFoodWeek,mondayOf,sundayOf,managerCorrectHotFoodRecord
 } from './hot-food-store.js';
 
 const $=s=>document.querySelector(s);
@@ -62,6 +62,7 @@ async function loadSignoff(){const d=$('#hfSignoffDate')?.value;if(!d)return;con
 
 export async function initHotFoodManager(){
   if(!$('#hotfood')) return;
+  await ensureInitialCookingBaseline(user);
   if(initialised){await Promise.all([loadSettings(),loadProducts()]);await loadPlan();return;}
   initialised=true;
   await Promise.all([loadSettings(),loadProducts()]);

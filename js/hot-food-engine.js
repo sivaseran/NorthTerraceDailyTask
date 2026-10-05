@@ -36,6 +36,18 @@ async function upsertHFTask(id,data){
 }
 export async function ensureHotFoodDay(date){
   const cfg=await getHotFoodConfig(); if(!cfg.enabled) return;
+  const dow=new Date(date+'T12:00:00').getDay();
+  // Saturday/Sunday are manual-start days: no automatic Initial/Second Cooking tasks.
+  if(dow===0||dow===6){
+    const q=await getDocs(query(collection(db,'dailyTasks'),where('date','==',date)));
+    for(const d of q.docs){
+      const x=d.data();
+      if(x.hotFood===true&&['cooking_initial','cooking_second'].includes(x.hotFoodType)&&activeStatus(x))
+        await updateDoc(d.ref,{status:'cancelled',cancelReason:'Weekend Hot Food is manual start',updatedAt:serverTimestamp()});
+    }
+    await reconcileHotFoodDay(date);
+    return;
+  }
   const s=hotFoodSchedule(date);
   await upsertHFTask(`hf_${date}_initial`,{date,taskName:'Initial Cooking',hotFoodType:'cooking_initial',sourceTime:s.initial,checkpoint:s.initial,slotId:slotForClock(s.initial,date),effortMinutes:15});
   await upsertHFTask(`hf_${date}_second`,{date,taskName:'New Cooking / Top Up',hotFoodType:'cooking_second',sourceTime:s.second,checkpoint:s.second,slotId:slotForClock(s.second,date),effortMinutes:10});

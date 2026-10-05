@@ -270,7 +270,7 @@ export function promptPin({title='Complete task',message='Enter your 4-digit sta
         <div class="modal-icon" aria-hidden="true">#</div>
         <h2 id="pinTitle"></h2>
         <p id="pinMessage" class="modal-message"></p>
-        <input id="pinActionInput" class="pin-action-input" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="••••">
+        <input id="pinActionInput" class="pin-action-input" type="text" inputmode="numeric" maxlength="8" autocomplete="one-time-code" data-pin-input="true" placeholder="••••">
         <div id="pinActionError" class="field-error" hidden></div>
         <div class="modal-actions">
           <button id="pinCancel" class="btn secondary" type="button">Cancel</button>
