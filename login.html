@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <!-- North Terrace Daily Task V3.8 -->
+  <!-- North Terrace Daily Task V3.9 -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#1A1F2B">
@@ -28,7 +28,7 @@
     <p class="muted">The app automatically opens the correct Staff or Manager view.</p>
     <div class="field">
       <label class="field-label" for="pin">PIN <span class="required">*</span></label>
-      <input id="pin" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password" placeholder="••••" aria-describedby="pinError">
+      <input id="pin" class="pin-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="one-time-code" data-pin-input="true" placeholder="••••" aria-describedby="pinError">
       <div id="pinError" class="field-error" hidden></div>
     </div>
     <button id="login" class="btn full" type="button">Continue</button>

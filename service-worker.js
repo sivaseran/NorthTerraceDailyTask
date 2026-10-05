@@ -1,4 +1,4 @@
-const CACHE='north-terrace-general-v3-8-hotfood-final-20261003';
+const CACHE='north-terrace-general-v3-9-usability-20261005';
 const CACHE_PREFIX='north-terrace-general-';
 const ASSETS=[
   '/NorthTerraceDailyTask/',
