@@ -34,8 +34,20 @@ async function upsertHFTask(id,data){
   const row={hotFood:true,status:'pending',photoRequired:false,effortMinutes:5,assignedTo:assignee?.id||'',assignedName:assignee?.name||'Unassigned',...data,createdAt:serverTimestamp(),updatedAt:serverTimestamp()};
   await setDoc(ref,row); return {id,...row};
 }
+async function cancelLegacyTemperatureTasks(date){
+  // The controlled Hot Food module replaces the old fixed :30 temperature tasks.
+  // Cancel only today's generated daily instances; weekly templates, assignees, effort and times remain untouched.
+  const q=await getDocs(query(collection(db,'dailyTasks'),where('date','==',date)));
+  for(const d of q.docs){
+    const x=d.data();
+    const legacy=!x.hotFood && /^Check hot food temperature\s+\d{1,2}:\d{2}$/i.test(String(x.taskName||'').trim());
+    if(legacy&&activeStatus(x)) await updateDoc(d.ref,{status:'cancelled',cancelReason:'Replaced by controlled Hot Food compliance workflow',updatedAt:serverTimestamp()});
+  }
+}
+
 export async function ensureHotFoodDay(date){
   const cfg=await getHotFoodConfig(); if(!cfg.enabled) return;
+  await cancelLegacyTemperatureTasks(date);
   const dow=new Date(date+'T12:00:00').getDay();
   // Saturday/Sunday are manual-start days: no automatic Initial/Second Cooking tasks.
   if(dow===0||dow===6){
@@ -178,4 +190,14 @@ export async function submitExpiry({taskId,batchId,actor,actualWasteQty,removalT
   await addHotFoodAudit('expiry_completed',{batchId,productName:b.productName,expectedRemaining:b.remainingQty,actualWasteQty:waste,stockDiscrepancyQty:patch.stockDiscrepancyQty||0,removalTime,sellOutTime:patch.sellOutTime||'',earlyRemoval:patch.earlyRemoval,earlyRemovalReason:patch.earlyRemovalReason||'',earlyRemovalComment:patch.earlyRemovalComment||''},actor); if(!(await getActiveBatches(b.date)).length)await cancelFutureTemperatureTasks(b.date,removalTime); return patch;
 }
 
-export async function canStartHotFood(date){const cfg=await getHotFoodConfig();if(!cfg.enabled||mins(nowHM())>=mins(cfg.cookingCutoff))return false;const active=await getActiveBatches(date);if(active.length)return false;const tasks=await getTasksForDate(date,{ensure:false});return !tasks.some(t=>t.hotFood&&['cooking_initial','cooking_second'].includes(t.hotFoodType)&&activeStatus(t));}
+export async function canStartHotFood(date){
+  const cfg=await getHotFoodConfig();
+  if(!cfg.enabled||date!==isoDate(new Date())||mins(nowHM())>=mins(cfg.cookingCutoff))return false;
+  const active=await getActiveBatches(date);
+  if(active.length)return false;
+  const tasks=await getTasksForDate(date,{ensure:false});
+  // A still-pending Initial Cooking task is the normal entry point. Once Initial Cooking
+  // has been completed/cancelled, staff may manually restart Hot Food before 14:00.
+  // The later New Cooking / Top Up task must not hide this recovery button.
+  return !tasks.some(t=>t.hotFood&&t.hotFoodType==='cooking_initial'&&activeStatus(t));
+}
