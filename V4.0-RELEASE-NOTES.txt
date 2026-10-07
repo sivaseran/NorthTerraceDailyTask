@@ -1,0 +1,53 @@
+NORTH TERRACE DAILY TASK — V4.0
+Build date: 7 Oct 2026
+
+FEATURE 1 — CLEANING ROTATION
+- Replaces the old generic cleaning-schedule task from 8 Oct 2026 onward.
+- Editable Manager > Cleaning Rotation section.
+- Staff, day(s), time, fixed/rotating mode, area order, next item, photo and missing-label requirements are editable.
+- Default rules:
+  Prashanthy Mon/Fri 14:01: KitKat > Hubba/American > Crisps 1/2 > Crisps 2/2+Cheetos.
+  Himmo Tue 14:01: Carcare near door > Biscuit > Promotion.
+  Parthy Wed 14:01: Butter Chiller > Coke Chiller > 2L Drink Bay > Wines Chiller > Beers Chiller.
+  Suku Thu 14:01: Cadbury Bay > Car Care/Oil/Medicine.
+  Parthy Sat 14:01: Milk Chiller every Saturday.
+  Rishi Sat 18:01: Behind Till Shelf every Saturday.
+  Moon Sun 14:01: Petfood/Household > Grocery > Protein Bar/Flapjack.
+  Pragash Sun 14:01: Ambient Wines > Ambient Beers.
+  Uday Sun 09:01: pump deep/carwash mud/coal bunker/canopy+fascia.
+- All except Uday include place missing labels + send photo.
+
+FEATURE 2 — COMPLIANCE CHECKS
+- Manager > Compliance Checks section with editable limits/checklists and monthly report.
+- AM temperature: opening staff. PM temperature: closing staff.
+- Ice Cream + Freezer 1 expected <= -18C; Dairy 1 + Dairy 2 expected <= 5C.
+- Out-of-range readings require recheck + Management Aware confirmation.
+- Daily safety check: second staff member to start; Sunday forced to Uday.
+- Weekly safety check: Prashanthy every Wednesday.
+- SFBB opening/closing confirmation tasks assigned to opening/closing staff.
+- OK = simple confirmation. Issue = report to management + confirm management aware. Photos are sent directly to management, not stored in app.
+- Existing Daily PM tasks are not duplicated.
+
+BUG / SAFETY FIXES
+- Parthy PIN is no longer overwritten to 1111 by legacy identity migration.
+- Legacy destructive migrations are no longer run from normal Manager startup.
+- Bulk task deletion/reset functions are safety-locked.
+- Reconciliation cancels obsolete pending rows instead of deleting them; completed rows remain immutable.
+- Toilet cleaning changes from 12 Oct 2026: Wednesday Parthy; Friday Moon. History is preserved.
+- General View alert enabled state persists on that device.
+- General View task alerts: 30 min, 5 min, due/overdue; overdue alarm requires acknowledgement and returns after 10 minutes while tasks remain incomplete.
+- Staff App has persistent device alert enablement and 30/5/due notifications for assigned tasks.
+- General View remains the primary shop-wide alarm point.
+- Service workers moved to V4 cache and JS/HTML use network-first update behaviour to reduce stale-code incidents.
+
+LIVE-DATA SAFETY
+- No current completion history is intentionally deleted by this release.
+- New special tasks are deterministic ad-hoc operational rows and are not removed by normal template reconciliation.
+- Old generic cleaning task is stopped only going forward from 8 Oct 2026.
+
+V4.0.1 PRE-DEPLOY CORRECTIONS
+- Old generic cleaning task ends after 7 Oct 2026.
+- New Cleaning Rotation becomes effective Thu 8 Oct 2026.
+- Thu 8 Oct starts Suku with Cadbury Bay; Fri 9 Oct starts Prashanthy with KitKat Bay.
+- Daily Check selects the second distinct staff member to start; split shifts cannot count the same person twice.
+- Toilet-cleaning reassignment remains effective from 12 Oct 2026 as previously agreed.
