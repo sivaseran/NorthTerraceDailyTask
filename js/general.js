@@ -8,8 +8,11 @@ import {completeTask} from './store.js';
 import {escapeHtml,statusView,showToast,confirmAction,promptPin,initNetworkStatus,registerAppServiceWorker} from './ui.js';
 import {ensureHotFoodDay} from './hot-food-engine.js';
 import {completeHotFoodTask,renderStartHotFoodButton} from './hot-food-ui.js';
+import {ensureSpecialTasksForDate,ensureSafeUpgrades} from './special-tasks.js';
+import {completeComplianceTask} from './compliance-ui.js';
 
 await ensureFinalV36Schedule();
+await ensureSafeUpgrades();
 
 const $=s=>document.querySelector(s);
 let selectedDate=todayISO();
@@ -24,7 +27,7 @@ let lastCurrentSlotId='';
 let slotTapTimer=null;
 let lastSlotTap={id:'',time:0};
 
-let alertsArmed=false;
+let alertsArmed=localStorage.getItem('ntAlertsEnabled')==='1';
 let audioContext=null;
 let wakeLock=null;
 let appToday=todayISO();
@@ -329,32 +332,39 @@ async function fireSlotMilestone(slotId,minutesBefore){
   await playAlarm({due:minutesBefore===0});
   await showSystemNotification(copy.title,copy.body,`north-terrace-${todayISO()}-${slotId}-${minutesBefore}`);
 }
+function taskDueDate(task){
+  const clock=task.sourceTime||task.checkpoint||slotEndForDate(task.slotId,task.date);
+  const m=String(clock||'').match(/(\d{1,2}):(\d{2})/); if(!m)return null;
+  const d=new Date(task.date+'T12:00:00');d.setHours(Number(m[1]),Number(m[2]),0,0);return d;
+}
+let overdueRepeatTimer=null,activeAlarmLoop=null;
+function stopActiveAlarmLoop(){if(activeAlarmLoop){clearInterval(activeAlarmLoop);activeAlarmLoop=null;}}
+function startActiveAlarmLoop(){stopActiveAlarmLoop();activeAlarmLoop=setInterval(()=>playAlarm({due:true}),4000);}
+function showAlarmPanel(rows){
+  let panel=document.querySelector('#shopAlarmPanel');
+  if(!panel){panel=document.createElement('div');panel.id='shopAlarmPanel';panel.className='shop-alarm-panel';document.body.appendChild(panel);}
+  panel.innerHTML=`<strong>⚠ ${rows.length} task${rows.length===1?'':'s'} require attention</strong><span>${rows.slice(0,3).map(x=>escapeHtml(x.taskName)).join(' · ')}</span><button type="button" class="btn">Acknowledge / Stop Alarm</button>`;
+  panel.hidden=false;
+  panel.querySelector('button').onclick=()=>{panel.hidden=true;stopActiveAlarmLoop();localStorage.setItem('ntAlarmAckUntil',String(Date.now()+10*60*1000));if(overdueRepeatTimer)clearTimeout(overdueRepeatTimer);overdueRepeatTimer=setTimeout(()=>fireOverdueAlarm(),10*60*1000);};
+}
+async function fireTaskWarning(task,minutesBefore){
+  if(!alertsArmed||task.status==='completed'||task.status==='cancelled')return;
+  const key=`task:${task.id}:${minutesBefore}`,fired=alertedMilestones();if(fired.has(key))return;fired.add(key);saveAlertedMilestones(fired);
+  const title=minutesBefore===30?'Task due in 30 minutes':minutesBefore===5?'Task due in 5 minutes':'Task is due now';
+  showToast(task.taskName,minutesBefore===0?'warning':'info',{title});await playAlarm({due:minutesBefore===0});await showSystemNotification(title,task.taskName,`nt-${task.id}-${minutesBefore}`);
+  if(minutesBefore===0) fireOverdueAlarm();
+}
+async function fireOverdueAlarm(){
+  if(!alertsArmed){stopActiveAlarmLoop();return;}const ack=Number(localStorage.getItem('ntAlarmAckUntil')||0);if(Date.now()<ack){stopActiveAlarmLoop();return;}
+  const rows=currentTasks.filter(t=>t.status!=='completed'&&t.status!=='cancelled'&&taskDueDate(t)&&taskDueDate(t).getTime()<=Date.now());if(!rows.length){stopActiveAlarmLoop();const panel=document.querySelector('#shopAlarmPanel');if(panel)panel.hidden=true;return;}
+  showAlarmPanel(rows);await playAlarm({due:true});startActiveAlarmLoop();await showSystemNotification('North Terrace — tasks require attention',`${rows.length} task${rows.length===1?'':'s'} due/overdue. Open General View and acknowledge.`,`nt-overdue-${todayISO()}`);
+  if(overdueRepeatTimer)clearTimeout(overdueRepeatTimer);overdueRepeatTimer=setTimeout(()=>{localStorage.removeItem('ntAlarmAckUntil');fireOverdueAlarm();},10*60*1000);
+}
 function scheduleSlotAlerts(){
-  clearSlotAlertTimers();
-  if(!alertsArmed||mode!=='day'||selectedDate!==todayISO()) return;
-
-  const now=Date.now();
-  const fired=alertedMilestones();
-
-  for(const slot of SLOT_DEFS){
-    const end=slotEndDate(slot.id,todayISO()).getTime();
-    const milestones=[
-      {minutesBefore:60,at:end-60*60*1000},
-      {minutesBefore:30,at:end-30*60*1000},
-      {minutesBefore:0,at:end}
-    ];
-
-    for(const milestone of milestones){
-      const key=`${slot.id}:${milestone.minutesBefore}`;
-      if(fired.has(key)||milestone.at<=now) continue;
-
-      const timer=setTimeout(
-        ()=>fireSlotMilestone(slot.id,milestone.minutesBefore),
-        milestone.at-now
-      );
-      slotAlertTimers.push(timer);
-    }
-  }
+  clearSlotAlertTimers();if(overdueRepeatTimer){clearTimeout(overdueRepeatTimer);overdueRepeatTimer=null;}
+  if(!alertsArmed||mode!=='day'||selectedDate!==todayISO())return;const now=Date.now(),fired=alertedMilestones();
+  for(const task of currentTasks){if(task.status==='completed'||task.status==='cancelled')continue;const due=taskDueDate(task);if(!due)continue;for(const mb of [30,5,0]){const at=due.getTime()-mb*60000,key=`task:${task.id}:${mb}`;if(fired.has(key))continue;if(at<=now){if(mb===0)continue;else continue;}slotAlertTimers.push(setTimeout(()=>fireTaskWarning(task,mb),at-now));}}
+  fireOverdueAlarm();
 }
 function scheduleNextSlotBoundary(){
   clearSlotBoundaryTimer();
@@ -411,6 +421,7 @@ async function enableAlerts(){
   }
 
   alertsArmed=true;
+  localStorage.setItem('ntAlertsEnabled','1');
   await ensureAudioContext();
   await requestWakeLock();
   updateAlertButton();
@@ -424,10 +435,12 @@ async function enableAlerts(){
       ?'Sound is enabled. Browser notifications are blocked in site settings.'
       :'Sound alerts are enabled on this device.';
 
-  showToast(`${notificationMessage} One reminder is scheduled 1 hour before the slot ends, one at 30 minutes, and one at the due time. The due-time alarm is three beeps once only.`,'success',{title:'Live alerts enabled'});
+  showToast(`${notificationMessage} Reminders are scheduled 30 minutes and 5 minutes before each task. At due/overdue time the shop alarm repeats until acknowledged, and returns after 10 minutes while work remains incomplete.`,'success',{title:'Live alerts enabled'});
 }
 async function disableAlerts(){
   alertsArmed=false;
+  stopActiveAlarmLoop();
+  localStorage.setItem('ntAlertsEnabled','0');
   clearSlotAlertTimers();
   await releaseWakeLock();
   updateAlertButton();
@@ -451,6 +464,7 @@ async function completeFromGeneral(task){
       if(!ok) return;
     }
     if(task.hotFood) await completeHotFoodTask(task,user);
+    else if(task.specialType==='compliance') await completeComplianceTask(task,user);
     else await completeTask(task.id,user);
     showToast(`Completed by ${user.name||'staff'}.`,'success',{title:'Task completed'});
   }catch(error){
@@ -539,7 +553,7 @@ async function bindDay(){
   clearSlotBoundaryTimer();
   clearSlotAlertTimers();
   $('#slotSchedule').innerHTML='<div class="card elevated"><div class="empty-state"><h3>Loading schedule…</h3><p>Connecting to the live task list.</p></div></div>';
-  if(selectedDate>=todayISO()) await ensureTasksForDate(selectedDate);
+  if(selectedDate>=todayISO()){ await ensureSpecialTasksForDate(selectedDate); await ensureTasksForDate(selectedDate);}
   if(selectedDate>=todayISO()) await ensureHotFoodDay(selectedDate);
   unsubscribe=watchTasksForDate(
     selectedDate,

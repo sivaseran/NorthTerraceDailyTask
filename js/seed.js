@@ -5153,7 +5153,6 @@ export async function migrateParthToParthy(){
   await setDoc(doc(db,"users","staff1"),{
     name:"Parthy",
     staffId:"1",
-    pin:"1111",
     role:"staff",
     active:true,
     updatedAt:serverTimestamp()

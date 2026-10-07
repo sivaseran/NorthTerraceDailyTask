@@ -488,8 +488,10 @@ export async function reconcileDailyTasksForDate(date){
   // Keep completed rows for audit, and leave ad-hoc tasks alone.
   existing.forEach((e,i)=>{
     if(used.has(i)) return;
-    if(!e.templateTaskId||e.adHoc||e.status==='completed') return;
-    operations.push({type:'delete',ref:e.ref});
+    if(!e.templateTaskId||e.adHoc||e.status==='completed'||e.status==='cancelled') return;
+    // Safety: never delete live operational rows during reconciliation.
+    // Cancel obsolete pending rows so history cannot disappear and regenerate as fresh pending work.
+    operations.push({type:'update',ref:e.ref,data:{status:'cancelled',cancelReason:'Removed from current schedule',cancelledAt:serverTimestamp(),updatedAt:serverTimestamp()}});
   });
 
   let created=0,updated=0,removed=0;
@@ -516,47 +518,13 @@ export async function ensureTasksForDate(date){
 
 
 export async function clearAllOperationalData(){
-  const collectionsToClear=['dailyTasks','shiftCover','shiftCoverRules'];
-  let removed=0;
-
-  for(const collectionName of collectionsToClear){
-    const snap=await getDocs(collection(db,collectionName));
-    const docs=[...snap.docs];
-
-    for(let i=0;i<docs.length;i+=400){
-      const batch=writeBatch(db);
-      for(const d of docs.slice(i,i+400)) batch.delete(d.ref);
-      await batch.commit();
-      removed+=Math.min(400,docs.length-i);
-    }
-  }
-
-  return removed;
+  throw new Error('Live safety lock: bulk operational deletion is disabled.');
 }
-
-export async function clearDailyTasksFrom(date){
-  const q=query(collection(db,'dailyTasks'),where('date','>=',date));
-  const snap=await getDocs(q);
-  if(snap.empty) return 0;
-  // Firestore batches are limited; this app is small, but chunk defensively.
-  const docs=[...snap.docs];
-  let count=0;
-  for(let i=0;i<docs.length;i+=400){
-    const batch=writeBatch(db);
-    docs.slice(i,i+400).forEach(d=>batch.delete(d.ref));
-    await batch.commit();
-    count+=Math.min(400,docs.length-i);
-  }
-  return count;
+export async function clearDailyTasksFrom(){
+  throw new Error('Live safety lock: deleting today/future task history is disabled.');
 }
-
-export async function resetTasksForDate(date){
-  const q=query(collection(db,'dailyTasks'),where('date','==',date));
-  const existing=await getDocs(q);
-  if(!existing.empty){
-    const b=writeBatch(db); existing.docs.forEach(d=>b.delete(d.ref)); await b.commit();
-  }
-  return ensureTasksForDate(date);
+export async function resetTasksForDate(){
+  throw new Error('Live safety lock: destructive task reset is disabled. Reconcile safely instead.');
 }
 
 export async function getTasksForDate(date,{ensure=true}={}){

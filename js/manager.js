@@ -2,14 +2,16 @@ import {getSession,clearSession} from './auth.js';
 import {
   SLOT_DEFS,todayISO,addDaysISO,formatLongDate,slotLabelForDate,slotCapacityMinutes,sundayEveningRotatorForDate,
   getUsers,getAssignableUsers,getSystemState,getStaffAvailability,saveStaffAvailability,getWeeklyTemplate,getSetupTasksForDate,reconcileDailyTasksForDate,bulkUpdateWeeklyTemplateRows,validateUserUniqueness,saveUser,createPerson,
-  ensureTasksForDate,clearDailyTasksFrom,resetTasksForDate,watchTasksForDate,getTasksForDate,
+  ensureTasksForDate,watchTasksForDate,getTasksForDate,
   updateDailyTask,saveFutureRule,createTaskForDate,cancelTaskToday,stopTaskFuture,saveFutureShiftCover,
   workloadBySlot,capacityForDraft,completeTask
 } from './store.js';
-import {initializeV22,migrateParthToParthy} from './seed.js';
+// Legacy destructive startup migrations are intentionally not run from Manager.
 import {ensureFinalV36Schedule} from './final-config.js';
 import {initReports} from './reports.js';
 import {initHotFoodManager} from './hot-food-manager.js';
+import {initSpecialManager} from './special-manager.js';
+import {ensureSpecialTasksForDate,ensureSafeUpgrades} from './special-tasks.js';
 import {
   escapeHtml,statusView,showToast,confirmAction,setButtonLoading,setInlineMessage,
   setFieldError,clearFieldError,initNetworkStatus,registerAppServiceWorker
@@ -231,7 +233,7 @@ async function bindDate(){
   // then attached for subsequent live updates. This avoids the blank first-load
   // Schedule Editor that previously appeared until the manager changed dates.
   try{
-    if(selectedDate>=todayISO()) await ensureTasksForDate(selectedDate);
+    if(selectedDate>=todayISO()){ await ensureSpecialTasksForDate(selectedDate); await ensureTasksForDate(selectedDate);}
     const initialRows=await getTasksForDate(selectedDate,{ensure:false});
     renderSchedule(initialRows);
   }catch(error){
@@ -1650,31 +1652,18 @@ $('#effortSaveTemplate').onclick=saveWeeklyEffortSetup;
 
 async function checkSystemReady(){
   try{
+    // Read-only readiness check. Never run legacy migrations from normal Manager startup.
     const state=await getSystemState();
-    if(state?.v22Ready) return true;
-    // Legacy compatibility only: if an old deployment never completed the V2
-    // migration, run the idempotent migration silently instead of exposing a
-    // maintenance/setup button in the live manager UI.
-    await initializeV22();
-    return true;
-  }catch(error){
-    console.error('System readiness check failed',error);
-    return false;
-  }
+    return Boolean(state);
+  }catch(error){console.error('System readiness check failed',error);return false;}
 }
+
 
 $('#logout').onclick=()=>{clearSession();location.href='login.html';};
 
 initReports({root:document.querySelector('#reports'),userProvider:()=>user});
-try{
-  const merge=await migrateParthToParthy();
-  if(merge.duplicateUsers||merge.templateTasks||merge.dailyTasks){
-    showToast('Parth has been merged into Parthy across assignments and reports.','success',{title:'Staff identity updated'});
-  }
-}catch(error){
-  console.error('Parth → Parthy migration failed',error);
-}
-
+await ensureSafeUpgrades();
+await initSpecialManager(user);
 const finalSetup=await ensureFinalV36Schedule();
   if(finalSetup.applied){
     showToast(
