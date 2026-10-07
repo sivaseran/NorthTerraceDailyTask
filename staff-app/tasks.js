@@ -4,13 +4,25 @@ import {todayISO,formatLongDate,ensureTasksForDate,watchTasksForDate,completeTas
 import {escapeHtml,statusView,showToast,initNetworkStatus} from '../js/ui.js';
 import {ensureHotFoodDay} from '../js/hot-food-engine.js';
 import {completeHotFoodTask} from '../js/hot-food-ui.js';
+import {ensureSpecialTasksForDate,ensureSafeUpgrades} from '../js/special-tasks.js';
+import {completeComplianceTask} from '../js/compliance-ui.js';
 await ensureFinalV36Schedule();
+await ensureSafeUpgrades();
 
 const $=s=>document.querySelector(s),user=getSession();
 if(!user||(user.role!=='staff'&&user.role!=='assignee')) location.href='./';
 $('#staffTitle').textContent=user.name||'Staff';$('#staffDate').textContent=formatLongDate(todayISO());
 
+
+let staffAlerts=localStorage.getItem('ntStaffAlertsEnabled')==='1',staffAlertTimers=[];
+function updateStaffAlertButton(){const b=$('#staffAlerts');if(b)b.textContent=staffAlerts?'🔔 Alerts On':'Enable Alerts';}
+function dueDate(t){const m=String(t.sourceTime||'').match(/(\d{1,2}):(\d{2})/);if(!m)return null;const d=new Date(t.date+'T12:00:00');d.setHours(+m[1],+m[2],0,0);return d;}
+async function staffNotify(title,body,tag){try{if(Notification.permission==='granted'){const r=await navigator.serviceWorker.ready;r.showNotification(title,{body,tag,requireInteraction:true,vibrate:[220,110,220]});}}catch{}}
+function scheduleStaffAlerts(rows){staffAlertTimers.forEach(clearTimeout);staffAlertTimers=[];if(!staffAlerts)return;const now=Date.now();for(const t of rows.filter(x=>x.assignedTo===user.id&&x.status!=='completed'&&x.status!=='cancelled')){const d=dueDate(t);if(!d)continue;for(const mb of [30,5,0]){const at=d.getTime()-mb*60000;if(at<=now)continue;staffAlertTimers.push(setTimeout(()=>staffNotify(mb?`Task due in ${mb} minutes`:'Task due now',t.taskName,`staff-${t.id}-${mb}`),at-now));}}}
+$('#staffAlerts').onclick=async()=>{if(!staffAlerts&&'Notification'in window&&Notification.permission==='default')await Notification.requestPermission();staffAlerts=!staffAlerts;localStorage.setItem('ntStaffAlertsEnabled',staffAlerts?'1':'0');updateStaffAlertButton();};updateStaffAlertButton();
+
 function render(all){
+  scheduleStaffAlerts(all);
   const tasks=all.filter(t=>t.assignedTo===user.id&&t.status!=='cancelled');
   $('#staffPct').textContent=`${percent(tasks)}%`;
   $('#staffTasks').innerHTML=SLOT_DEFS.map(slot=>{
@@ -32,7 +44,7 @@ function render(all){
     b.textContent='Saving…';
     try{
       const task=tasks.find(t=>t.id===b.dataset.id);
-      if(task?.hotFood) await completeHotFoodTask(task,user); else await completeTask(b.dataset.id,user);
+      if(task?.hotFood) await completeHotFoodTask(task,user); else if(task?.specialType==='compliance') await completeComplianceTask(task,user); else await completeTask(b.dataset.id,user);
       showToast('Task completed.','success');
     }catch(error){
       b.disabled=false;
@@ -41,6 +53,6 @@ function render(all){
     }
   });
 }
-await ensureTasksForDate(todayISO());await ensureHotFoodDay(todayISO());watchTasksForDate(todayISO(),render,()=>showToast('Live updates unavailable.','error'));
+await ensureSpecialTasksForDate(todayISO());await ensureTasksForDate(todayISO());await ensureHotFoodDay(todayISO());watchTasksForDate(todayISO(),render,()=>showToast('Live updates unavailable.','error'));
 $('#logout').onclick=()=>{clearSession();location.href='./';};
 initNetworkStatus();if('serviceWorker' in navigator) navigator.serviceWorker.register('/NorthTerraceDailyTask/staff-app/sw.js',{scope:'/NorthTerraceDailyTask/staff-app/'}).catch(()=>{});
