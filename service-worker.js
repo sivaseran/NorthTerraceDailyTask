@@ -1,4 +1,4 @@
-const CACHE='north-terrace-general-v4-1-1-sound-labels-20261009';
+const CACHE='north-terrace-general-v4-1-2-compact-hot-food-20261009';
 const CACHE_PREFIX='north-terrace-general-';
 const ASSETS=[
   '/NorthTerraceDailyTask/',
