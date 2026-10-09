@@ -29,6 +29,19 @@ let slotTapTimer=null;
 let lastSlotTap={id:'',time:0};
 
 let alertsArmed=localStorage.getItem('ntAlertsEnabled')==='1';
+const ALARM_PREF_KEY='ntShopAlarmPrefsV1';
+const ALARM_TONES=new Set(['classic','double','chime','attention']);
+function validAlarmPrefs(value){
+  return {
+    tone:ALARM_TONES.has(value?.tone)?value.tone:'classic',
+    volume:Number.isFinite(Number(value?.volume))?Math.max(10,Math.min(100,Math.round(Number(value.volume)/5)*5)):55
+  };
+}
+function loadAlarmPrefs(){
+  try{return validAlarmPrefs(JSON.parse(localStorage.getItem(ALARM_PREF_KEY)||'{}'));}
+  catch{return validAlarmPrefs({});}
+}
+let alarmPrefs=loadAlarmPrefs();
 let audioContext=null;
 let wakeLock=null;
 let appToday=todayISO();
@@ -175,7 +188,7 @@ function renderDay(tasks,{skipAlertCheck=false}={}){
       <div class="ops-task-list live-slot-task-list">
         ${rows.map(t=>`<article class="ops-task-row ${t.status==='overdue'?'is-overdue-task':''}" data-task-id="${escapeHtml(t.id)}">
           <div class="ops-task-main">
-            <strong>${escapeHtml(t.taskName)}${t.checkpoint?` · ${escapeHtml(t.checkpoint)}`:''}</strong><small class="task-report-category">${escapeHtml(reportCategoryForTask(t))}</small>
+            <div class="task-title-and-category"><strong>${escapeHtml(t.taskName)}${t.checkpoint?` · ${escapeHtml(t.checkpoint)}`:''}</strong><small class="task-report-category" data-report-category="${escapeHtml(reportCategoryForTask(t))}">${escapeHtml(reportCategoryForTask(t))}</small></div>
             <div class="ops-task-meta">
               <span class="${!t.assignedTo?'general-unassigned':''}">${escapeHtml(t.assignedName||'Unassigned')}</span>
               <span>•</span><span>${escapeHtml(fmtEffort(t.effortMinutes))}</span>
@@ -270,28 +283,43 @@ async function ensureAudioContext(){
   if(audioContext.state==='suspended') await audioContext.resume();
   return audioContext.state==='running';
 }
-async function playAlarm({due=false,test=false}={}){
-  if(!alertsArmed) return;
+// Oscillator-only alarm sounds: no external files or Firebase writes.
+// The browser requires a user gesture to unlock Web Audio on some Android devices.
+function alarmNotes(tone,due){
+  const notes={
+    classic:[[0,880,.18,'sine'],[.30,880,.18,'sine'],[.60,880,.18,'sine']],
+    double:[[0,780,.12,'square'],[.22,780,.12,'square']],
+    chime:[[0,660,.30,'sine'],[.28,880,.42,'sine']],
+    attention:[[0,920,.19,'triangle'],[.27,640,.19,'triangle'],[.54,920,.19,'triangle']]
+  };
+  const selected=notes[tone]||notes.classic;
+  return due?selected:[selected[0]];
+}
+async function playAlarm({due=false,test=false,prefs=alarmPrefs}={}){
+  if(!alertsArmed&&!test) return false;
   try{
-    if(!await ensureAudioContext()) return;
-    const start=audioContext.currentTime+0.02;
-    const count=due?3:1;
-
-    for(let i=0;i<count;i++){
+    if(!await ensureAudioContext()) return false;
+    const choices=validAlarmPrefs(prefs);
+    const start=audioContext.currentTime+0.025;
+    const maximumGain=.14*(choices.volume/100);
+    for(const [offset,pitch,duration,wave] of alarmNotes(choices.tone,due||test)){
+      const time=start+offset;
       const osc=audioContext.createOscillator();
       const gain=audioContext.createGain();
-      osc.type='sine';
-      osc.frequency.setValueAtTime(test?720:880,start+i*0.30);
-      gain.gain.setValueAtTime(0.0001,start+i*0.30);
-      gain.gain.exponentialRampToValueAtTime(test?0.10:0.14,start+i*0.30+0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001,start+i*0.30+0.18);
+      osc.type=wave;
+      osc.frequency.setValueAtTime(pitch,time);
+      gain.gain.setValueAtTime(.0001,time);
+      gain.gain.exponentialRampToValueAtTime(maximumGain,time+.02);
+      gain.gain.exponentialRampToValueAtTime(.0001,time+duration);
       osc.connect(gain);
       gain.connect(audioContext.destination);
-      osc.start(start+i*0.30);
-      osc.stop(start+i*0.30+0.20);
+      osc.start(time);
+      osc.stop(time+duration+.02);
     }
+    return true;
   }catch(error){
     console.warn('Alarm sound unavailable',error);
+    return false;
   }
 }
 async function showSystemNotification(title,body,tag){
@@ -557,7 +585,54 @@ document.addEventListener('keydown',e=>{
   }
 });
 
-$('#testShopAlarm')?.addEventListener('click',async()=>{const wasArmed=alertsArmed;alertsArmed=true;await ensureAudioContext();await playAlarm({test:true});alertsArmed=wasArmed;showToast('Test beep played. Adjust Galaxy Tab media volume if needed.','info');});
+function openAlarmSoundSettings(){
+  const panel=$('#alarmSoundSettings');
+  panel.hidden=false;
+  const tone=panel.querySelector(`input[name="ntAlarmTone"][value="${alarmPrefs.tone}"]`);
+  if(tone)tone.checked=true;
+  $('#alarmVolume').value=String(alarmPrefs.volume);
+  $('#alarmVolumeValue').textContent=`${alarmPrefs.volume}%`;
+  $('#alarmSoundFeedback').textContent='';
+  $('#alarmSoundSettingsButton').setAttribute('aria-expanded','true');
+  tone?.focus();
+}
+function closeAlarmSoundSettings(){
+  $('#alarmSoundSettings').hidden=true;
+  $('#alarmSoundSettingsButton').setAttribute('aria-expanded','false');
+  $('#alarmSoundSettingsButton').focus();
+}
+function selectedAlarmPrefs(){
+  return validAlarmPrefs({
+    tone:document.querySelector('input[name="ntAlarmTone"]:checked')?.value,
+    volume:Number($('#alarmVolume').value)
+  });
+}
+$('#alarmSoundSettingsButton').addEventListener('click',()=>{
+  if($('#alarmSoundSettings').hidden)openAlarmSoundSettings();
+  else closeAlarmSoundSettings();
+});
+$('#closeAlarmSoundSettings').addEventListener('click',closeAlarmSoundSettings);
+$('#cancelAlarmSoundSettings').addEventListener('click',closeAlarmSoundSettings);
+$('#alarmVolume').addEventListener('input',()=>{
+  $('#alarmVolumeValue').textContent=`${$('#alarmVolume').value}%`;
+});
+$('#previewAlarmSound').addEventListener('click',async()=>{
+  const ok=await playAlarm({test:true,prefs:selectedAlarmPrefs()});
+  $('#alarmSoundFeedback').textContent=ok?'Sound played. Adjust media volume on the tablet if needed.':'Audio unavailable. Tap Enable Alerts or check your browser audio settings.';
+});
+$('#saveAlarmSoundSettings').addEventListener('click',()=>{
+  alarmPrefs=selectedAlarmPrefs();
+  localStorage.setItem(ALARM_PREF_KEY,JSON.stringify(alarmPrefs));
+  closeAlarmSoundSettings();
+  showToast('Alarm sound and volume saved on this device.','success');
+});
+$('#alarmSoundSettings').addEventListener('keydown',e=>{
+  if(e.key==='Escape'){e.preventDefault();closeAlarmSoundSettings();}
+});
+$('#testShopAlarm')?.addEventListener('click',async()=>{
+  const ok=await playAlarm({test:true});
+  showToast(ok?'Test sound played. Adjust Galaxy Tab media volume if needed.':'Could not play sound. Check your device audio settings.',ok?'info':'warning');
+});
 $('#enableAlerts').onclick=async()=>{
   if(alertsArmed) await disableAlerts();
   else await enableAlerts();

@@ -110,7 +110,7 @@ function taskEditor(t){
   return `<article class="manager-task-editor compact-editor ${historical?'historical-task-row':''}" data-id="${t.id}" data-template="${escapeHtml(t.templateTaskId||'')}">
     <div class="compact-task-view dense-task-row">
       <div class="dense-task-main">
-        <strong class="dense-task-title">${escapeHtml(t.taskName||'Untitled task')}</strong><small class="task-report-category">${escapeHtml(reportCategoryForTask(t))}</small>
+        <div class="task-title-and-category"><strong class="dense-task-title">${escapeHtml(t.taskName||'Untitled task')}</strong><small class="task-report-category" data-report-category="${escapeHtml(reportCategoryForTask(t))}">${escapeHtml(reportCategoryForTask(t))}</small></div>
         <div class="dense-task-badges">
           ${t.photoRequired?'<span class="mini-pill photo-pill">📷 Photo</span>':''}
           ${t.recurring?'<span class="mini-pill recurring-pill">↻ Recurring</span>':''}
@@ -1414,7 +1414,7 @@ function renderEffortMatrix(){
         <strong>${escapeHtml(group.taskName)}</strong>
         <div>
           ${group.recurring?'<span class="mini-pill recurring-pill">Recurring</span>':'<span class="mini-pill">Date only</span>'}
-          <span class="task-report-category">${escapeHtml(reportCategoryForTask(group.template))}</span>
+          <span class="task-report-category" data-report-category="${escapeHtml(reportCategoryForTask(group.template))}">${escapeHtml(reportCategoryForTask(group.template))}</span>
         </div>
       </th>
 
