@@ -32,7 +32,7 @@ function render(all){
       ${rows.map(t=>`<article class="task-item">
         <div class="task-time">${t.temperatureRequired&&t.sourceTime?escapeHtml(t.sourceTime):(t.checkpoint?escapeHtml(t.checkpoint):'◷')}</div>
         <div>
-          <h3>${escapeHtml(t.taskName)}</h3><small class="task-report-category">${escapeHtml(reportCategoryForTask(t))}</small>
+          <div class="task-title-and-category"><h3>${escapeHtml(t.taskName)}</h3><small class="task-report-category" data-report-category="${escapeHtml(reportCategoryForTask(t))}">${escapeHtml(reportCategoryForTask(t))}</small></div>
           <div class="task-meta">${Number(t.effortMinutes)>0?`${t.effortMinutes} min effort · `:''}${t.photoRequired?'📷 Send photo to WhatsApp group':'No photo required'}</div>
         </div>
         <div>${statusView(t.status)}</div>
