@@ -1,0 +1,52 @@
+North Terrace Daily Task V4.1 — build verification (09 Oct 2026)
+
+PASSED IN LOCAL ENVIRONMENT
+- JavaScript syntax checks on all 24 application JS files.
+- All relative JS module imports resolved; both service-worker asset lists exist.
+- General View/Manager essential HTML controls exist.
+- No native browser prompt() in operational or Manager Hot Food forms.
+- Chromium simulated UI tests:
+  * Cooking cancellation -> no submission; blank core -> inline error; edits kept;
+    valid core -> single submission and modal closes.
+  * Holding missing temperature -> inline error, no submission; FIFO sold-out
+    batch -> separate editable sell-out-time input; cancellation no submission.
+  * Expiry cancellation -> no submission.
+  * Compliance temperature cancellation -> no completion; empty readings ->
+    validation; out-of-range -> recheck/management-aware requirement.
+  * SFBB Closing full checklist, issue confirmation, management-aware requirement.
+  * Effort Allocation + Add Task generates a single new weekly template for
+    two different weekday times, no duplicate task-creation call.
+  * General overdue alarm: repeat timer, Stop Alarm, View Tasks, acknowledgement
+    without task completion.
+- Firestore reconciliation logic mock:
+  * Concurrent create cannot overwrite an already-completed record.
+  * Missing task with completion ledger restores as completed.
+  * Existing completed task is not patched by reconciliation.
+
+NOT TESTED AGAINST PRODUCTION
+- Firebase security rules and actual real-time listener propagation.
+- Live legacy temperature template retirement and completed-history preservation.
+- Galaxy Tab A11 SM-X130 audio/volume, wake-lock, background suspension.
+- End-to-end reports with real store records and sign-off.
+- Interrupted Hot Food multi-document save/retry scenarios.
+
+REQUIRED ACCEPTANCE CHECKS AFTER DEPLOYMENT
+1. On desktop, open Manager / Effort Allocation. Check all existing staff/time/
+   effort. Type 12:00 into a time field, confirm no jump during typing, save only
+   if intentionally changing that task. Test direct + Add Task with an agreed
+   real task only; do not add a dummy to live permanent templates.
+2. On Galaxy Tab landscape, use Test Alarm after enabling sound. Confirm moderate
+   audible repetition while overdue, stop on Stop Alarm and View Tasks, and the
+   10-minute reminder. Keep browser foreground during the test.
+3. Enter staff PIN for AM Temperature, cancel: task must stay pending, with NO
+   completion toast. Repeat for a Hot Food task without submitting.
+4. Complete one legitimate simple task. Confirm no Firestore permission errors
+   and that the task stays completed after reopening General and Manager.
+5. Open SFBB Closing and verify the actual checklist is visible.
+6. Start a permitted Hot Food test/real cooking; enter an invalid/future time,
+   confirm values remain editable. Check controlled :55 holding checks after
+   eligible cooking and absence of fixed legacy :30 checks.
+7. Check Cleaning Rotation and Manager compliance reports and historical tasks.
+
+If completion fails with permissions errors, do not manually delete anything.
+Restore previous GitHub revision and review Firestore rules before retrying.

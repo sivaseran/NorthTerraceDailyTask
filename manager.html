@@ -303,17 +303,31 @@
       <label class="bulk-filter-field"><span>Slot</span>
         <select id="effortSlotFilter"><option value="all">All slots</option></select>
       </label>
-      <label class="bulk-toggle-filter"><input id="effortOnlyMissing" type="checkbox"> Effort not set only</label>
+      <label class="bulk-toggle-filter" title="Show only tasks without effort minutes" style="display:none"><input id="effortOnlyMissing" type="checkbox"> Effort not set only</label>
+      <button id="effortAddTask" class="btn secondary small" type="button">+ Add Task</button>
       <button id="effortResetFilters" class="btn secondary small" type="button">Reset filters</button>
       <span class="effort-sort-note">Each weekday is independent. Blank days stay inactive until you enter a time.</span>
     </div>
 
+    <section id="effortNewTaskPanel" class="card effort-new-task-panel" hidden aria-label="Create a weekly task">
+      <div class="effort-new-head"><h3>Add a weekly task</h3><button type="button" id="effortNewCancel" class="btn secondary small">Cancel</button></div>
+      <p class="muted">Choose the days and their times. Blank days are not scheduled. This creates a new task; existing tasks remain unchanged.</p>
+      <div class="effort-new-basics">
+        <label>Task name<input id="effortNewName" maxlength="140" placeholder="Enter task name"></label>
+        <label>Effort (minutes)<input id="effortNewMinutes" type="number" min="1" step="1" placeholder="e.g. 15"></label>
+        <label>Assignee<select id="effortNewAssignee"></select></label>
+        <label class="effort-new-photo"><input type="checkbox" id="effortNewPhoto"> Photo required</label>
+      </div>
+      <div id="effortNewWeek" class="effort-new-week"></div>
+      <div id="effortNewError" class="hf-validation-error" role="alert"></div>
+      <button type="button" class="btn" id="effortNewCreate">Create weekly task</button>
+    </section>
     <div id="effortSummary" class="bulk-summary"></div>
     <div id="effortResult" class="inline-message" hidden></div>
 
     <div class="bulk-save-bar">
       <button id="effortSaveTemplate" class="btn" type="button">Save Weekly Task Setup</button>
-      <span class="muted">Each day’s time decides its operational slot and order. Clear a day’s time to remove that task from that weekday and from Staff Assignment.</span>
+      <span class="muted">Time Order: each day’s time decides its operational slot and order. Clear a day’s time to remove that task from that weekday and from Staff Assignment.</span>
     </div>
 
     <div class="table-wrap effort-template-wrap">

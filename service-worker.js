@@ -1,4 +1,4 @@
-const CACHE='north-terrace-general-v4-0-1-cleaning-compliance-20261008';
+const CACHE='north-terrace-general-v4-1-consolidated-20261009';
 const CACHE_PREFIX='north-terrace-general-';
 const ASSETS=[
   '/NorthTerraceDailyTask/',
@@ -13,6 +13,7 @@ const ASSETS=[
   '/NorthTerraceDailyTask/js/store.js',
   '/NorthTerraceDailyTask/js/ui.js',
   '/NorthTerraceDailyTask/js/general.js',
+  '/NorthTerraceDailyTask/js/task-category.js',
   '/NorthTerraceDailyTask/js/staff.js',
   '/NorthTerraceDailyTask/js/manager.js',
   '/NorthTerraceDailyTask/js/reports.js',

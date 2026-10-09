@@ -1,16 +1,31 @@
-North Terrace V3.2.3 — definitive temperature repair
+NORTH TERRACE DAILY TASK — V4.1 CONSOLIDATED — 09 OCTOBER 2026
 
-Replace:
-- manager.html
-- js/seed.js
-- js/manager.js
-- service-worker.js
+THIS FILE REPLACES ALL OLD V3.x UPLOAD/REPAIR INSTRUCTIONS.
+Never run the legacy 'Repair Temperature Tasks' command or delete Firestore
+records to install this release.
 
-After deployment:
-1. Hard refresh.
-2. Open Manager > Effort Allocation.
-3. Click "Repair Temperature Tasks" once.
+1. Backup the currently deployed GitHub repository and preserve existing Firebase data.
+2. Extract this ZIP locally.
+3. Upload the CONTENTS of NorthTerraceDailyTask-main to the ROOT of the
+   existing GitHub repository sivaseran/NorthTerraceDailyTask.
+   Do not create a nested NorthTerraceDailyTask-main folder in the repository.
+4. Keep js/firebase-config.js exactly as supplied. Existing icon files are
+   unchanged; they do not need replacement if already present.
+5. Wait for GitHub Pages deployment, then open General View in a fresh browser
+   tab and allow the new service worker to update the installed shop PWA.
+6. Follow TEST-REPORT-V4.1.txt / acceptance checklist before relying on the
+   updated app for the rest of the trading day.
 
-The repair reads the actual Firestore weeklyTemplates collection, deletes every legacy
-temperature task not using the canonical temp_0630 ... temp_1430 IDs, recreates the
-nine correct tasks, and cleans today/future daily temperature rows.
+NEW FIRESTORE CONTENT:
+- taskCompletionLedger: completion history protection. Normal/Compliance/Hot
+  Food task completion now writes this collection along with dailyTasks.
+- system/hotFoodLegacyTemplateRetirementV4: one-time, history-preserving
+  retirement marker. Existing completed task records are not deleted.
+
+IMPORTANT: Existing rules must permit authenticated/current application writes
+for new completion-ledger records. This was not tested against production rules
+from the build environment. If task completion fails after deployment, check
+Firestore permissions and restore the prior release if necessary.
+
+RELEASE NOTES: RELEASE-NOTES-V4.1.txt
+TEST REPORT: TEST-REPORT-V4.1.txt
