@@ -1,4 +1,4 @@
-const CACHE='north-terrace-staff-v4-1-1-labels-20261009';
+const CACHE='north-terrace-staff-v4-1-2-compact-hot-food-20261009';
 const PREFIX='north-terrace-staff-';
 const ASSETS=[
 '/NorthTerraceDailyTask/staff-app/','/NorthTerraceDailyTask/staff-app/index.html','/NorthTerraceDailyTask/staff-app/tasks.html','/NorthTerraceDailyTask/staff-app/manifest.json','/NorthTerraceDailyTask/staff-app/app.js','/NorthTerraceDailyTask/staff-app/tasks.js','/NorthTerraceDailyTask/staff-app/icons/icon-192.png','/NorthTerraceDailyTask/staff-app/icons/icon-512.png','/NorthTerraceDailyTask/css/style.css',
