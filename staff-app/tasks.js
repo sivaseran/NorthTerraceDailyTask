@@ -6,6 +6,7 @@ import {ensureHotFoodDay} from '../js/hot-food-engine.js';
 import {completeHotFoodTask} from '../js/hot-food-ui.js';
 import {ensureSpecialTasksForDate,ensureSafeUpgrades} from '../js/special-tasks.js';
 import {completeComplianceTask} from '../js/compliance-ui.js';
+import {reportCategoryForTask} from '../js/task-category.js';
 await ensureFinalV36Schedule();
 await ensureSafeUpgrades();
 
@@ -31,7 +32,7 @@ function render(all){
       ${rows.map(t=>`<article class="task-item">
         <div class="task-time">${t.temperatureRequired&&t.sourceTime?escapeHtml(t.sourceTime):(t.checkpoint?escapeHtml(t.checkpoint):'◷')}</div>
         <div>
-          <h3>${t.hotFood?'<span class="hf-badge">HOT FOOD</span> ':''}${escapeHtml(t.taskName)}</h3>
+          <h3>${escapeHtml(t.taskName)}</h3><small class="task-report-category">${escapeHtml(reportCategoryForTask(t))}</small>
           <div class="task-meta">${Number(t.effortMinutes)>0?`${t.effortMinutes} min effort · `:''}${t.photoRequired?'📷 Send photo to WhatsApp group':'No photo required'}</div>
         </div>
         <div>${statusView(t.status)}</div>
@@ -44,7 +45,9 @@ function render(all){
     b.textContent='Saving…';
     try{
       const task=tasks.find(t=>t.id===b.dataset.id);
-      if(task?.hotFood) await completeHotFoodTask(task,user); else if(task?.specialType==='compliance') await completeComplianceTask(task,user); else await completeTask(b.dataset.id,user);
+      let completed;
+      if(task?.hotFood) completed=await completeHotFoodTask(task,user); else if(task?.specialType==='compliance') completed=await completeComplianceTask(task,user); else { await completeTask(b.dataset.id,user); completed=true; }
+      if(completed===false){b.disabled=false;b.textContent='Complete';return;}
       showToast('Task completed.','success');
     }catch(error){
       b.disabled=false;
