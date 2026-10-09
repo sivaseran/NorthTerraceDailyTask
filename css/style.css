@@ -2290,3 +2290,53 @@ body.general-page .task-report-category,body.staff-pwa-page .task-report-categor
 .sfbb-review-list{padding-left:25px;display:grid;gap:8px;line-height:1.5;margin:12px 0 16px}.sfbb-review-list li{padding-bottom:5px;border-bottom:1px solid #364154}.sfbb-overall-label{display:grid;gap:7px;font-weight:700}.sfbb-overall-label select{min-height:44px;padding:9px;border-radius:9px;background:#fff;color:#183146}
 
 .hf-manager-correction{width:min(560px,95vw)}.hf-correction-fields{display:grid;gap:12px;margin:18px 0}.hf-correction-fields label{display:grid;gap:6px;text-align:left;font-size:13px;font-weight:700;color:#20364d}.hf-correction-fields input{min-height:44px;border:1px solid #a8bdcf;border-radius:8px;background:white;color:#162536;padding:9px}
+
+
+/* V4.1.1 — report category labels: 20px gap, outlined by report category. */
+.task-title-and-category{display:flex;align-items:baseline;flex-wrap:wrap;column-gap:20px;row-gap:5px;min-width:0}
+.task-title-and-category>strong,.task-title-and-category>h3{min-width:0;max-width:100%;overflow-wrap:anywhere;margin:0}
+.task-report-category{--category-ink:#aeb8c8;--category-border:#64748b;display:inline-flex;align-items:center;max-width:100%;border:1.5px solid var(--category-border);border-radius:6px;padding:3px 8px!important;margin:0!important;color:var(--category-ink)!important;font-size:10px;font-weight:750;letter-spacing:.01em;line-height:1.3;background:transparent;white-space:normal;overflow-wrap:anywhere;vertical-align:middle;flex:0 1 auto}
+body.general-page .task-report-category,body.staff-pwa-page .task-report-category{color:var(--category-ink)!important}
+.task-report-category[data-report-category="Temperature Log"]{--category-ink:#67d1ff;--category-border:#0ea5e9}
+.task-report-category[data-report-category="Weekly Safety"]{--category-ink:#ffcf76;--category-border:#f59e0b}
+.task-report-category[data-report-category="Daily Safety"]{--category-ink:#ffa19d;--category-border:#ef4444}
+.task-report-category[data-report-category="SFBB"]{--category-ink:#c4acff;--category-border:#a78bfa}
+.task-report-category[data-report-category="Hot Food"]{--category-ink:#ffb282;--category-border:#f97316}
+.task-report-category[data-report-category="Cleaning"]{--category-ink:#83ebb1;--category-border:#22c55e}
+.task-report-category[data-report-category="Daily Operations"]{--category-ink:#d2d9e3;--category-border:#94a3b8}
+/* Manager has light/dark surfaces; keep badge text readable on both. */
+body:not(.general-page):not(.staff-pwa-page) .task-report-category{color:#1d3348!important;background:#fff!important}
+body:not(.general-page):not(.staff-pwa-page) .task-report-category[data-report-category="Temperature Log"]{color:#036b99!important}
+body:not(.general-page):not(.staff-pwa-page) .task-report-category[data-report-category="Weekly Safety"]{color:#905500!important}
+body:not(.general-page):not(.staff-pwa-page) .task-report-category[data-report-category="Daily Safety"]{color:#b52222!important}
+body:not(.general-page):not(.staff-pwa-page) .task-report-category[data-report-category="SFBB"]{color:#6d36af!important}
+body:not(.general-page):not(.staff-pwa-page) .task-report-category[data-report-category="Hot Food"]{color:#b3470b!important}
+body:not(.general-page):not(.staff-pwa-page) .task-report-category[data-report-category="Cleaning"]{color:#126b38!important}
+.manager-task-editor .task-title-and-category{align-items:baseline}
+/* Tablet landscape: preserve title / badge spacing while allowing wrapping. */
+@media (min-width:700px) and (orientation:landscape){body.general-page .task-title-and-category{column-gap:20px}}
+
+/* V4.1.1 — device-local alarm sound settings; optimized for tablet landscape. */
+.shop-alarm-settings[hidden]{display:none!important}
+.shop-alarm-settings{position:relative;z-index:20;max-width:870px;margin:10px auto 0;padding:15px 18px;border:1px solid #47617d;border-radius:13px;background:#232b3d;color:#f2f3f5;box-shadow:0 10px 30px #080d1780}
+.shop-alarm-settings-head{display:flex;justify-content:space-between;align-items:flex-start;gap:15px}
+.shop-alarm-settings-head h2{margin:0 0 5px;font-size:18px;color:#fff}
+.shop-alarm-settings-head p{margin:0;font-size:12px;color:#bbc7d8}
+.shop-alarm-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:12px 0;padding:0;border:0;min-width:0}
+.shop-alarm-choices legend{margin-bottom:7px;font-weight:750;font-size:13px}
+.shop-alarm-choices label{display:flex;align-items:center;gap:10px;padding:11px;border:1px solid #4a5b72;border-radius:9px;background:#1a2332;cursor:pointer;min-width:0}
+.shop-alarm-choices label:has(input:checked){border-color:#4cc0ff;background:#20364b}
+.shop-alarm-choices input{accent-color:#3db4f2;width:19px;height:19px;flex:none}
+.shop-alarm-choices span{display:grid;gap:3px;min-width:0}
+.shop-alarm-choices strong{color:#f3f8ff;font-size:13px}
+.shop-alarm-choices small{color:#b5c5d8;font-size:11px}
+.shop-alarm-volume{display:grid;gap:8px;margin:12px 0}
+.shop-alarm-volume label{display:flex;justify-content:space-between;gap:10px;color:#e4ebf4;font-weight:700;font-size:13px}
+.shop-alarm-volume output{color:#73ceff}
+.shop-alarm-volume input{width:100%;accent-color:#3db4f2;min-height:30px;cursor:pointer}
+.shop-alarm-settings-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap}
+.shop-alarm-settings-actions .btn,.shop-alarm-settings-head .btn{min-height:44px}
+.shop-alarm-settings-feedback{min-height:1.2em;font-size:12px;color:#b6d7ee;margin:8px 0 0}
+@media(max-width:640px){.shop-alarm-choices{grid-template-columns:1fr}.shop-alarm-settings{margin:9px 10px}.shop-alarm-settings-actions .btn{flex:1}}
+
+@media(max-width:640px){body.general-page #alarmSoundSettingsButton .alarm-sound-button-label{display:none}body.general-page #alarmSoundSettingsButton{min-width:35px;padding:6px!important}}
