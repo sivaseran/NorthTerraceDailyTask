@@ -10,8 +10,11 @@ import {
 import {ensureFinalV36Schedule} from './final-config.js';
 import {initReports} from './reports.js';
 import {initHotFoodManager} from './hot-food-manager.js';
+import {ensureHotFoodDay} from './hot-food-engine.js';
 import {initSpecialManager} from './special-manager.js';
 import {ensureSpecialTasksForDate,ensureSafeUpgrades} from './special-tasks.js';
+import {reportCategoryForTask} from './task-category.js';
+import {getHotFoodConfig} from './hot-food-store.js';
 import {
   escapeHtml,statusView,showToast,confirmAction,setButtonLoading,setInlineMessage,
   setFieldError,clearFieldError,initNetworkStatus,registerAppServiceWorker
@@ -107,7 +110,7 @@ function taskEditor(t){
   return `<article class="manager-task-editor compact-editor ${historical?'historical-task-row':''}" data-id="${t.id}" data-template="${escapeHtml(t.templateTaskId||'')}">
     <div class="compact-task-view dense-task-row">
       <div class="dense-task-main">
-        <strong class="dense-task-title">${escapeHtml(t.taskName||'Untitled task')}</strong>
+        <strong class="dense-task-title">${escapeHtml(t.taskName||'Untitled task')}</strong><small class="task-report-category">${escapeHtml(reportCategoryForTask(t))}</small>
         <div class="dense-task-badges">
           ${t.photoRequired?'<span class="mini-pill photo-pill">📷 Photo</span>':''}
           ${t.recurring?'<span class="mini-pill recurring-pill">↻ Recurring</span>':''}
@@ -141,7 +144,7 @@ function taskEditor(t){
       ${t.legacyAssignee&&(!t.assignedTo)?`<div class="legacy-editor-note">Original source assignment: ${escapeHtml(t.legacyAssignee)}</div>`:''}
       <div class="editor-grid">
         <div class="field editor-name"><label>Task</label><input class="edit-task-name" value="${escapeHtml(t.taskName||'')}"></div>
-        <div class="field"><label>Time</label><input class="edit-time" type="time" value="${escapeHtml(t.sourceTime||'')}"></div>
+        <div class="field"><label>Time Order</label><input class="edit-time" type="time" value="${escapeHtml(t.sourceTime||'')}"></div>
         <div class="field"><label>Slot</label><select class="edit-slot">${slotOptions(t.slotId)}</select></div>
         <div class="field"><label>Task effort (min)</label><input class="edit-effort" type="number" min="1" step="5" placeholder="Optional" value="${Number(t.effortMinutes)>0?Number(t.effortMinutes):''}"></div>
         <div class="field"><label>Assignee</label><select class="edit-assignee">${editorPersonOptions(t)}</select></div>
@@ -163,7 +166,7 @@ function newTaskEditor(slotId){
   return `<div class="new-task-editor" data-new-slot="${slotId}" hidden>
     <div class="editor-grid">
       <div class="field editor-name"><label>New task name</label><input class="new-task-name" placeholder="Task name"></div>
-      <div class="field"><label>Time</label><input class="new-time" type="time"></div>
+      <div class="field"><label>Time Order</label><input class="new-time" type="time"></div>
       <div class="field"><label>Slot</label><select class="new-slot">${slotOptions(slotId)}</select></div>
       <div class="field"><label>Task effort (min)</label><input class="new-effort" type="number" min="1" step="5" placeholder="Optional"></div>
       <div class="field"><label>Assignee</label><select class="new-assignee">${personOptions()}</select></div>
@@ -233,7 +236,7 @@ async function bindDate(){
   // then attached for subsequent live updates. This avoids the blank first-load
   // Schedule Editor that previously appeared until the manager changed dates.
   try{
-    if(selectedDate>=todayISO()){ await ensureSpecialTasksForDate(selectedDate); await ensureTasksForDate(selectedDate);}
+    if(selectedDate>=todayISO()){ await ensureSpecialTasksForDate(selectedDate); await ensureTasksForDate(selectedDate); try{await ensureHotFoodDay(selectedDate);}catch(error){console.warn('Hot Food Manager schedule sync unavailable',error);} }
     const initialRows=await getTasksForDate(selectedDate,{ensure:false});
     renderSchedule(initialRows);
   }catch(error){
@@ -1411,7 +1414,7 @@ function renderEffortMatrix(){
         <strong>${escapeHtml(group.taskName)}</strong>
         <div>
           ${group.recurring?'<span class="mini-pill recurring-pill">Recurring</span>':'<span class="mini-pill">Date only</span>'}
-          ${group.temperatureRequired?'<span class="mini-pill temperature-time-label">Hot food</span>':''}
+          <span class="task-report-category">${escapeHtml(reportCategoryForTask(group.template))}</span>
         </div>
       </th>
 
@@ -1465,8 +1468,9 @@ async function loadEffortAllocation(){
       }
     });
 
+    const hotFoodControlled=(await getHotFoodConfig()).enabled===true;
     effortRowsData=templates
-      .filter(t=>activeMap.has(t.id))
+      .filter(t=>activeMap.has(t.id)&&!(hotFoodControlled&&/^Check hot food temperature\s+\d{1,2}:\d{2}$/i.test(String(t.taskName||'').trim())))
       .map(t=>({...t,_currentActiveWeek:activeMap.get(t.id)}));
     effortDirty.clear();
 
@@ -1637,7 +1641,21 @@ $('#effortMatrixRows').addEventListener('change',e=>{
     // LIVE EDITOR: each weekday is independent. Never copy Monday (or any other
     // day) into blank weekdays because blank means intentionally inactive.
     readEffortGroupDraft(row);
-    renderEffortMatrix(); // re-order rows immediately based on Monday/first active time
+    row.classList.add('effort-row-dirty');
+    updateEffortSummary(); // keep the time input stable; sort on next refresh
+  }
+});
+// Reorder only AFTER editing finishes. Never tear down a focused time input
+// on its first digit. Moving straight to another grid field is also safe.
+$('#effortMatrixRows').addEventListener('focusout',event=>{
+  if(!event.target.matches('.effort-day-time-input'))return;
+  setTimeout(()=>{
+    if(!document.activeElement?.closest('#effortMatrixRows'))renderEffortMatrix();
+  },60);
+});
+$('#effortMatrixRows').addEventListener('keydown',event=>{
+  if(event.target.matches('.effort-day-time-input')&&event.key==='Enter'){
+    event.preventDefault();event.target.blur();setTimeout(renderEffortMatrix,80);
   }
 });
 $('#effortSlotFilter').onchange=renderEffortMatrix;
@@ -1647,6 +1665,49 @@ $('#effortResetFilters').onclick=()=>{
   $('#effortOnlyMissing').checked=false;
   renderEffortMatrix();
 };
+function effortNextEditableDate(dayIndex){
+  let date=effortWeekDates()[dayIndex];
+  while(date<todayISO())date=addDaysISO(date,7);
+  return date;
+}
+function openEffortNewTask(){
+  if(effortDirty.size){setInlineMessage($('#effortResult'),'Save your existing weekly edits before creating a new task.','warning');return;}
+  const panel=$('#effortNewTaskPanel');panel.hidden=false;
+  $('#effortNewName').value='';$('#effortNewMinutes').value='';$('#effortNewPhoto').checked=false;
+  $('#effortNewAssignee').innerHTML=personOptions();
+  $('#effortNewWeek').innerHTML=BULK_DAY_ORDER.map((day,i)=>`<label class="effort-new-day"><span>${BULK_DAY_LABELS[day]} <small>${escapeHtml(effortNextEditableDate(i))}</small></span><input type="time" data-new-day="${day}" aria-label="${BULK_DAY_LABELS[day]} time"></label>`).join('');
+  $('#effortNewError').textContent='';$('#effortNewName').focus();panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+async function createEffortWeeklyTask(){
+  const msg=$('#effortNewError'),name=$('#effortNewName').value.trim(),effort=Number($('#effortNewMinutes').value);
+  const times=BULK_DAY_ORDER.map((day,i)=>({day,date:effortNextEditableDate(i),time:$('#effortNewWeek').querySelector(`[data-new-day="${day}"]`).value})).filter(x=>x.time);
+  msg.textContent='';
+  if(!name){msg.textContent='Enter the task name.';$('#effortNewName').focus();return;}
+  if(!Number.isInteger(effort)||effort<=0){msg.textContent='Enter effort in whole minutes greater than zero.';$('#effortNewMinutes').focus();return;}
+  if(!times.length){msg.textContent='Enter the time for at least one weekday.';return;}
+  if(times.some(x=>!validHHMM(x.time))){msg.textContent='Enter valid HH:MM times.';return;}
+  const btn=$('#effortNewCreate');setButtonLoading(btn,true,'Creating…');
+  try{
+    // Create once, then add the remaining weekdays to that same template ID.
+    // Only the new template is changed. Existing staff schedules/history stay intact.
+    const sorted=[...times].sort((a,b)=>a.date.localeCompare(b.date));
+    const first=sorted[0],assignedTo=$('#effortNewAssignee').value,photoRequired=$('#effortNewPhoto').checked;
+    const base={taskName:name,sourceTime:first.time,slotId:slotFromTime(first.time),assignedTo,effortMinutes:effort,photoRequired};
+    const created=await createTaskForDate(first.date,base,'future',user);
+    const templateId=created.slice(first.date.length+1);
+    for(const day of sorted.slice(1)){
+      await saveFutureRule(templateId,day.date,{...base,sourceTime:day.time,slotId:slotFromTime(day.time),active:true},user);
+    }
+    for(const day of sorted){if(day.date>=todayISO())await reconcileDailyTasksForDate(day.date);}
+    $('#effortNewTaskPanel').hidden=true;
+    showToast(`Created “${name}” on ${times.length} weekday${times.length===1?'':'s'}.`,'success');
+    await loadEffortAllocation();
+  }catch(error){msg.textContent=error.message||'Could not create the task. Check the schedule before retrying to avoid duplicates.';console.error(error);}
+  finally{setButtonLoading(btn,false);}
+}
+$('#effortAddTask').onclick=openEffortNewTask;
+$('#effortNewCancel').onclick=()=>{$('#effortNewTaskPanel').hidden=true;};
+$('#effortNewCreate').onclick=createEffortWeeklyTask;
 $('#effortSaveTemplate').onclick=saveWeeklyEffortSetup;
 
 

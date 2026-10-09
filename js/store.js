@@ -1,7 +1,7 @@
 import {SUNDAY_ROTATION_ANCHOR,SUNDAY_ROTATION} from './final-config.js';
 import {
   db,collection,doc,getDoc,getDocs,setDoc,updateDoc,deleteDoc,query,where,
-  onSnapshot,serverTimestamp,writeBatch
+  onSnapshot,serverTimestamp,writeBatch,runTransaction
 } from './firebase.js';
 
 export const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -449,6 +449,9 @@ export async function reconcileDailyTasksForDate(date){
 
     used.add(matchIndex);
     const e=existing[matchIndex];
+    // Historical completions and explicit workflow cancellations are immutable;
+    // do not rewrite their task details or silently return them to pending.
+    if(e.status==='completed'||(e.status==='cancelled'&&e.cancelReason!=='Removed from current schedule'))continue;
 
     // Only preserve an assignment as a date-only override when the manager
     // explicitly saved it for this date. Older snapshots used assignment
@@ -481,7 +484,15 @@ export async function reconcileDailyTasksForDate(date){
       patch.cancelledAt=null;
     }
 
-    operations.push({type:'update',ref:e.ref,data:patch});
+    // Avoid a Firestore write when the saved snapshot already matches the plan.
+    // This is important on the always-on Galaxy shop tablet and for free quotas.
+    // It also avoids unnecessary touches to operational records.
+    const differs=Object.entries(patch).some(([key,value])=>{
+      if(key==='updatedAt')return false;
+      const previous=e[key];
+      return !(previous===value||(previous==null&&value==null));
+    });
+    if(differs)operations.push({type:'update',ref:e.ref,data:patch});
   }
 
   // Anything left is a saved template task that no longer belongs on this day.
@@ -494,14 +505,35 @@ export async function reconcileDailyTasksForDate(date){
     operations.push({type:'update',ref:e.ref,data:{status:'cancelled',cancelReason:'Removed from current schedule',cancelledAt:serverTimestamp(),updatedAt:serverTimestamp()}});
   });
 
+  // A plain batch.set() can overwrite a task completed by a different browser
+  // between snapshot-read and batch-commit. Create missing rows conditionally
+  // in a Firestore transaction, and consult the durable completion ledger.
   let created=0,updated=0,removed=0;
-  for(let i=0;i<operations.length;i+=350){
+  const inserts=operations.filter(op=>op.type==='set');
+  for(let i=0;i<inserts.length;i+=120){
+    const chunk=inserts.slice(i,i+120);
+    created+=await runTransaction(db,async tx=>{
+      const observed=await Promise.all(chunk.map(op=>tx.get(op.ref)));
+      // All transaction reads must happen before any writes.
+      const ledgers=await Promise.all(chunk.map((op,j)=>observed[j].exists()?Promise.resolve(null):tx.get(doc(db,'taskCompletionLedger',op.ref.id))));
+      let wrote=0;
+      chunk.forEach((op,j)=>{
+        if(observed[j].exists())return; // another device already created/completed it
+        const prior=ledgers[j]?.data();
+        const data=prior?.status==='completed'?{
+          ...op.data,status:'completed',completedAt:prior.completedAt||serverTimestamp(),
+          completedByUserId:prior.completedByUserId||'',completedByName:prior.completedByName||'',
+          restoredFromCompletionLedger:true
+        }:op.data;
+        tx.set(op.ref,data);wrote++;
+      });
+      return wrote;
+    });
+  }
+  const updates=operations.filter(op=>op.type==='update');
+  for(let i=0;i<updates.length;i+=350){
     const batch=writeBatch(db);
-    for(const op of operations.slice(i,i+350)){
-      if(op.type==='set'){ batch.set(op.ref,op.data); created++; }
-      else if(op.type==='update'){ batch.update(op.ref,op.data); updated++; }
-      else if(op.type==='delete'){ batch.delete(op.ref); removed++; }
-    }
+    for(const op of updates.slice(i,i+350)){batch.update(op.ref,op.data);updated++;}
     await batch.commit();
   }
 
@@ -550,23 +582,43 @@ export function watchTasksForDate(date,cb,onError=()=>{}){
   return onSnapshot(q,s=>cb(sortTasks(s.docs.map(normaliseDaily))),onError);
 }
 
-export async function completeTask(id,user,extra={}){
-  const patch={
-    status:'completed',completedAt:serverTimestamp(),
-    completedByUserId:user.id,completedByName:user.name||'Staff',
-    updatedAt:serverTimestamp()
-  };
+export async function completeTask(id,user,extra={},linkedRecord=null){
+  const ref=doc(db,'dailyTasks',id),snap=await getDoc(ref);
+  if(!snap.exists())throw new Error('Task does not exist. Refresh the task list.');
+  if(snap.data().status==='cancelled')throw new Error('This task has been cancelled. Refresh the task list.');
+  if(snap.data().status==='completed')throw new Error('This task is already completed. Refresh the task list.');
+  const completedAt=serverTimestamp();
+  const patch={status:'completed',completedAt,completedByUserId:user.id,completedByName:user.name||'Staff',updatedAt:serverTimestamp()};
   if(Object.prototype.hasOwnProperty.call(extra,'temperatureC')){
+    if(extra.temperatureC===null||extra.temperatureC==='')throw new Error('Enter a valid temperature in °C.');
     const value=Number(extra.temperatureC);
-    if(!Number.isFinite(value)||value<-50||value>200) throw new Error('Enter a valid temperature in °C.');
+    if(!Number.isFinite(value)||value<-50||value>200)throw new Error('Enter a valid temperature in °C.');
     patch.temperatureC=value;
   }
-  await updateDoc(doc(db,'dailyTasks',id),patch);
+  // Only accepted operational result fields, not arbitrary task identity/assignment.
+  for(const key of ['hotFoodResult','hotFoodSessionId','hotFoodCheckId','actualReadingTime','hotFoodExpiryResult']){
+    if(Object.prototype.hasOwnProperty.call(extra,key))patch[key]=extra[key];
+  }
+  const batch=writeBatch(db);
+  batch.update(ref,patch);
+  // Compliance report record and completion are committed together.
+  if(linkedRecord){
+    if(linkedRecord.collection!=='complianceRecords'||linkedRecord.id!==id)throw new Error('Unsupported linked task record.');
+    batch.set(doc(db,'complianceRecords',id),{...linkedRecord.data,completedAt,updatedAt:serverTimestamp()},{merge:true});
+  }
+  batch.set(doc(db,'taskCompletionLedger',id),{
+    taskId:id,date:snap.data().date,status:'completed',completedAt,
+    completedByUserId:user.id,completedByName:user.name||'Staff',updatedAt:serverTimestamp()
+  });
+  await batch.commit();
 }
 export async function uncompleteTask(id){
-  await updateDoc(doc(db,'dailyTasks',id),{
-    status:'pending',completedAt:null,completedByUserId:'',completedByName:'',updatedAt:serverTimestamp()
-  });
+  const ref=doc(db,'dailyTasks',id),snap=await getDoc(ref);
+  if(!snap.exists())throw new Error('Task does not exist.');
+  const batch=writeBatch(db);
+  batch.update(ref,{status:'pending',completedAt:null,completedByUserId:'',completedByName:'',updatedAt:serverTimestamp()});
+  batch.set(doc(db,'taskCompletionLedger',id),{taskId:id,date:snap.data().date,status:'pending',updatedAt:serverTimestamp()});
+  await batch.commit();
 }
 export async function updateDailyTask(id,changes,actor){
   await updateDoc(doc(db,'dailyTasks',id),{
@@ -709,7 +761,7 @@ export async function saveFutureRule(templateTaskId,date,changes,actor){
   let touched=0;
   future.docs.forEach(d=>{
     const x=d.data();
-    if(x.templateTaskId===templateTaskId&&dayKey(x.date)===dkey){
+    if(x.templateTaskId===templateTaskId&&dayKey(x.date)===dkey&&x.status!=='completed'&&x.status!=='cancelled'){
       const patch={
         taskName:changes.taskName??x.taskName,
         effortMinutes:next.effortMinutes,
@@ -739,7 +791,7 @@ export async function createTaskForDate(date,data,scope,actor){
     const dkey=dayKey(date);
     schedule[dkey]={versions:[{
       effectiveFrom:date,active:true,slotId:data.slotId,assigneeId:data.assignedTo||'',
-      assigneeKey:'',legacyAssignee:'',effortMinutes:data.effortMinutes??null,sourceTime:''
+      assigneeKey:'',legacyAssignee:'',effortMinutes:data.effortMinutes??null,sourceTime:data.sourceTime||''
     }]};
     await setDoc(doc(db,'weeklyTemplates',templateId),{
       taskName:data.taskName,photoRequired:Boolean(data.photoRequired),recurring:false,
@@ -751,7 +803,7 @@ export async function createTaskForDate(date,data,scope,actor){
 
   await setDoc(doc(db,'dailyTasks',dailyId),{
     date,templateTaskId:scope==='future'?templateId:'',
-    taskName:data.taskName,slotId:data.slotId,sourceTime:'',
+    taskName:data.taskName,slotId:data.slotId,sourceTime:data.sourceTime||'',
     effortMinutes:data.effortMinutes??null,
     originalAssignedTo:data.assignedTo||'',originalAssignedName:name,
     assignedTo:data.assignedTo||'',assignedName:name,

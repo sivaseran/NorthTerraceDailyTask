@@ -60,6 +60,30 @@ function reportHtml(data,start,end,signoffs=[]){
 async function loadReport(){const a=$('#hfReportFrom')?.value,b=$('#hfReportTo')?.value;if(!a||!b)return;if(a>b){showToast('From date must be before To date.','warning');return;}const data=await getHotFoodComplianceData(a,b);const signoffs=[];let w=mondayOf(a);while(w<=b){signoffs.push(await getWeekSignoff(w));const d=new Date(w+'T12:00:00');d.setDate(d.getDate()+7);w=iso(d);}$('#hfReportStatus').innerHTML=`<b>${data.batches.length}</b> production rows · <b>${data.checks.length}</b> reading event(s) · <b>${data.exceptions.length}</b> exception(s) · <b>${signoffs.filter(x=>x.status==='signed').length}/${signoffs.length}</b> week(s) signed`;$('#hfReportPreview').innerHTML=reportHtml(data,a,b,signoffs);}
 async function loadSignoff(){const d=$('#hfSignoffDate')?.value;if(!d)return;const s=await getWeekSignoff(d),data=await getHotFoodComplianceData(s.weekStart,s.weekEnd);$('#hfSignoffSummary').innerHTML=`<div class="hf-sign-card"><b>${s.weekStart} — ${s.weekEnd}</b><span class="hf-pill ${s.status==='signed'?'good':'muted'}">${s.status==='signed'?'SIGNED':'DRAFT'}</span><p>${data.batches.length} production row(s) · ${data.checks.length} reading event(s) · <b>${data.exceptions.length} exception(s)</b></p>${s.status==='signed'?`<p>Signed by ${escapeHtml(s.signedByName||'Manager')} ${s.signedAtMs?new Date(s.signedAtMs).toLocaleString('en-GB'):''}</p>`:''}</div>`;$('#hfSignWeek').disabled=s.status==='signed';$('#hfReopenWeek').disabled=s.status!=='signed';if(s.comment)$('#hfSignoffComment').value=s.comment;}
 
+// Correct records in a stable, editable form. Native browser prompts discard
+// all values when a later validation/save fails, so never use them here.
+function editReportRecord(title,fields,save){
+  return new Promise(resolve=>{
+    const wrap=document.createElement('div');wrap.className='modal-overlay hf-modal-overlay';
+    wrap.innerHTML=`<section class="modal hf-modal hf-manager-correction" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}"><h2>${escapeHtml(title)}</h2><div class="hf-correction-fields">${fields.map(f=>`<label>${escapeHtml(f.label)}<input data-correction="${escapeHtml(f.key)}" type="${f.type||'text'}" step="${f.type==='number'?'0.1':''}" value="${escapeHtml(f.value??'')}" placeholder="${escapeHtml(f.placeholder||'')}"></label>`).join('')}</div><div class="hf-validation-error" role="alert" aria-live="assertive"></div><div class="modal-actions"><button type="button" class="btn secondary" data-cancel>Cancel</button><button type="button" class="btn" data-save>Save Correction</button></div></section>`;
+    document.body.append(wrap);
+    const button=wrap.querySelector('[data-save]'),error=wrap.querySelector('.hf-validation-error');
+    const close=ok=>{wrap.remove();resolve(ok);};
+    wrap.querySelector('[data-cancel]').onclick=()=>{if(!button.disabled)close(false);};
+    button.onclick=async()=>{
+      const values=Object.fromEntries(fields.map(f=>[f.key,wrap.querySelector(`[data-correction="${f.key}"]`).value]));
+      try{
+        for(const key of Object.keys(values)){
+          if(/time/i.test(key)&&values[key]&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(values[key]))throw new Error('Enter times as HH:MM.');
+        }
+        if('coreTempC'in values&&(values.coreTempC.trim()===''||!Number.isFinite(Number(values.coreTempC))||Number(values.coreTempC)<-50||Number(values.coreTempC)>200))throw new Error('Core temperature must be between −50°C and 200°C.');
+        if('quantityWasted'in values&&(!/^\d+$/.test(values.quantityWasted)))throw new Error('Quantity wasted must be a whole number of zero or more.');
+        button.disabled=true;button.textContent='Saving…';error.textContent='';
+        await save(values);close(true);
+      }catch(e){error.textContent=e?.message||'Could not save. Entries are still here for correction.';button.disabled=false;button.textContent='Save Correction';}
+    };
+  });
+}
 export async function initHotFoodManager(){
   if(!$('#hotfood')) return;
   await ensureInitialCookingBaseline(user);
@@ -125,7 +149,32 @@ export async function initHotFoodManager(){
   };
 
   const today=iso(new Date()); if($('#hfReportFrom')){$('#hfReportFrom').value=today;$('#hfReportTo').value=today;$('#hfSignoffDate').value=today;}
-  $('#hfReportPreview')?.addEventListener('click',async e=>{try{const b=e.target.closest('.hf-correct-batch');if(b){const row=(await getHotFoodComplianceData($('#hfReportFrom').value,$('#hfReportTo').value)).batches.find(x=>x.id===b.dataset.id);if(!row)return;const core=prompt('Correct core temperature °C',row.coreTempC??'');if(core===null)return;const sell=prompt('Correct Sell Out Time (HH:MM, blank if not sold out)',row.sellOutTime||'');if(sell===null)return;const waste=prompt('Correct Quantity Wasted',row.quantityWasted||0);if(waste===null)return;await managerCorrectHotFoodRecord('batch',row.id,{coreTempC:Number(core),sellOutTime:sell,quantityWasted:Number(waste)},user);showToast('Production record corrected; original values retained in audit.','success');await loadReport();return;}const c=e.target.closest('.hf-correct-check');if(c){const t=prompt('Correct actual reading time (HH:MM)',c.dataset.time||'');if(t===null||!t)return;await managerCorrectHotFoodRecord('check',c.dataset.id,{actualReadingTime:t},user);showToast('Reading time corrected; original value retained in audit.','success');await loadReport();}}catch(err){showToast(err.message||'Could not correct record.','error')}});
+  $('#hfReportPreview')?.addEventListener('click',async event=>{
+    try{
+      const batchButton=event.target.closest('.hf-correct-batch');
+      if(batchButton){
+        const data=await getHotFoodComplianceData($('#hfReportFrom').value,$('#hfReportTo').value);
+        const row=data.batches.find(x=>x.id===batchButton.dataset.id);if(!row)return;
+        const saved=await editReportRecord('Correct Hot Food production record',[
+          {key:'coreTempC',label:'Core temperature °C',type:'number',value:row.coreTempC??''},
+          {key:'sellOutTime',label:'Sell Out Time (if sold)',type:'time',value:row.sellOutTime||''},
+          {key:'quantityWasted',label:'Quantity wasted',type:'number',value:row.quantityWasted||0}
+        ],async values=>managerCorrectHotFoodRecord('batch',row.id,{coreTempC:Number(values.coreTempC),sellOutTime:values.sellOutTime,quantityWasted:Number(values.quantityWasted)},user));
+        if(saved){showToast('Production record corrected; original retained in audit.','success');await loadReport();}
+        return;
+      }
+      const checkButton=event.target.closest('.hf-correct-check');
+      if(checkButton){
+        const saved=await editReportRecord('Correct temperature reading time',[
+          {key:'actualReadingTime',label:'Actual reading time (HH:MM)',type:'time',value:checkButton.dataset.time||''}
+        ],async values=>{
+          if(!values.actualReadingTime)throw new Error('Enter the actual reading time.');
+          await managerCorrectHotFoodRecord('check',checkButton.dataset.id,{actualReadingTime:values.actualReadingTime},user);
+        });
+        if(saved){showToast('Reading time corrected; original retained in audit.','success');await loadReport();}
+      }
+    }catch(error){showToast(error.message||'Could not correct record.','error');}
+  });
   $('#hfReportFrom')?.addEventListener('change',loadReport);$('#hfReportTo')?.addEventListener('change',loadReport);
   $('#hfReportToday')?.addEventListener('click',()=>{$('#hfReportFrom').value=today;$('#hfReportTo').value=today;loadReport()});
   $('#hfReportWeek')?.addEventListener('click',()=>{$('#hfReportFrom').value=mondayOf(today);$('#hfReportTo').value=sundayOf(today);loadReport()});

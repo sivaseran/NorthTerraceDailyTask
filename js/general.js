@@ -10,6 +10,7 @@ import {ensureHotFoodDay} from './hot-food-engine.js';
 import {completeHotFoodTask,renderStartHotFoodButton} from './hot-food-ui.js';
 import {ensureSpecialTasksForDate,ensureSafeUpgrades} from './special-tasks.js';
 import {completeComplianceTask} from './compliance-ui.js';
+import {reportCategoryForTask} from './task-category.js';
 
 await ensureFinalV36Schedule();
 await ensureSafeUpgrades();
@@ -172,9 +173,9 @@ function renderDay(tasks,{skipAlertCheck=false}={}){
       </div>
 
       <div class="ops-task-list live-slot-task-list">
-        ${rows.map(t=>`<article class="ops-task-row ${t.status==='overdue'?'is-overdue-task':''}">
+        ${rows.map(t=>`<article class="ops-task-row ${t.status==='overdue'?'is-overdue-task':''}" data-task-id="${escapeHtml(t.id)}">
           <div class="ops-task-main">
-            <strong>${t.hotFood?'<span class="hf-badge">HOT FOOD</span> ':''}${escapeHtml(t.taskName)}${t.checkpoint?` · ${escapeHtml(t.checkpoint)}`:''}</strong>
+            <strong>${escapeHtml(t.taskName)}${t.checkpoint?` · ${escapeHtml(t.checkpoint)}`:''}</strong><small class="task-report-category">${escapeHtml(reportCategoryForTask(t))}</small>
             <div class="ops-task-meta">
               <span class="${!t.assignedTo?'general-unassigned':''}">${escapeHtml(t.assignedName||'Unassigned')}</span>
               <span>•</span><span>${escapeHtml(fmtEffort(t.effortMinutes))}</span>
@@ -282,7 +283,7 @@ async function playAlarm({due=false,test=false}={}){
       osc.type='sine';
       osc.frequency.setValueAtTime(test?720:880,start+i*0.30);
       gain.gain.setValueAtTime(0.0001,start+i*0.30);
-      gain.gain.exponentialRampToValueAtTime(test?0.10:0.22,start+i*0.30+0.02);
+      gain.gain.exponentialRampToValueAtTime(test?0.10:0.14,start+i*0.30+0.02);
       gain.gain.exponentialRampToValueAtTime(0.0001,start+i*0.30+0.18);
       osc.connect(gain);
       gain.connect(audioContext.destination);
@@ -343,9 +344,26 @@ function startActiveAlarmLoop(){stopActiveAlarmLoop();activeAlarmLoop=setInterva
 function showAlarmPanel(rows){
   let panel=document.querySelector('#shopAlarmPanel');
   if(!panel){panel=document.createElement('div');panel.id='shopAlarmPanel';panel.className='shop-alarm-panel';document.body.appendChild(panel);}
-  panel.innerHTML=`<strong>⚠ ${rows.length} task${rows.length===1?'':'s'} require attention</strong><span>${rows.slice(0,3).map(x=>escapeHtml(x.taskName)).join(' · ')}</span><button type="button" class="btn">Acknowledge / Stop Alarm</button>`;
+  panel.innerHTML=`<strong>⚠ ${rows.length} task${rows.length===1?'':'s'} require attention</strong><span>${rows.slice(0,3).map(x=>escapeHtml(x.taskName)).join(' · ')}</span><button type="button" class="btn shop-alarm-view">View Tasks</button><button type="button" class="btn secondary shop-alarm-stop">Stop Alarm</button>`;
   panel.hidden=false;
-  panel.querySelector('button').onclick=()=>{panel.hidden=true;stopActiveAlarmLoop();localStorage.setItem('ntAlarmAckUntil',String(Date.now()+10*60*1000));if(overdueRepeatTimer)clearTimeout(overdueRepeatTimer);overdueRepeatTimer=setTimeout(()=>fireOverdueAlarm(),10*60*1000);};
+  const acknowledge=()=>{
+    panel.hidden=true;stopActiveAlarmLoop();
+    localStorage.setItem('ntAlarmAckTasks',JSON.stringify(rows.map(x=>x.id)));
+    localStorage.setItem('ntAlarmAckUntil',String(Date.now()+10*60*1000));
+    if(overdueRepeatTimer)clearTimeout(overdueRepeatTimer);
+    overdueRepeatTimer=setTimeout(()=>fireOverdueAlarm(),10*60*1000);
+  };
+  panel.querySelector('.shop-alarm-stop').onclick=acknowledge;
+  panel.querySelector('.shop-alarm-view').onclick=()=>{
+    const first=rows[0];acknowledge();
+    if(!first)return;
+    expandedSlots.add(first.slotId);
+    renderDay(currentTasks,{skipAlertCheck:true});
+    const target=[...document.querySelectorAll('[data-task-id]')].find(n=>n.dataset.taskId===first.id);
+    target?.scrollIntoView({behavior:'smooth',block:'center'});
+    target?.classList.add('alarm-task-highlight');
+    const button=target?.querySelector('.complete-public');button?.focus({preventScroll:true});
+  };
 }
 async function fireTaskWarning(task,minutesBefore){
   if(!alertsArmed||task.status==='completed'||task.status==='cancelled')return;
@@ -355,8 +373,15 @@ async function fireTaskWarning(task,minutesBefore){
   if(minutesBefore===0) fireOverdueAlarm();
 }
 async function fireOverdueAlarm(){
-  if(!alertsArmed){stopActiveAlarmLoop();return;}const ack=Number(localStorage.getItem('ntAlarmAckUntil')||0);if(Date.now()<ack){stopActiveAlarmLoop();return;}
-  const rows=currentTasks.filter(t=>t.status!=='completed'&&t.status!=='cancelled'&&taskDueDate(t)&&taskDueDate(t).getTime()<=Date.now());if(!rows.length){stopActiveAlarmLoop();const panel=document.querySelector('#shopAlarmPanel');if(panel)panel.hidden=true;return;}
+  if(!alertsArmed){stopActiveAlarmLoop();return;}
+  if(selectedDate!==todayISO()||mode!=='day'){stopActiveAlarmLoop();return;}
+  const rows=currentTasks.filter(t=>t.status!=='completed'&&t.status!=='cancelled'&&taskDueDate(t)&&taskDueDate(t).getTime()<=Date.now());
+  if(!rows.length){stopActiveAlarmLoop();const panel=document.querySelector('#shopAlarmPanel');if(panel)panel.hidden=true;return;}
+  const ack=Number(localStorage.getItem('ntAlarmAckUntil')||0);
+  const acknowledged=new Set(JSON.parse(localStorage.getItem('ntAlarmAckTasks')||'[]'));
+  if(Date.now()<ack&&rows.every(t=>acknowledged.has(t.id))){stopActiveAlarmLoop();return;}
+  if(Date.now()<ack){localStorage.removeItem('ntAlarmAckUntil');} // a NEW due task rings immediately
+
   showAlarmPanel(rows);await playAlarm({due:true});startActiveAlarmLoop();await showSystemNotification('North Terrace — tasks require attention',`${rows.length} task${rows.length===1?'':'s'} due/overdue. Open General View and acknowledge.`,`nt-overdue-${todayISO()}`);
   if(overdueRepeatTimer)clearTimeout(overdueRepeatTimer);overdueRepeatTimer=setTimeout(()=>{localStorage.removeItem('ntAlarmAckUntil');fireOverdueAlarm();},10*60*1000);
 }
@@ -406,7 +431,7 @@ function updateAlertButton(){
   btn.textContent=alertsArmed?'Alerts On':'Enable Alerts';
   btn.classList.toggle('alerts-active',alertsArmed);
   btn.title=alertsArmed
-    ?'Overdue sound and notifications are enabled. Tap to pause.'
+    ?'Overdue sound is enabled; tap to pause or use the Test Alarm button.'
     :'Enable overdue sound, notifications and keep-screen-awake support.';
 }
 
@@ -463,9 +488,11 @@ async function completeFromGeneral(task){
       });
       if(!ok) return;
     }
-    if(task.hotFood) await completeHotFoodTask(task,user);
-    else if(task.specialType==='compliance') await completeComplianceTask(task,user);
-    else await completeTask(task.id,user);
+    let completed;
+    if(task.hotFood) completed=await completeHotFoodTask(task,user);
+    else if(task.specialType==='compliance') completed=await completeComplianceTask(task,user);
+    else { await completeTask(task.id,user); completed=true; }
+    if(completed===false) return;
     showToast(`Completed by ${user.name||'staff'}.`,'success',{title:'Task completed'});
   }catch(error){
     showToast(error.message||'Could not complete the task.','error',{title:'Completion failed'});
@@ -530,6 +557,7 @@ document.addEventListener('keydown',e=>{
   }
 });
 
+$('#testShopAlarm')?.addEventListener('click',async()=>{const wasArmed=alertsArmed;alertsArmed=true;await ensureAudioContext();await playAlarm({test:true});alertsArmed=wasArmed;showToast('Test beep played. Adjust Galaxy Tab media volume if needed.','info');});
 $('#enableAlerts').onclick=async()=>{
   if(alertsArmed) await disableAlerts();
   else await enableAlerts();
