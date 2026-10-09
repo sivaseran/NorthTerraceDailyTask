@@ -13,10 +13,27 @@
   <div class="top-actions">
     <span id="connectionStatus" class="connection-pill"><span class="connection-dot"></span>Checking…</span>
     <span id="liveClock" class="clock"></span>
-    <button id="enableAlerts" class="btn secondary alert-toggle-btn" type="button" title="Enable overdue sound and tablet notifications"><span class="desktop-label">Enable Alerts</span><span class="mobile-label">Alerts</span></button> <button id="testShopAlarm" type="button" class="btn secondary small" title="Test the shop alarm sound">Test Alarm</button>
+    <button id="enableAlerts" class="btn secondary alert-toggle-btn" type="button" title="Enable overdue sound and tablet notifications"><span class="desktop-label">Enable Alerts</span><span class="mobile-label">Alerts</span></button> <button id="testShopAlarm" type="button" class="btn secondary small" title="Test the saved shop alarm sound">Test Alarm</button><button id="alarmSoundSettingsButton" type="button" class="btn secondary small" aria-label="Alarm sound settings" aria-controls="alarmSoundSettings" aria-expanded="false" title="Choose alarm sound and volume">🔊 <span class="alarm-sound-button-label">Alarm Sound</span></button>
     <a class="btn general-login-btn" href="login.html" title="Staff / Manager Login"><span class="desktop-label">Staff / Manager Login</span><span class="mobile-label">Login</span></a>
   </div>
 </header>
+
+<section id="alarmSoundSettings" class="shop-alarm-settings" aria-labelledby="alarmSoundSettingsTitle" hidden>
+  <div class="shop-alarm-settings-head">
+    <div><h2 id="alarmSoundSettingsTitle">Shop alarm sound</h2><p>Only changes the alarm on this device. The tablet media volume must also be turned up.</p></div>
+    <button id="closeAlarmSoundSettings" class="btn secondary small" type="button" aria-label="Close alarm settings">✕</button>
+  </div>
+  <fieldset class="shop-alarm-choices">
+    <legend>Choose a sound</legend>
+    <label><input type="radio" name="ntAlarmTone" value="classic"> <span><strong>Classic Beep</strong><small>Three clear electronic beeps</small></span></label>
+    <label><input type="radio" name="ntAlarmTone" value="double"> <span><strong>Double Beep</strong><small>Two short tones, then a pause</small></span></label>
+    <label><input type="radio" name="ntAlarmTone" value="chime"> <span><strong>Soft Chime</strong><small>Gentle two-tone chime</small></span></label>
+    <label><input type="radio" name="ntAlarmTone" value="attention"> <span><strong>Attention Alert</strong><small>Alternating high and low notes</small></span></label>
+  </fieldset>
+  <div class="shop-alarm-volume"><label for="alarmVolume">Alarm volume <output id="alarmVolumeValue" for="alarmVolume">55%</output></label><input id="alarmVolume" type="range" min="10" max="100" step="5" value="55"></div>
+  <div class="shop-alarm-settings-actions"><button id="previewAlarmSound" class="btn secondary" type="button">▶ Test Sound</button><button id="cancelAlarmSoundSettings" class="btn secondary" type="button">Cancel</button><button id="saveAlarmSoundSettings" class="btn" type="button">Save Settings</button></div>
+  <p id="alarmSoundFeedback" class="shop-alarm-settings-feedback" role="status" aria-live="polite"></p>
+</section>
 
 <main class="container">
   <div class="page-heading">
