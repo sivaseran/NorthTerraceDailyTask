@@ -2431,3 +2431,28 @@ body:not(.general-page):not(.staff-pwa-page) .task-report-category[data-report-c
 .hf-modal.hf-compact .hf-compact-top{min-height:38px}
 .hf-modal.hf-compact .hf-cook-grid,.hf-modal.hf-compact .hf-temp-grid{gap:3px}
 .hf-modal.hf-compact .hf-grid-caption{padding-top:4px;padding-bottom:4px}
+
+/* V4.1.2: General View compact right-aligned staff identity and status */
+body.general-page .ops-task-row{grid-template-columns:minmax(0,1fr) auto}
+body.general-page .ops-task-actions{display:flex;align-items:center;gap:12px;justify-content:flex-end}
+body.general-page .general-assignee-badge{display:inline-flex;align-items:center;justify-content:center;max-width:145px;overflow-wrap:anywhere;text-align:center;padding:5px 9px;border-radius:8px;font-size:11px;font-weight:800;border:1px solid currentColor;line-height:1.2}
+body.general-page .assignee-color-0{color:#1678bf;background:#e4f3ff}
+body.general-page .assignee-color-1{color:#8a4bbb;background:#f3eafa}
+body.general-page .assignee-color-2{color:#008476;background:#ddf8f2}
+body.general-page .assignee-color-3{color:#ae5b13;background:#fff0d8}
+body.general-page .assignee-color-4{color:#c04d77;background:#ffe8f0}
+body.general-page .assignee-color-5{color:#5364c3;background:#e9edff}
+body.general-page .assignee-color-6{color:#4e8428;background:#edf8df}
+body.general-page .assignee-color-7{color:#a34d40;background:#ffebe6}
+body.general-page .assignee-color-8{color:#137d99;background:#e1f6fb}
+body.general-page .assignee-color-9{color:#7a639d;background:#f1edfa}
+body.general-page .assignee-unassigned{color:#677282;background:#edf0f4}
+@media(max-width:600px){body.general-page .ops-task-row{grid-template-columns:minmax(0,1fr)}body.general-page .ops-task-actions{justify-content:flex-end}}
+
+/* V4.1.2 mandatory foreground update prompt */
+#ntUpdateOverlay{position:fixed;inset:0;z-index:99999;background:rgba(10,18,33,.83);display:flex;align-items:center;justify-content:center;padding:20px}
+.nt-update-panel{background:#fff;color:#17263d;border-radius:18px;box-shadow:0 20px 70px #0007;padding:26px;max-width:420px;width:100%;text-align:center}
+.nt-update-panel h2{font-size:23px;margin:8px 0 12px;color:#17263d}.nt-update-panel p{font-size:14px;line-height:1.5;color:#42536a}
+.nt-update-panel .nt-update-symbol{font-size:36px;color:#0874cd}.nt-update-panel .nt-update-note{font-size:12px;color:#277553}
+#ntUpdateApply{width:100%;background:#0874cd;color:white;border:0;border-radius:10px;padding:14px;font-weight:800;cursor:pointer}
+#ntUpdateApply:disabled{opacity:.65}#ntUpdateStatus{min-height:1em;font-size:12px}
