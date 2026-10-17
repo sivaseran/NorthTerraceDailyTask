@@ -230,31 +230,46 @@ export function tableSkeleton(cols=5, rows=5) {
   return Array.from({length: rows}, () => `<tr class="skeleton-row">${Array.from({length:cols}, () => '<td><span class="skeleton-line"></span></td>').join('')}</tr>`).join('');
 }
 
+let ntUpdateDialogVisible=false;
+function showAppUpdateDialog(worker){
+  if(ntUpdateDialogVisible||!worker) return;
+  ntUpdateDialogVisible=true;
+  const overlay=document.createElement('div');
+  overlay.id='ntUpdateOverlay';
+  overlay.setAttribute('role','dialog');
+  overlay.setAttribute('aria-modal','true');
+  overlay.setAttribute('aria-label','New app version available');
+  overlay.innerHTML=`<div class="nt-update-panel"><div class="nt-update-symbol">↻</div><h2>New app update available</h2><p>A new version of North Terrace Daily Task is ready. Update now to continue using the latest version.</p><p class="nt-update-note">Your saved tasks and Firebase records will not be deleted.</p><button type="button" id="ntUpdateApply">Update & Reload</button><p id="ntUpdateStatus" aria-live="polite"></p></div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#ntUpdateApply').addEventListener('click',()=>{
+    const button=overlay.querySelector('#ntUpdateApply');
+    button.disabled=true;button.textContent='Updating…';
+    overlay.querySelector('#ntUpdateStatus').textContent='Applying the latest version…';
+    let handled=false;
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      if(!handled){handled=true;location.reload();}
+    });
+    worker.postMessage({type:'SKIP_WAITING'});
+    // A retry remains available if the browser does not switch controllers.
+    setTimeout(()=>{if(!handled){button.disabled=false;button.textContent='Retry update';overlay.querySelector('#ntUpdateStatus').textContent='Update is taking longer than expected. Please retry.';}},12000);
+  });
+}
 export function registerAppServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   navigator.serviceWorker.register('/NorthTerraceDailyTask/service-worker.js', { scope: '/NorthTerraceDailyTask/' }).then(reg => {
-    reg.update().catch(() => {});
+    const check=()=>reg.update().catch(()=>{});
+    check();
+    if(reg.waiting&&navigator.serviceWorker.controller) showAppUpdateDialog(reg.waiting);
     reg.addEventListener('updatefound', () => {
-      const worker = reg.installing;
-      if (!worker) return;
-      worker.addEventListener('statechange', () => {
-        if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-          showToast('A newer version of the app is ready.', 'info', {
-            title:'Update available',
-            actionLabel:'Update now',
-            duration:0,
-            onAction: () => {
-              worker.postMessage({type:'SKIP_WAITING'});
-              let reloading = false;
-              navigator.serviceWorker.addEventListener('controllerchange', () => {
-                if (!reloading) { reloading = true; location.reload(); }
-              });
-            }
-          });
-        }
+      const worker=reg.installing;
+      if(!worker) return;
+      worker.addEventListener('statechange',()=>{
+        if(worker.state==='installed'&&navigator.serviceWorker.controller) showAppUpdateDialog(worker);
       });
     });
-  }).catch(() => {});
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)check();});
+    window.addEventListener('focus',check);
+  }).catch(()=>{});
 }
 
 

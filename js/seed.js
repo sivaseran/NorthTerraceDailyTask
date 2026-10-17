@@ -5270,8 +5270,8 @@ export async function migrateParthToParthy(){
 }
 
 export async function initializeV22(){
-  await seedPeopleRoster();
-  await migrateParthToParthy();
+  // Existing People & PIN records are authoritative. Never overwrite staff names
+  // or perform a legacy name migration during normal app initialization.
 
   const templateSnap=await getDocs(collection(db,"weeklyTemplates"));
   const existingTemplates=templateSnap.docs.map(d=>({id:d.id,...d.data()}));

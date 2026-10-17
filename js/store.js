@@ -99,11 +99,8 @@ export async function getSystemState(){
 }
 export async function getAssignableUsers(){
   const users=await getUsers();
-  const parthyExists=users.some(u=>u.active!==false&&String(u.name||'').trim().toLowerCase()==='parthy');
   return users.filter(u=>{
-    if(u.active===false||!(u.role==='staff'||u.role==='assignee')) return false;
-    if(parthyExists&&u.id!=='staff1'&&String(u.name||'').trim().toLowerCase()==='parth') return false;
-    return true;
+    return u.active!==false&&(u.role==='staff'||u.role==='assignee');
   }).sort((a,b)=>{
     const ai=Number(a.staffId)||999,bi=Number(b.staffId)||999;
     return ai-bi||String(a.name||'').localeCompare(String(b.name||''));

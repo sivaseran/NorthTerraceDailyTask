@@ -2,7 +2,7 @@ import {db,collection,doc,getDoc,getDocs,setDoc,writeBatch,serverTimestamp} from
 
 export const FINAL_SETUP_VERSION='v3.7.0-live-safe-2026-09-21';
 export const SUNDAY_ROTATION_ANCHOR='2026-09-27';
-export const SUNDAY_ROTATION=['staff1','staff9','staff3','staff4']; // Parthy, Pragash, Prashanthy, Suku
+export const SUNDAY_ROTATION=['staff1','staff9','staff3','staff4']; // Stable staff IDs, display names come from People & PIN
 
 export const FINAL_WEEKLY_TASKS=[
   {

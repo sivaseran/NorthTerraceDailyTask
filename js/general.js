@@ -1,7 +1,7 @@
 import {ensureFinalV36Schedule} from './final-config.js';
 import {
   SLOT_DEFS,todayISO,addDaysISO,formatLongDate,weekStartISO,weekEndISO,slotLabelForDate,slotEndForDate,
-  ensureTasksForDate,getTasksForDate,watchTasksForDate,getPlannedTasksForDate,percent,dayKey,slotForClock
+  ensureTasksForDate,getTasksForDate,getUsers,watchTasksForDate,getPlannedTasksForDate,percent,dayKey,slotForClock
 } from './store.js';
 import {loginWithPin} from './auth.js';
 import {completeTask} from './store.js';
@@ -20,6 +20,12 @@ let selectedDate=todayISO();
 let mode='day';
 let unsubscribe=null;
 let currentTasks=[];
+let peopleNames=new Map();
+async function refreshPeopleNames(){
+  try{peopleNames=new Map((await getUsers()).map(person=>[person.id,person.name||'Unassigned']));}
+  catch(err){console.warn('Could not refresh staff display names',err);}
+}
+function currentAssigneeName(task){return task.assignedTo?(peopleNames.get(task.assignedTo)||task.assignedName||'Unassigned'):'Unassigned';}
 
 let expandedSlots=new Set();
 let focusedSlotId='';
@@ -60,7 +66,13 @@ function updateNav(){
   $('#pageTitle').textContent=mode==='day'?(selectedDate===todayISO()?'Today at a glance':'Day at a glance'):'Week at a glance';
   $('#dateLabel').textContent=mode==='day'?formatLongDate(selectedDate):navText();
 }
-function fmtEffort(v){return Number(v)>0?`${Number(v)} min`:'Effort not set';}
+function staffBadgeClass(id){
+  const key=String(id||'');
+  if(!key) return 'assignee-unassigned';
+  let hash=0;
+  for(const char of key) hash=((hash*31)+char.charCodeAt(0))>>>0;
+  return `assignee-color-${hash%10}`;
+}
 
 function hmToMinutes(value=''){
   const m=String(value).match(/(\d{1,2}):(\d{2})/);
@@ -189,14 +201,13 @@ function renderDay(tasks,{skipAlertCheck=false}={}){
         ${rows.map(t=>`<article class="ops-task-row ${t.status==='overdue'?'is-overdue-task':''}" data-task-id="${escapeHtml(t.id)}">
           <div class="ops-task-main">
             <div class="task-title-and-category"><strong>${escapeHtml(t.taskName)}${t.checkpoint?` · ${escapeHtml(t.checkpoint)}`:''}</strong><small class="task-report-category" data-report-category="${escapeHtml(reportCategoryForTask(t))}">${escapeHtml(reportCategoryForTask(t))}</small></div>
-            <div class="ops-task-meta">
-              <span class="${!t.assignedTo?'general-unassigned':''}">${escapeHtml(t.assignedName||'Unassigned')}</span>
-              <span>•</span><span>${escapeHtml(fmtEffort(t.effortMinutes))}</span>
+            ${(t.photoRequired||t.completedByName)?`<div class="ops-task-meta">
               ${t.photoRequired?'<span class="mini-pill photo-pill">📷 Photo</span>':''}
-              ${t.completedByName?`<span>• Completed by ${escapeHtml(t.completedByName)}</span>`:''}
-            </div>
+              ${t.completedByName?`<span>Completed by ${escapeHtml(t.completedByName)}</span>`:''}
+            </div>`:''}
           </div>
           <div class="ops-task-actions">
+            <span class="general-assignee-badge ${staffBadgeClass(t.assignedTo)}" title="Assigned staff">♙ ${escapeHtml(currentAssigneeName(t))}</span>
             ${statusView(t.status)}
             ${selectedDate===todayISO()&&t.status!=='completed'&&t.status!=='missed'?`<button class="btn small complete-public" data-id="${t.id}" type="button">Complete</button>`:''}
           </div>
@@ -656,6 +667,7 @@ async function bindDay(){
   clearSlotBoundaryTimer();
   clearSlotAlertTimers();
   $('#slotSchedule').innerHTML='<div class="card elevated"><div class="empty-state"><h3>Loading schedule…</h3><p>Connecting to the live task list.</p></div></div>';
+  await refreshPeopleNames();
   if(selectedDate>=todayISO()){ await ensureSpecialTasksForDate(selectedDate); await ensureTasksForDate(selectedDate);}
   if(selectedDate>=todayISO()) await ensureHotFoodDay(selectedDate);
   unsubscribe=watchTasksForDate(
@@ -670,6 +682,7 @@ async function bindDay(){
 }
 
 async function renderWeek(){
+  await refreshPeopleNames();
   if(unsubscribe){unsubscribe();unsubscribe=null;}
   clearSlotBoundaryTimer();
   clearSlotAlertTimers();
