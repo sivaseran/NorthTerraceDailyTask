@@ -1,0 +1,26 @@
+NORTH TERRACE DAILY TASK — V4.1.2 (17 October 2026)
+
+WHAT CHANGED
+- General View: effort minutes hidden; staff name shown beside task status.
+- Each staff ID receives a stable colour badge, with spacing before status.
+- General View resolves current staff names from People & PIN instead of stored task-name snapshots.
+- Removed old-name filtering in the assignee list.
+- Retired automatic roster reseeding and Parth-to-Parthy migration from legacy initialization.
+- Prominent update-and-reload dialog for new service-worker releases, checked at startup and when returning to the app.
+
+NOT CHANGED
+- Save for all future weeks (reserved for a later discussion/release).
+- Firebase collections, task IDs, schedules, completion records, reports, and Hot Food rules.
+
+DEPLOYMENT
+Upload the seven files in this ZIP to their matching GitHub repository paths.
+Keep the same folders. Commit all seven together.
+Wait for GitHub Pages deployment, then reopen the installed app.
+A device with an existing service worker should offer Update & Reload.
+After updating, rename the staff member in Manager > People & PIN.
+
+NOTES
+- This is a static source-level validation; live Firebase/device integration has not been run.
+- The retired legacy seed definitions still exist in seed.js for historical compatibility, but their staff-name writes are no longer invoked by initializeV22.
+- A freshly installed app may not show the update dialog; it loads the new version directly.
+- Existing installed apps need to load the site to discover an update; a service worker cannot force an unopened app to display a popup.
