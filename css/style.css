@@ -2544,3 +2544,39 @@ body.general-page .assignee-unassigned{color:#677282;background:#edf0f4}
 .hf-expiry-final .hf-final-result{margin-top:12px;font-weight:600}
 .hf-expiry-final input:disabled{opacity:.65}
 @media(max-width:650px){.hf-expiry-final .hf-exp-final-grid{grid-template-columns:1fr 1fr}.hf-expiry-final .hf-exp-final-grid .hf-time-label{grid-column:1/-1}}
+
+
+/* V4.5.2 MANAGER-ONLY UI: consistent submenu, controls and compact weekly matrix. */
+body.nt-manager-desktop .nt-editor-tabs,
+body.nt-manager-desktop .nt-module-tabs {display:flex;align-items:center;flex-wrap:wrap;gap:7px;background:#151c29;border:1px solid #303e54;border-radius:12px;padding:7px;margin:13px 0 16px}
+body.nt-manager-desktop .nt-editor-tabs button,
+body.nt-manager-desktop .nt-module-tabs button {appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;justify-content:center;margin:0;border:1px solid transparent;border-radius:8px;background:transparent;color:#aebbd1;font:inherit;font-size:13px;font-weight:750;line-height:1.25;padding:11px 14px;min-height:41px;cursor:pointer;white-space:normal;text-align:center}
+body.nt-manager-desktop .nt-editor-tabs button:hover,
+body.nt-manager-desktop .nt-module-tabs button:hover {background:#223247;color:#eff7ff}
+body.nt-manager-desktop .nt-editor-tabs button.active,
+body.nt-manager-desktop .nt-module-tabs button.active {background:#2588bd;border-color:#35a8e9;color:#fff;box-shadow:inset 0 0 0 1px #35a8e955}
+body.nt-manager-desktop .nt-editor-tabs span{color:#9db2c7;font-size:12px;margin-left:auto}
+body.nt-manager-desktop #schedule .schedule-mode-bar{background:#222d40;border:1px solid #344a61;border-radius:11px;color:#f1f6ff}
+body.nt-manager-desktop #schedule .schedule-mode-bar strong{color:#f3f7fd}
+body.nt-manager-desktop #schedule .schedule-mode-bar span{color:#a9bdd0}
+body.nt-manager-desktop #schedule .manager-tip{background:#173148;border:1px solid #3a7095;color:#b8dff7}
+body.nt-manager-desktop .nt-week-toolbar{display:grid;grid-template-columns:minmax(230px,1fr) auto;gap:12px;align-items:center}
+body.nt-manager-desktop .nt-week-controls{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap;max-width:100%}
+body.nt-manager-desktop #ntWeekDate{width:155px;max-width:155px;min-width:155px;flex:0 0 155px;margin:0;padding:8px 9px;min-height:38px}
+body.nt-manager-desktop .nt-week-controls .btn{min-height:38px;white-space:nowrap}
+body.nt-manager-desktop .nt-week-table{background:#1b2737;color:#f2f6fd}
+body.nt-manager-desktop .nt-week-table thead th{background:#202c3d;color:#aabed3}
+body.nt-manager-desktop .nt-week-table tbody th{background:#1c2a3c;color:#f3f8fe}
+body.nt-manager-desktop .nt-week-table td{background:#202c3d}
+body.nt-manager-desktop .nt-week-cell{background:#263b53;color:#f6faff;border-color:#435a73;padding:9px 10px;gap:5px;min-height:76px;line-height:1.32;overflow-wrap:anywhere}
+body.nt-manager-desktop .nt-week-cell b{font-size:12px;line-height:1.3;display:block;max-width:100%}
+body.nt-manager-desktop .nt-week-cell small{display:block;font-size:11px;color:#b1c9df;line-height:1.35;max-width:100%;overflow-wrap:anywhere}
+body.nt-manager-desktop .nt-week-cell:hover:not(:disabled){background:#30516d;border-color:#59a9e1}
+body.nt-manager-desktop .nt-week-cell.selected{background:#16517b;border-color:#46bdff}
+body.nt-manager-desktop .nt-module-tabs button:focus-visible,body.nt-manager-desktop .nt-week-cell:focus-visible{outline:2px solid #61c1ff;outline-offset:2px}
+body.nt-manager-desktop .nt-module-tools input,body.nt-manager-desktop .nt-module-tools select,
+body.nt-manager-desktop textarea,body.nt-manager-desktop .special-rule textarea{background:#182130;color:#f2f3f5;border:1px solid #40506a;border-radius:8px;padding:9px;max-width:100%}
+body.nt-manager-desktop .nt-create-days label,body.nt-manager-desktop .special-rule label:has(input[type=checkbox]){display:inline-flex;align-items:center;gap:7px}
+body.nt-manager-desktop .nt-create-days input[type=checkbox],body.nt-manager-desktop .special-rule input[type=checkbox]{width:17px;height:17px;min-height:17px;margin:0;accent-color:#2588bd;flex:0 0 auto}
+@media(max-width:1100px){body.nt-manager-desktop .nt-week-toolbar{grid-template-columns:1fr}body.nt-manager-desktop .nt-week-controls{justify-content:flex-start}}
+@media(max-width:650px){body.nt-manager-desktop .nt-editor-tabs span{flex-basis:100%;margin-left:0}body.nt-manager-desktop .nt-editor-tabs button{flex:1 1 130px}body.nt-manager-desktop .nt-module-tabs button{flex:1 1 130px;font-size:12px;padding:9px}body.nt-manager-desktop #ntWeekDate{width:145px;min-width:145px;flex-basis:145px}}
