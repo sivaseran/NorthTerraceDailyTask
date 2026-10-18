@@ -1,0 +1,59 @@
+NORTH TERRACE DAILY TASK — V4.5.4 — DUPLICATE SUBMISSION FIX
+18 October 2026
+
+Base: V4.5.3 (includes V4.5.2 Manager UI fixes and V4.5 Hot Food final checks).
+
+Problem addressed
+- Repeated taps while Review & Save was still loading could launch several
+  asynchronous confirmation requests. The shared confirmation dialog then
+  accumulated callbacks, potentially issuing multiple writes and showing
+  multiple "Saved" messages.
+- This can happen on desktop or mobile; it is not caused by Sunday cleaning
+  rotation or the calendar weekday itself.
+
+Corrections
+- Global confirmation dialog now handles one pending decision at a time.
+- Repeated taps on the same save button are ignored until the first action
+  completes, cancels or fails. Buttons become temporarily unavailable.
+- Task editor Review & Save shows "Reviewing..."; editor cannot close mid-save.
+- The same single-submission protection applies to:
+  * Weekly recurring/day-only edits, task lifecycle, weekly task creation,
+    bulk review/commit and opening asynchronous editing cells.
+  * Day Editor saves/creation/cancel/end, staff People & PIN, shift-cover,
+    availability, older weekly assignment/effort editors.
+  * Cleaning Rotation settings and Compliance settings/task definitions.
+  * Hot Food Manager settings/product changes/plans, record corrections,
+    weekly sign-off/reopen, and Hot Food enabling.
+  * General View task completion (before PIN prompt) and Start Cooking on
+    General View and Staff app. Existing Staff app completion buttons were
+    already protected and are unchanged.
+- Cancelling or failing an operation releases its lock to permit retry.
+- General View layout, task assignment/rotation rules, Hot Food expiry rules,
+  and Firebase data schema are unchanged.
+- Service-worker cache version and Manager script/CSS URL versions updated.
+
+Verification performed
+- Syntax checks: all packaged JS scripts pass node --check as ES modules.
+- Browser harness (Chromium, desktop and phone viewport): repeated clicks
+  produce one simulated save/notification; subsequent save works; shared
+  confirmation can't accept two pending requests; cancel and error recovery
+  allow retry.
+- ZIP integrity and changed-file manifest verified.
+
+NOT VERIFIED HERE
+- Production Firebase reads/writes, multi-device races, physical Galaxy Tab,
+  iOS PWA update, or end-to-end Sunday Cleaning Rotation schedule behaviour.
+- The browser harness simulated the write stage rather than touching live data.
+- This is client-side duplicate-click protection. It does not replace
+  database-side idempotency for two separate devices writing concurrently.
+
+DEPLOYMENT
+- BACK UP your repository before replacing files.
+- Recommended: upload contents of the V4.5.4 PATCH ZIP at the same repo paths.
+  It changes only the files needed to fix this issue; no deletions needed.
+- Alternative: upload contents of the V4.5.4 FULL ZIP, overwrite in place.
+- No Firebase reset or data migration.
+- Refresh Manager (Ctrl+Shift+R). On installed PWAs, accept Update & Reload.
+- Test an unimportant recurring task and verify exactly one confirmation and
+  success notification, followed by the correct single updated schedule.
+- Existing historical duplicate writes, if any, are not automatically deleted.
