@@ -2456,3 +2456,91 @@ body.general-page .assignee-unassigned{color:#677282;background:#edf0f4}
 .nt-update-panel .nt-update-symbol{font-size:36px;color:#0874cd}.nt-update-panel .nt-update-note{font-size:12px;color:#277553}
 #ntUpdateApply{width:100%;background:#0874cd;color:white;border:0;border-radius:10px;padding:14px;font-weight:800;cursor:pointer}
 #ntUpdateApply:disabled{opacity:.65}#ntUpdateStatus{min-height:1em;font-size:12px}
+
+/* V4.1.3: desktop-first manager workspace, without affecting General/Staff views. */
+@media (min-width:1100px){
+ body.nt-manager-desktop .container{width:min(1760px,calc(100% - 48px));margin:18px auto 60px}
+ body.nt-manager-desktop .manager-nav{gap:4px;flex-wrap:wrap;top:0;padding:8px}
+ body.nt-manager-desktop .manager-nav button{padding:9px 12px;white-space:nowrap}
+ body.nt-manager-desktop .bulk-matrix-wrap,body.nt-manager-desktop .effort-matrix-wrap{max-height:calc(100vh - 340px);overflow:auto}
+ body.nt-manager-desktop .bulk-matrix-table{width:100%;min-width:1060px}
+ body.nt-manager-desktop .bulk-matrix-table td,body.nt-manager-desktop .bulk-matrix-table th{padding:9px 8px}
+ body.nt-manager-desktop .section-intro{align-items:center}
+ body.nt-manager-desktop .bulk-save-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+ body.nt-manager-desktop .bulk-filter-bar{display:flex;align-items:end;gap:12px;flex-wrap:wrap}
+}
+.nt-workspace-switch{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:14px 0;padding:10px;border:1px solid #36516b;border-radius:12px;background:#172638}
+.nt-workspace-switch button{border:1px solid #44627c;border-radius:8px;background:#243c54;color:#eef5fa;font:inherit;font-weight:700;font-size:13px;padding:10px 13px;cursor:pointer}
+.nt-workspace-switch button:hover,.nt-workspace-switch .nt-workspace-active{background:#126d9b;border-color:#3db4f2;color:white}
+.nt-workspace-switch span{font-size:12px;color:#b9cbd8;margin-left:auto}
+@media(max-width:700px){.nt-workspace-switch{gap:6px}.nt-workspace-switch button{flex:1 1 125px;padding:10px 7px;font-size:12px}.nt-workspace-switch span{margin-left:0}}
+
+/* V4.2 desktop-first schedule editor. Scoped; General View unchanged. */
+.nt-editor-tabs{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:16px 0}.nt-editor-tabs button{border:1px solid #526477;background:#1c2939;color:#dfeefc;padding:12px 22px;border-radius:10px;font-weight:700;cursor:pointer}.nt-editor-tabs button.active{background:#1678b9;border-color:#53bcff;color:white}.nt-editor-tabs span{font-size:12px;color:#91abc6}
+#ntWeeklyWorkspace{background:#151f2c;border:1px solid #33495e;border-radius:16px;padding:15px;margin:14px 0}.nt-week-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px}.nt-week-toolbar h3{margin:0 0 5px}.nt-week-toolbar p,.nt-bulk-control p{font-size:12px;color:#a8bdcf;margin:0}.nt-week-controls{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.nt-week-controls input{max-width:165px}
+.nt-matrix-wrap{overflow:auto;max-height:72vh;border:1px solid #344459;border-radius:11px}.nt-week-table{border-collapse:separate;border-spacing:0;width:100%;min-width:960px;font-size:12px}.nt-week-table th,.nt-week-table td{padding:6px;border-bottom:1px solid #334358;text-align:left;vertical-align:middle}.nt-week-table thead th{position:sticky;top:0;background:#26384d;z-index:3;text-align:center;color:#eef7ff}.nt-week-table thead th:first-child{text-align:left}.nt-week-table tbody th{position:sticky;left:0;background:#1e3042;z-index:2;min-width:185px;max-width:240px;color:#f1f8ff}.nt-week-table tbody th small{display:block;color:#92b0cc;font-size:11px;margin-top:5px}.nt-week-cell{width:100%;min-height:67px;min-width:102px;border:1px solid #40556b;background:#203246;border-radius:8px;color:#e9f4ff;display:flex;flex-direction:column;gap:4px;align-items:flex-start;justify-content:center;padding:8px;cursor:pointer;text-align:left;line-height:1.2}.nt-week-cell small{color:#9ab7d2;font-size:10px}.nt-week-cell.empty{opacity:.7;border-style:dashed}.nt-week-cell.selected{border:2px solid #3db4f2;background:#164e75}.nt-week-cell:disabled{cursor:not-allowed;opacity:.54}.nt-weekday-dots{display:flex;gap:3px;flex-wrap:wrap;margin-top:7px}.nt-weekday-dots span{padding:2px 3px;font-size:9px;color:#718b9f}.nt-weekday-dots .on{background:#154c6e;color:#b9edff;border-radius:3px}
+.nt-bulk-control{background:#1c2c40;border:1px solid #40566d;border-radius:11px;padding:16px;margin-top:15px}.nt-bulk-form{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;align-items:end;margin-top:12px}.nt-bulk-form label,.nt-editor-form label,.nt-editor-section label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600;color:#cadff1}.nt-bulk-form button{align-self:end}.nt-bulk-form input,.nt-bulk-form select,.nt-editor-form input,.nt-editor-form select,.nt-editor-section input,.nt-editor-section select,.nt-editor-section textarea{width:100%;box-sizing:border-box;min-height:38px;background:#111d2c;border:1px solid #4b6177;color:#e9f5ff;border-radius:7px;padding:8px}.nt-bulk-review{margin-top:12px}.nt-bulk-review-list{max-height:180px;overflow:auto}.nt-bulk-review-list div{padding:8px 0;border-bottom:1px solid #3a5167}.nt-bulk-review-list small{display:block;color:#9eceed}
+.nt-edit-overlay{position:fixed;inset:0;background:rgba(5,13,23,.78);z-index:5000;display:flex;align-items:center;justify-content:center;padding:15px;overflow:auto}.nt-edit-dialog{background:#1a293b;border:1px solid #50708a;border-radius:14px;box-shadow:0 14px 55px #0009;color:#f1f8ff;max-width:850px;width:min(850px,100%);max-height:92vh;overflow:auto;padding:20px}.nt-edit-dialog h2{margin:0 0 3px;font-size:22px}.nt-dialog-sub,.nt-editor-note{font-size:12px;color:#a8bfd4}.nt-editor-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:15px}.nt-editor-form .nt-wide{grid-column:span 2}.nt-editor-form .nt-check-photo{flex-direction:row;align-items:center;gap:12px}.nt-editor-form .nt-check-photo input{width:auto;min-height:0}.nt-editor-section{padding:12px 0;border-top:1px solid #344d62;margin-top:14px}.nt-editor-section h3{margin:0 0 9px;font-size:15px}.nt-editor-section>label{margin-top:9px}.nt-editor-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:15px}.nt-editor-error{color:#ffb3a9;font-size:13px;margin-top:7px}.nt-editor-warning{color:#ffd89f;background:#5d421a44;border-radius:7px;padding:10px;margin:8px 0}
+.staff-hot-food-control{margin:8px 0}.staff-hot-food-control .hf-start-btn{display:block;width:100%}
+@media(max-width:950px){.nt-bulk-form{grid-template-columns:repeat(2,minmax(0,1fr))}.nt-editor-form{grid-template-columns:repeat(2,minmax(0,1fr))}.nt-editor-dialog{max-width:100%}}
+@media(max-width:520px){.nt-bulk-form,.nt-editor-form{grid-template-columns:1fr}.nt-editor-form .nt-wide{grid-column:span 1}.nt-edit-dialog{padding:13px}.nt-week-controls{gap:4px}.nt-week-controls .btn{font-size:11px;padding:8px}.nt-editor-tabs button{font-size:12px;padding:9px 12px}}
+
+/* V4.3 — compact, responsive General View header; alarm settings are a floating panel. */
+.general-page .top-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:7px;min-width:0}
+.general-page .nt-header-bell{white-space:nowrap;min-width:58px;flex:0 0 auto}
+.general-page #alarmSoundSettings{position:fixed;z-index:9998;right:clamp(10px,3vw,40px);top:clamp(70px,12vh,112px);left:auto;width:min(420px,calc(100vw - 20px));max-height:calc(100dvh - 90px);overflow-y:auto;box-shadow:0 22px 65px #0007}
+.general-page #alarmSoundSettings[hidden]{display:none!important}
+.nt-alarm-primary{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0 12px}
+.nt-alarm-primary button{flex:1;min-width:130px}
+@media(max-width:650px){
+.general-page .topbar{display:flex;align-items:center;gap:6px;padding:7px 10px!important;min-height:unset}
+.general-page .brand{min-width:0;flex:1;gap:7px}
+.general-page .brand-mark{width:32px;height:32px;font-size:12px;flex-shrink:0}
+.general-page .brand-text p{display:none!important}
+.general-page .brand-text h1{font-size:14px!important;margin:0}
+.general-page .brand-kicker{font-size:10px!important}
+.general-page .top-actions{flex-wrap:nowrap;gap:5px}
+.general-page .connection-pill{font-size:0;padding:6px!important;min-width:20px}
+.general-page .connection-dot{display:inline-block;width:8px;height:8px}
+.general-page #liveClock{display:none}
+.general-page .general-login-btn,.general-page .nt-header-bell{padding:8px!important;font-size:12px}
+.general-page .nt-header-bell .alarm-sound-button-label{display:none}
+.general-page #alarmSoundSettings{top:64px}
+}
+@media(min-width:651px) and (max-width:1040px){.general-page .brand-text p{display:none}.general-page .top-actions{gap:5px}.general-page .clock{font-size:13px}}
+/* Special module dashboard UI is desktop-first but scroll-safe on mobile. */
+.nt-module-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.nt-module-tabs button{border:1px solid var(--border,#43516a);border-radius:9px;background:transparent;color:inherit;padding:10px 15px;cursor:pointer}
+.nt-module-tabs button.active{background:#216bb3;color:white;border-color:#216bb3}
+.nt-module-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.nt-module-stat{background:var(--card,#243041);border:1px solid var(--border,#43516a);padding:13px;border-radius:12px}
+.nt-module-stat strong{display:block;font-size:24px}.nt-module-stat small{opacity:.75}
+.nt-module-table-wrap{overflow:auto;max-height:66vh;border:1px solid var(--border,#43516a);border-radius:10px}
+.nt-module-table{width:100%;border-collapse:collapse;min-width:780px}
+.nt-module-table td,.nt-module-table th{padding:10px;border-bottom:1px solid var(--border,#43516a);text-align:left;font-size:13px}
+.nt-module-tools{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin:12px 0}
+.nt-module-tools label{display:grid;gap:4px;font-size:12px}
+.nt-module-tools input,.nt-module-tools select{padding:9px;border-radius:7px}
+.nt-readonly{opacity:.7;font-size:12px}
+.nt-create-days{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.nt-create-days label{padding:8px 12px;border-radius:9px;border:1px solid #66788d;cursor:pointer}
+.nt-create-days label:has(input:checked){background:#1e6cab;color:#fff}
+.nt-inline-message{padding:10px;border-radius:8px;background:#243b4c;margin:8px 0}
+@media(max-width:760px){.nt-module-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.nt-module-tabs{gap:4px}.nt-module-tabs button{padding:8px;font-size:12px}.nt-module-table-wrap{max-height:54vh}}
+
+@media(max-width:650px){.general-page .connection-pill{width:23px!important;min-width:23px!important;max-width:23px!important;flex:0 0 23px!important;white-space:nowrap;overflow:hidden;display:flex;align-items:center;justify-content:center}.general-page .connection-pill .connection-dot{flex:0 0 8px}}
+
+/* V4.4 multi-field bulk edit on desktop and mobile */
+.nt-bulk-extra-wrap{grid-column:1 / -1;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+#ntBulkExtraRows{flex:1;min-width:300px;display:grid;gap:8px}
+.nt-bulk-extra-row{display:grid;grid-template-columns:minmax(150px,1fr) minmax(150px,1fr) auto;gap:9px;align-items:end}
+.nt-bulk-extra-row label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600;color:#cadff1}
+.nt-bulk-extra-row input,.nt-bulk-extra-row select{width:100%;min-height:38px;background:#111d2c;color:#e9f5ff;border:1px solid #4b6177;border-radius:7px;padding:8px}
+@media(max-width:520px){.nt-bulk-extra-row{grid-template-columns:1fr 1fr}.nt-bulk-extra-row button{grid-column:1/-1}.nt-bulk-extra-wrap,#ntBulkExtraRows{min-width:0;width:100%}}
+
+/* V4.5: four-hour final physical count: tablet landscape and desktop friendly. */
+.hf-expiry-final .hf-exp-final-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start}
+.hf-expiry-final .hf-exp-final-grid label{min-width:0}
+.hf-expiry-final .hf-final-result{margin-top:12px;font-weight:600}
+.hf-expiry-final input:disabled{opacity:.65}
+@media(max-width:650px){.hf-expiry-final .hf-exp-final-grid{grid-template-columns:1fr 1fr}.hf-expiry-final .hf-exp-final-grid .hf-time-label{grid-column:1/-1}}
