@@ -2,8 +2,8 @@ import {ensureFinalV36Schedule} from '../js/final-config.js';
 import {getSession,clearSession} from '../js/auth.js';
 import {todayISO,formatLongDate,ensureTasksForDate,watchTasksForDate,completeTask,percent,SLOT_DEFS,slotLabelForDate} from '../js/store.js';
 import {escapeHtml,statusView,showToast,initNetworkStatus} from '../js/ui.js';
-import {ensureHotFoodDay} from '../js/hot-food-engine.js';
-import {completeHotFoodTask} from '../js/hot-food-ui.js';
+import {ensureHotFoodDay,reconcileHotFoodDay} from '../js/hot-food-engine.js';
+import {completeHotFoodTask,renderStartHotFoodButton} from '../js/hot-food-ui.js';
 import {ensureSpecialTasksForDate,ensureSafeUpgrades} from '../js/special-tasks.js';
 import {completeComplianceTask} from '../js/compliance-ui.js';
 import {reportCategoryForTask} from '../js/task-category.js';
@@ -23,6 +23,7 @@ function scheduleStaffAlerts(rows){staffAlertTimers.forEach(clearTimeout);staffA
 $('#staffAlerts').onclick=async()=>{if(!staffAlerts&&'Notification'in window&&Notification.permission==='default')await Notification.requestPermission();staffAlerts=!staffAlerts;localStorage.setItem('ntStaffAlertsEnabled',staffAlerts?'1':'0');updateStaffAlertButton();};updateStaffAlertButton();
 
 function render(all){
+  renderStartHotFoodButton(todayISO(),$('#staffHotFoodControl'),async()=>user).catch(error=>console.warn('Start Cooking button',error));
   scheduleStaffAlerts(all);
   const tasks=all.filter(t=>t.assignedTo===user.id&&t.status!=='cancelled');
   $('#staffPct').textContent=`${percent(tasks)}%`;
@@ -59,3 +60,10 @@ function render(all){
 await ensureSpecialTasksForDate(todayISO());await ensureTasksForDate(todayISO());await ensureHotFoodDay(todayISO());watchTasksForDate(todayISO(),render,()=>showToast('Live updates unavailable.','error'));
 $('#logout').onclick=()=>{clearSession();location.href='./';};
 initNetworkStatus();if('serviceWorker' in navigator) navigator.serviceWorker.register('/NorthTerraceDailyTask/staff-app/sw.js',{scope:'/NorthTerraceDailyTask/staff-app/'}).catch(()=>{});
+
+let cookingTimerBusy=false;
+setInterval(async()=>{
+  if(cookingTimerBusy||document.visibilityState!=='visible')return;
+  cookingTimerBusy=true;
+  try{await reconcileHotFoodDay(todayISO());}catch(error){console.warn('Hot Food sync',error);}finally{cookingTimerBusy=false;}
+},60000);
