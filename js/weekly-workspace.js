@@ -10,7 +10,7 @@ import {
 import {getHotFoodConfig} from './hot-food-store.js';
 import {getCleaningConfig,projectCleaningSchedule,getComplianceConfig,COMPLIANCE_STANDARD,ensureSpecialTasksForDate,updateComplianceRecurringRule,previewComplianceRecurringExceptions} from './special-tasks.js';
 import {ensureHotFoodDay} from './hot-food-engine.js';
-import {escapeHtml,showToast,confirmAction} from './ui.js';
+import {escapeHtml,showToast,confirmAction,setButtonLoading,runActionOnce} from './ui.js';
 import {reportCategoryForTask} from './task-category.js';
 const $=s=>document.querySelector(s),clean=s=>escapeHtml(String(s??''));
 const HHMM=/^([01]\d|2[0-3]):[0-5]\d$/;
@@ -41,12 +41,12 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
   $('#ntWeekToday').onclick=()=>{anchor=weekStartISO(todayISO());loadWeek();};
   $('#ntWeekReload').onclick=loadWeek;
   $('#ntWeekDate').onchange=e=>{if(e.target.value){anchor=weekStartISO(e.target.value);loadWeek();}};
-  $('#ntWeekCreate').onclick=()=>openWeeklyCreator();
+  $('#ntWeekCreate').onclick=()=>{if(!document.querySelector('.nt-edit-overlay'))openWeeklyCreator();};
   $('#ntBulkToggle').onclick=()=>{bulk=!bulk;selected.clear();$('#ntBulkControl').hidden=!bulk;$('#ntBulkToggle').textContent=bulk?'Exit Bulk Edit':'▢ Bulk Edit';$('#ntBulkReviewPanel').hidden=true;renderWeek();};
   $('#ntBulkField').onchange=drawBulkValue;
   $('#ntBulkAddField').onclick=addBulkField;
   $('#ntBulkScope').onchange=()=>$('#ntBulkEffective').closest('label').hidden=$('#ntBulkScope').value==='once';
-  $('#ntBulkEffective').value=todayISO();drawBulkValue();$('#ntBulkReview').onclick=reviewBulk;
+  $('#ntBulkEffective').value=todayISO();drawBulkValue();$('#ntBulkReview').onclick=()=>runActionOnce($('#ntBulkReview'),reviewBulk);
   async function loadWeek(){
     $('#ntWeekRows').innerHTML='<tr><td colspan="8">Loading weekly schedule…</td></tr>';
     selected.clear();$('#ntBulkReviewPanel').hidden=true;
@@ -105,6 +105,7 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
   }
   $('#ntWeekRows').addEventListener('click',async e=>{
     const button=e.target.closest('button[data-hotgroup-date]');if(!button)return;
+    return runActionOnce(button, async()=>{
     const date=button.dataset.hotgroupDate;
     try{
       if(date===todayISO())await ensureHotFoodDay(date);
@@ -115,9 +116,11 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
         ${groups.size?[...groups].map(([id,tasks])=>`<div class="nt-editor-warning"><b>Batch ${clean(id)}</b><div>${tasks.sort((a,b)=>String(a.sourceTime).localeCompare(String(b.sourceTime))).map(t=>`<div>${clean(t.sourceTime||'')} · ${clean(t.assignedName||'Unassigned')} · ${clean(t.status||'Pending')}</div>`).join('')}</div></div>`).join(''):'<p>No batch has created hourly checks for this date yet. The first check will be one hour after the recorded display start, then hourly while stock remains, before the four-hour deadline.</p>'}
         </section><div class="nt-editor-actions"><button type="button" class="btn secondary" data-close>Close</button></div>`);
     }catch(err){showToast(err.message||'Could not load hourly checks.','error');}
+    });
   });
   $('#ntWeekRows').addEventListener('click',async e=>{
     const b=e.target.closest('button[data-special]');if(!b)return;
+    return runActionOnce(b,async()=>{
     const date=b.dataset.date,day=dayKey(date),type=b.dataset.special;
     try{
       if(type==='hotfood')await ensureHotFoodDay(date);else await ensureSpecialTasksForDate(date);
@@ -126,29 +129,30 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
       if(!record)return showToast('No task can be opened for this date. Check the source module configuration and rota.','warning');
       await openEditor(null,date,day,record);
     }catch(err){showToast(err.message||'Could not open special task','error');}
+    });
   });
   $('#ntWeekRows').addEventListener('click',async event=>{
     const btn=event.target.closest('button[data-template]');if(!btn)return;
     const id=btn.dataset.template,day=btn.dataset.day,date=dateOf(day),tpl=templates.find(t=>t.id===id);if(!tpl)return;
     if(bulk){const key=id+'|'+day;if(selected.has(key))selected.delete(key);else selected.add(key);$('#ntBulkReviewPanel').hidden=true;renderWeek();return;}
-    await openEditor(tpl,date,day,(weekRows[WEEK_DAYS.indexOf(day)]||[]).find(x=>x.templateTaskId===id&&x.status!=='cancelled'));
+    await runActionOnce(btn,()=>openEditor(tpl,date,day,(weekRows[WEEK_DAYS.indexOf(day)]||[]).find(x=>x.templateTaskId===id&&x.status!=='cancelled')));
   });
   // Click the existing Day Editor row to open the shared compact modal.
   $('#managerSlots').addEventListener('click',e=>{
     const btn=e.target.closest('.open-row-edit');if(!btn)return;
     e.preventDefault();e.stopPropagation();
     const row=btn.closest('[data-id]');if(!row)return;
-    (async()=>{
+    runActionOnce(btn,async()=>{
       const date=getDate(),snap=(await getTasksForDate(date,{ensure:false})).find(x=>x.id===row.dataset.id);
       if(!snap)throw new Error('Task changed. Refresh the day.');
       const tpl=snap.templateTaskId?(await getWeeklyTemplate()).find(t=>t.id===snap.templateTaskId):null;
       await openEditor(tpl,date,dayKey(date),snap);
-    })().catch(error=>showToast(error.message||'Could not open editor','error'));
+    }).catch(error=>showToast(error.message||'Could not open editor','error'));
   },true);
   function dialog(title,subtitle,html){
     const outer=document.createElement('div');outer.className='nt-edit-overlay';
     outer.innerHTML=`<section class="nt-edit-dialog" role="dialog" aria-modal="true" aria-label="${clean(title)}"><h2>${clean(title)}</h2><p class="nt-dialog-sub">${clean(subtitle)}</p>${html}<div class="nt-editor-error" role="alert"></div></section>`;
-    document.body.append(outer);outer.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>outer.remove());outer.onclick=e=>{if(e.target===outer)outer.remove();};return outer;
+    document.body.append(outer);outer.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{if(outer.dataset.saving!=='true')outer.remove();});outer.onclick=e=>{if(e.target===outer&&outer.dataset.saving!=='true')outer.remove();};return outer;
   }
   const error=(outer,message)=>outer.querySelector('.nt-editor-error').textContent=message;
   const changeValues=outer=>{const form=outer.querySelector('.nt-editor-form');return {
@@ -170,6 +174,7 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
     return result;
   }
   async function openEditor(tpl,date,day,row=null){
+    if(document.querySelector('.nt-edit-overlay'))return;
     if(date<todayISO())return showToast('Historical tasks cannot be edited.','warning');
     const rule=tpl?ruleForDate(tpl,date):null;
     const name=row?.taskName||rule?.taskName||tpl?.taskName||'New task',time=row?.sourceTime||rule?.sourceTime||'09:00';
@@ -199,10 +204,17 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
     scope.onchange=()=>outer.querySelector('#ntEditEffectiveLabel').hidden=scope.value!=='future';
     field(outer,'sourceTime').onchange=e=>{const computed=slotForClock(e.target.value,date);if(computed)field(outer,'slotId').value=computed;};
     outer.querySelector('#ntMoreActions').onclick=()=>openActions(tpl,date,day,outer,row);
-    outer.querySelector('#ntSaveEdit').onclick=async()=>{
+    const saveEditButton=outer.querySelector('#ntSaveEdit');
+    let saveBusy=false;
+    saveEditButton.onclick=async()=>{
+      // A second tap during validation/confirmation must not start another save.
+      if(saveBusy)return;
+      saveBusy=true;
+      outer.dataset.saving='true';
+      setButtonLoading(saveEditButton,true,'Reviewing…');
       const c=changeValues(outer);error(outer,'');
       if(locked){delete c.taskName;delete c.reportCategory;delete c.photoRequired;if(cleaning)delete c.assignedTo;}
-      if((!locked&&!c.taskName)||!HHMM.test(c.sourceTime)||c.effortMinutes!==null&&(!Number.isInteger(c.effortMinutes)||c.effortMinutes<=0))return error(outer,'Check task name, time and effort minutes.');
+      if((!locked&&!c.taskName)||!HHMM.test(c.sourceTime)||c.effortMinutes!==null&&(!Number.isInteger(c.effortMinutes)||c.effortMinutes<=0)){error(outer,'Check task name, time and effort minutes.');saveBusy=false;delete outer.dataset.saving;setButtonLoading(saveEditButton,false);return;}
       try{
         if(scope.value==='future'&&special==='compliance'){
           const effective=outer.querySelector('#ntEditEffective').value,target=nextWeekday(effective,day);
@@ -230,8 +242,10 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
           if(!ok)return;
           await saveDayTaskEdit(row.id,date,c,user);
         }
+        // Remove the editor only after the one confirmed save succeeds.
         outer.remove();showToast('Task saved.','success');if(view==='week')await loadWeek();else await refreshDay();
       }catch(e){error(outer,e.message||'Save failed. No success reported.');}
+      finally{saveBusy=false;delete outer.dataset.saving;if(outer.isConnected)setButtonLoading(saveEditButton,false);}
     };
   }
   async function openActions(tpl,date,day,parent,row){
@@ -245,7 +259,11 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
       <p class="nt-editor-note">Past completions and audit history are never deleted.</p></section>
       <div class="nt-editor-actions"><button type="button" class="btn secondary" data-close>Back</button><button type="button" id="ntLifeConfirm" class="btn">Confirm Action</button></div>`);
     const kind=outer.querySelector('#ntLifeKind');kind.onchange=()=>outer.querySelector('#ntLifeUntilLabel').hidden=kind.value!=='pause';
-    outer.querySelector('#ntLifeConfirm').onclick=async()=>{
+    const lifecycleButton=outer.querySelector('#ntLifeConfirm');
+    lifecycleButton.onclick=()=>runActionOnce(lifecycleButton,async()=>{
+      outer.dataset.saving='true';
+      setButtonLoading(lifecycleButton,true,'Reviewing…');
+      try{
       const type=kind.value,chosen=outer.querySelector('#ntLifeDate').value,until=outer.querySelector('#ntLifeUntil').value,reason=outer.querySelector('#ntLifeReason').value;
       if(chosen<todayISO()||type==='pause'&&until<chosen)return error(outer,'Choose valid current or future dates.');
       try{
@@ -259,7 +277,8 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
         }else await saveLifecycleAction({templateTaskId:tpl.id,type,date:chosen,until,reason},user);
         outer.remove();parent?.remove();showToast('Task action saved.','success');await refreshDay();if(view==='week')await loadWeek();
       }catch(e){error(outer,e.message||'Action could not be saved.');}
-    };
+      }finally{delete outer.dataset.saving;if(outer.isConnected)setButtonLoading(lifecycleButton,false);}
+    });
   }
   function openWeeklyCreator(){
     const begin=week(),outer=dialog('Create Task',`Week commencing ${begin} · Select days first`,`
@@ -277,18 +296,22 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
     outer.querySelector('#ntCreateEveryday').onclick=()=>outer.querySelectorAll('[data-create-day]').forEach(x=>x.checked=true);
     field(outer,'sourceTime').onchange=ev=>field(outer,'slotId').value=slotForClock(ev.target.value,begin);
     outer.querySelectorAll('[name="ntCreateScope"]').forEach(x=>x.onchange=()=>outer.querySelector('#ntCreateEffectiveLabel').hidden=outer.querySelector('[name="ntCreateScope"]:checked').value!=='future');
-    outer.querySelector('#ntCreateReviewButton').onclick=async()=>{
+    const createReviewButton=outer.querySelector('#ntCreateReviewButton');
+    createReviewButton.onclick=()=>runActionOnce(createReviewButton,async()=>{
       const c=changeValues(outer),days=[...outer.querySelectorAll('[data-create-day]:checked')].map(x=>x.dataset.createDay),saveScope=outer.querySelector('[name="ntCreateScope"]:checked').value,effectiveFrom=outer.querySelector('#ntCreateEffective').value;
       if(!days.length||!c.taskName||!HHMM.test(c.sourceTime)||!(Number(c.effortMinutes)>0))return error(outer,'Select weekdays and enter valid task name, time and effort.');
       if(saveScope==='future'&&(!effectiveFrom||effectiveFrom<todayISO()))return error(outer,'Select a valid current/future effective date.');
       if(saveScope==='week'&&days.some(d=>dateOf(d)<todayISO()))return error(outer,'Some selected weekdays are in the past. Choose another week or recurring scope.');
       const review=outer.querySelector('#ntCreateReview');review.hidden=false;
       review.innerHTML=`<div class="nt-editor-warning"><b>${clean(c.taskName)}</b><p>${days.join(', ')} · ${clean(c.sourceTime)} · ${clean(staffName(c.assignedTo))} · ${c.effortMinutes} min</p><p>${saveScope==='week'?'This week only · one-time':'Recurring every selected weekday'} from ${clean(saveScope==='week'?begin:effectiveFrom)}</p></div><button type="button" class="btn" id="ntCreateConfirm">Confirm & Create</button>`;
-      review.querySelector('#ntCreateConfirm').onclick=async()=>{
-        const b=review.querySelector('#ntCreateConfirm');b.disabled=true;try{await createWeeklyMultiDayTask({weekStart:begin,effectiveFrom,weekdays:days,scope:saveScope,data:c},user);outer.remove();showToast('Selected task days created.','success');await loadWeek();await refreshDay();}
-        catch(err){error(outer,err.message||'Could not create task');b.disabled=false;}
-      };
-    };
+      review.querySelector('#ntCreateConfirm').onclick=()=>runActionOnce(review.querySelector('#ntCreateConfirm'),async()=>{
+        const b=review.querySelector('#ntCreateConfirm');
+        outer.dataset.saving='true';setButtonLoading(b,true,'Creating…');
+        try{await createWeeklyMultiDayTask({weekStart:begin,effectiveFrom,weekdays:days,scope:saveScope,data:c},user);outer.remove();showToast('Selected task days created.','success');await loadWeek();await refreshDay();}
+        catch(err){error(outer,err.message||'Could not create task');}
+        finally{delete outer.dataset.saving;if(outer.isConnected)setButtonLoading(b,false);}
+      });
+    });
   }
   const bulkChoices=[['assignedTo','Assigned staff'],['sourceTime','Scheduled time'],['slotId','Time slot'],['effortMinutes','Effort minutes'],['reportCategory','Category'],['photoRequired','Photo required']];
   function bulkValueHTML(key,controlId){
@@ -348,7 +371,7 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
       <p class="nt-editor-note">Completed records and history stay untouched. Warnings do not silently change assignments.</p>
       <div class="nt-editor-actions"><button type="button" id="ntBulkBack" class="btn secondary">Back</button><button type="button" id="ntBulkCommit" class="btn">Confirm & Save</button></div><div class="nt-editor-error"></div></div>`;
     box.querySelector('#ntBulkBack').onclick=()=>box.hidden=true;
-    box.querySelector('#ntBulkCommit').onclick=async()=>{
+    box.querySelector('#ntBulkCommit').onclick=()=>runActionOnce(box.querySelector('#ntBulkCommit'),async()=>{
       const button=box.querySelector('#ntBulkCommit');button.disabled=true;
       try{
         if(scope==='future')await saveBulkRecurringEdits({changes:edits,effectiveFrom:effective,replaceExceptions:box.querySelector('input[name="ntBulkConflict"]:checked')?.value==='replace'},user);
@@ -360,6 +383,6 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
         }
         selected.clear();box.hidden=true;showToast('Bulk changes saved.','success');await loadWeek();await refreshDay();
       }catch(e){box.querySelector('.nt-editor-error').textContent=e.message||'Bulk save failed.';}finally{button.disabled=false;}
-    };
+    });
   }
 }

@@ -5,7 +5,7 @@ import {
 } from './store.js';
 import {loginWithPin} from './auth.js';
 import {completeTask} from './store.js';
-import {escapeHtml,statusView,showToast,confirmAction,promptPin,initNetworkStatus,registerAppServiceWorker} from './ui.js';
+import {escapeHtml,statusView,showToast,confirmAction,promptPin,initNetworkStatus,registerAppServiceWorker,runActionOnce} from './ui.js';
 import {ensureHotFoodDay,reconcileHotFoodDay} from './hot-food-engine.js';
 import {completeHotFoodTask,renderStartHotFoodButton} from './hot-food-ui.js';
 import {ensureSpecialTasksForDate,ensureSafeUpgrades} from './special-tasks.js';
@@ -513,7 +513,11 @@ async function disableAlerts(){
 }
 
 
+const generalCompletions=new Set();
 async function completeFromGeneral(task){
+  if(generalCompletions.has(task.id))return;
+  generalCompletions.add(task.id);
+  try {
   const pin=await promptPin({title:'Complete task',message:`Enter your staff PIN to complete “${task.taskName}”.`});
   if(!pin) return;
   try{
@@ -537,13 +541,14 @@ async function completeFromGeneral(task){
   }catch(error){
     showToast(error.message||'Could not complete the task.','error',{title:'Completion failed'});
   }
+  } finally { generalCompletions.delete(task.id); }
 }
 
 $('#slotSchedule').addEventListener('click',e=>{
   const completeBtn=e.target.closest('.complete-public');
   if(completeBtn){
     const task=currentTasks.find(t=>t.id===completeBtn.dataset.id);
-    if(task) completeFromGeneral(task);
+    if(task) runActionOnce(completeBtn,()=>completeFromGeneral(task)).catch(error=>showToast(error.message||'Task completion failed.','error'));
     return;
   }
 

@@ -1,5 +1,5 @@
 import {getSession} from './auth.js';
-import {escapeHtml,showToast,confirmAction,setButtonLoading} from './ui.js';
+import {escapeHtml,showToast,confirmAction,setButtonLoading,runActionOnce,protectClickHandler} from './ui.js';
 import {
   HOT_FOOD_DAYS,getHotFoodConfig,saveHotFoodConfig,setHotFoodEnabled,
   getHotFoodProducts,saveHotFoodProduct,setHotFoodProductActive,
@@ -129,13 +129,16 @@ export async function initHotFoodManager(){
     if(btn.dataset.hfTarget==='audit') await loadAudit(); if(btn.dataset.hfTarget==='reports') await loadReport(); if(btn.dataset.hfTarget==='signoff') await loadSignoff();
   });
 
+  let hotFoodTogglePending=false;
   $('#hfEnableToggle').onchange=async e=>{
+    if(hotFoodTogglePending)return;
+    hotFoodTogglePending=true;
     const desired=e.target.checked;
+    e.target.disabled=true;
     if(desired){
       const ok=await confirmAction({title:'Enable Hot Food & Compliance?',message:'This will make the Hot Food module available. Existing North Terrace features remain unchanged.',confirmText:'Enable Hot Food'});
-      if(!ok){e.target.checked=false;return;}
+      if(!ok){e.target.checked=false;e.target.disabled=false;hotFoodTogglePending=false;return;}
     }
-    e.target.disabled=true;
     try{
       const result=await setHotFoodEnabled(desired,user);
       if(!result.ok){
@@ -146,10 +149,10 @@ export async function initHotFoodManager(){
         showToast(`Hot Food module ${desired?'enabled':'disabled'}.`,'success');
       }
     }catch(err){e.target.checked=!desired;showToast(err.message||'Could not change module state.','error');}
-    finally{e.target.disabled=false;}
+    finally{e.target.disabled=false;hotFoodTogglePending=false;}
   };
 
-  $('#hfSaveSettings').onclick=async e=>{
+  $('#hfSaveSettings').onclick=async e=>{ 
     const btn=e.currentTarget;setButtonLoading(btn,true);
     try{
       const changes={corePassC:Number($('#hfCorePass').value),holdingPassC:Number($('#hfHoldingPass').value),eligibilityMinutes:Number($('#hfEligibility').value),cookingCutoff:$('#hfCutoff').value,holdingMinutes:Number($('#hfHoldingMinutes').value),initialCookingTime:$('#hfInitialCookingTime').value,initialCookingEffortMinutes:Number($('#hfInitialCookingEffort').value)};
@@ -158,32 +161,38 @@ export async function initHotFoodManager(){
     }catch(err){showToast(err.message||'Could not save settings.','error');}finally{setButtonLoading(btn,false);}
   };
 
-  $('#hfAddProduct').onclick=async()=>{
+  protectClickHandler($('#hfSaveSettings'));
+  $('#hfAddProduct').onclick=async()=>{ 
     const name=$('#hfNewProduct').value.trim();if(!name){showToast('Enter a product name.','warning');return;}
     try{await saveHotFoodProduct({name,active:true},user);$('#hfNewProduct').value='';await loadProducts();renderPlan();showToast('Hot Food product added.','success');}catch(err){showToast(err.message||'Could not add product.','error');}
   };
-  $('#hfProductRows').onclick=async e=>{
+  protectClickHandler($('#hfAddProduct'));
+  $('#hfProductRows').onclick=async e=>{ 
     const row=e.target.closest('tr[data-id]');if(!row)return;
+    const target=e.target.closest('.hf-save-product,.hf-toggle-product');if(!target)return;
+    return runActionOnce(target,async()=>{
     const item=products.find(p=>p.id===row.dataset.id);if(!item)return;
     try{
       if(e.target.closest('.hf-save-product')) await saveHotFoodProduct({id:item.id,name:row.querySelector('.hf-product-name').value,active:item.active!==false},user);
       if(e.target.closest('.hf-toggle-product')) await setHotFoodProductActive(item.id,item.active===false,user);
       await loadProducts();renderPlan();showToast('Product updated.','success');
     }catch(err){showToast(err.message||'Could not update product.','error');}
+    });
   };
 
   $('#hfPlanRows').oninput=e=>{if(e.target.classList.contains('hf-plan-qty')){dirtyPlan=true;$('#hfPlanDirty').hidden=false;}};
-  $('#hfSavePlan').onclick=async e=>{
+  $('#hfSavePlan').onclick=async e=>{ 
     const next={};document.querySelectorAll('.hf-plan-qty').forEach(input=>{const n=Math.max(0,Math.floor(Number(input.value)||0));if(n){next[input.dataset.product]??={};next[input.dataset.product][input.dataset.day]=n;}});
     const btn=e.currentTarget;setButtonLoading(btn,true);
     try{await saveInitialCookingPlan(next,user);plan=next;dirtyPlan=false;renderPlan();showToast('Initial Cooking Plan saved.','success');}catch(err){showToast(err.message||'Could not save plan.','error');}finally{setButtonLoading(btn,false);}
   };
 
+  protectClickHandler($('#hfSavePlan'));
   const today=iso(new Date()); if($('#hfReportFrom')){$('#hfReportFrom').value=today;$('#hfReportTo').value=today;$('#hfSignoffDate').value=today;}
   $('#hfReportPreview')?.addEventListener('click',async event=>{
     try{
       const batchButton=event.target.closest('.hf-correct-batch');
-      if(batchButton){
+      if(batchButton)return await runActionOnce(batchButton,async()=>{
         const data=await getHotFoodComplianceData($('#hfReportFrom').value,$('#hfReportTo').value);
         const row=data.batches.find(x=>x.id===batchButton.dataset.id);if(!row)return;
         const saved=await editReportRecord('Correct Hot Food production record',[
@@ -193,9 +202,9 @@ export async function initHotFoodManager(){
         ],async values=>managerCorrectHotFoodRecord('batch',row.id,{coreTempC:Number(values.coreTempC),sellOutTime:values.sellOutTime,quantityWasted:Number(values.quantityWasted)},user));
         if(saved){showToast('Production record corrected; original retained in audit.','success');await loadReport();}
         return;
-      }
+      });
       const checkButton=event.target.closest('.hf-correct-check');
-      if(checkButton){
+      if(checkButton)return await runActionOnce(checkButton,async()=>{
         const saved=await editReportRecord('Correct temperature reading time',[
           {key:'actualReadingTime',label:'Actual reading time (HH:MM)',type:'time',value:checkButton.dataset.time||''}
         ],async values=>{
@@ -203,7 +212,7 @@ export async function initHotFoodManager(){
           await managerCorrectHotFoodRecord('check',checkButton.dataset.id,{actualReadingTime:values.actualReadingTime},user);
         });
         if(saved){showToast('Reading time corrected; original retained in audit.','success');await loadReport();}
-      }
+      });
     }catch(error){showToast(error.message||'Could not correct record.','error');}
   });
   $('#hfReportFrom')?.addEventListener('change',loadReport);$('#hfReportTo')?.addEventListener('change',loadReport);
@@ -211,8 +220,8 @@ export async function initHotFoodManager(){
   $('#hfReportWeek')?.addEventListener('click',()=>{$('#hfReportFrom').value=mondayOf(today);$('#hfReportTo').value=sundayOf(today);loadReport()});
   $('#hfPrintReport')?.addEventListener('click',()=>{const html=$('#hfReportPreview').innerHTML;if(!html){showToast('Load a report first.','warning');return;}const w=window.open('','_blank');w.document.write(`<html><head><title>Hot Food Compliance Report</title><style>body{font-family:Arial;padding:18px;color:#111}h2,h3{text-align:center}table{border-collapse:collapse;width:100%;font-size:11px;margin:12px 0 24px}th,td{border:1px solid #555;padding:5px}th{background:#eee}@media print{button{display:none}}</style></head><body>${html}<script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close();});
   $('#hfSignoffDate')?.addEventListener('change',loadSignoff);
-  $('#hfSignWeek')?.addEventListener('click',async()=>{try{const ok=await confirmAction({title:'Sign off this compliance week?',message:'Staff editing for this Monday-Sunday week will be locked.',confirmText:'Sign Off Week'});if(!ok)return;await signOffHotFoodWeek($('#hfSignoffDate').value,$('#hfSignoffComment').value,user);showToast('Compliance week signed off.','success');await loadSignoff();}catch(e){showToast(e.message||'Could not sign off week.','error')}});
-  $('#hfReopenWeek')?.addEventListener('click',async()=>{try{const ok=await confirmAction({title:'Reopen this compliance week?',message:'The week will return to Draft and can be corrected before re-signing.',confirmText:'Reopen Week'});if(!ok)return;await reopenHotFoodWeek($('#hfSignoffDate').value,user);showToast('Compliance week reopened.','success');await loadSignoff();}catch(e){showToast(e.message||'Could not reopen week.','error')}});
+  $('#hfSignWeek')?.addEventListener('click',()=>runActionOnce($('#hfSignWeek'),async()=>{try{const ok=await confirmAction({title:'Sign off this compliance week?',message:'Staff editing for this Monday-Sunday week will be locked.',confirmText:'Sign Off Week'});if(!ok)return;await signOffHotFoodWeek($('#hfSignoffDate').value,$('#hfSignoffComment').value,user);showToast('Compliance week signed off.','success');await loadSignoff();}catch(e){showToast(e.message||'Could not sign off week.','error')}}));
+  $('#hfReopenWeek')?.addEventListener('click',()=>runActionOnce($('#hfReopenWeek'),async()=>{try{const ok=await confirmAction({title:'Reopen this compliance week?',message:'The week will return to Draft and can be corrected before re-signing.',confirmText:'Reopen Week'});if(!ok)return;await reopenHotFoodWeek($('#hfSignoffDate').value,user);showToast('Compliance week reopened.','success');await loadSignoff();}catch(e){showToast(e.message||'Could not reopen week.','error')}}));
   ['hfAuditStaff','hfAuditType','hfAuditFrom','hfAuditTo'].forEach(id=>$('#'+id)?.addEventListener('input',loadAudit));
 
   window.addEventListener('beforeunload',e=>{if(dirtyPlan){e.preventDefault();e.returnValue='';}});

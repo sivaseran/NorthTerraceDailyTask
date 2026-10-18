@@ -17,7 +17,7 @@ import {reportCategoryForTask} from './task-category.js';
 import {getHotFoodConfig} from './hot-food-store.js';
 import {initUnifiedScheduleWorkspace} from './weekly-workspace.js';
 import {
-  escapeHtml,statusView,showToast,confirmAction,setButtonLoading,setInlineMessage,
+  escapeHtml,statusView,showToast,confirmAction,setButtonLoading,setInlineMessage,runActionOnce,protectClickHandler,
   setFieldError,clearFieldError,initNetworkStatus,registerAppServiceWorker
 } from './ui.js';
 
@@ -514,21 +514,21 @@ $('#managerSlots').addEventListener('click',async e=>{
     const n=document.querySelector(`.new-task-editor[data-new-slot="${slot}"]`);n.hidden=false;n.querySelector('.new-task-name').focus();return;
   }
   if(e.target.closest('.close-new')){box.hidden=true;return;}
-  if(e.target.closest('.save-day')) return saveRow(row,'day');
-  if(e.target.closest('.save-future')) return saveRow(row,'future');
-  if(e.target.closest('.create-day')) return createFromBox(box,'day');
-  if(e.target.closest('.create-future')) return createFromBox(box,'future');
-  if(e.target.closest('.cancel-today')){
+  if(e.target.closest('.save-day')) return runActionOnce(e.target.closest('.save-day'),()=>saveRow(row,'day'));
+  if(e.target.closest('.save-future')) return runActionOnce(e.target.closest('.save-future'),()=>saveRow(row,'future'));
+  if(e.target.closest('.create-day')) return runActionOnce(e.target.closest('.create-day'),()=>createFromBox(box,'day'));
+  if(e.target.closest('.create-future')) return runActionOnce(e.target.closest('.create-future'),()=>createFromBox(box,'future'));
+  if(e.target.closest('.cancel-today')) return runActionOnce(e.target.closest('.cancel-today'),async()=>{
     if(isHistoricalDate()){showToast('Historical dates are read only.','warning');return;}
     const ok=await confirmAction({title:'Skip this date only?',message:'This task will be skipped only on the selected date. Future recurring dates remain unchanged.',confirmText:'Skip This Date'});
     if(ok) await cancelTaskToday(row.dataset.id,user);return;
-  }
-  if(e.target.closest('.stop-future')){
+  });
+  if(e.target.closest('.stop-future')) return runActionOnce(e.target.closest('.stop-future'),async()=>{
     if(isHistoricalDate()){showToast('Historical dates are read only.','warning');return;}
     const t=tasks.find(x=>x.id===row.dataset.id);if(!t?.templateTaskId)return;
     const ok=await confirmAction({title:'Remove this task completely?',message:`Remove this task from the selected date and all future ${new Date(selectedDate+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'})} occurrences?`,details:'Previous dates remain unchanged.',confirmText:'Remove Completely',danger:true});
     if(ok){await stopTaskFuture(t.templateTaskId,selectedDate,user);await cancelTaskToday(t.id,user);}return;
-  }
+  });
 });
 
 $('#historicalGoToday').onclick=()=>{selectedDate=todayISO();bindDate();};
@@ -567,13 +567,13 @@ $('#closePersonEditor').onclick=closePersonEditor;
 $('#cancelPersonEdit').onclick=closePersonEditor;
 $('#peopleRows').addEventListener('click',async e=>{
   const remove=e.target.closest('.remove-person');
-  if(remove){
+  if(remove) return runActionOnce(remove,async()=>{
     const all=await getUsers(),p=all.find(x=>x.id===remove.dataset.id);if(!p||p.role==='manager')return;
     const ok=await confirmAction({title:`Remove ${p.name||'staff member'}?`,message:'This revokes access and removes them from active staff lists. Historical task and completion records are kept.',confirmText:'Remove'});
     if(!ok)return;
     await saveUser(p.id,{active:false,updatedAt:new Date().toISOString()});
     showToast(`${p.name||'Staff member'} removed from active staff.`,'success');await loadPeople();return;
-  }
+  });
   const b=e.target.closest('.edit-person');if(!b)return;
   const all=await getUsers(),p=all.find(x=>x.id===b.dataset.id);if(!p)return;
   $('#personEditId').value=p.id;$('#personName').value=p.name||'';$('#personRole').value=p.role||'assignee';$('#personStaffId').value=p.staffId||'';$('#personPin').value=p.pin||'';$('#personPinConfirm').value=p.pin||'';$('#personActive').value=String(p.active!==false);
@@ -1744,6 +1744,12 @@ const finalSetup=await ensureFinalV36Schedule();
   }
   await loadPeople();
   initUnifiedScheduleWorkspace({getDate:()=>selectedDate,getPeople:()=>people,refreshDay:bindDate,user});
+  // Single-flight protection begins BEFORE confirm/validation/network for all manager writes.
+  // Day task rows are protected by their own delegated runActionOnce handlers.
+  [
+    '#savePersonBtn','#coverDayBtn','#coverFutureBtn','#saveAvailability',
+    '#bulkSaveWeek','#bulkSaveFuture','#effortNewCreate','#effortSaveTemplate'
+  ].forEach(selector=>protectClickHandler($(selector)));
   { const a=await getStaffAvailability(); staffAvailability=a?.week||structuredClone(DEFAULT_STAFF_AVAILABILITY); }
 updateDateUI();
 updateCoverDateUI();

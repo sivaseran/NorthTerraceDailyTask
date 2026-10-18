@@ -45,6 +45,38 @@ export function setButtonLoading(button, loading, loadingText='Saving…') {
   }
 }
 
+// Prevent the same button or cell from starting overlapping async saves/reviews.
+// The lock starts before validation and remains until the last awaited refresh.
+const runningActions = new WeakSet();
+export async function runActionOnce(element, action, loadingText='Working…') {
+  if (!element || runningActions.has(element)) return;
+  runningActions.add(element);
+  const wasDisabled = Boolean(element.disabled);
+  const previousBusy = element.getAttribute('aria-busy');
+  if (!wasDisabled) element.disabled = true;
+  element.setAttribute('aria-busy', 'true');
+  try { return await action(); }
+  finally {
+    runningActions.delete(element);
+    if (element.isConnected) {
+      element.disabled = wasDisabled;
+      if (previousBusy === null) element.removeAttribute('aria-busy');
+      else element.setAttribute('aria-busy', previousBusy);
+    }
+  }
+}
+
+// Wrap a bound onclick handler without changing its validation, database calls or
+// success/error messages. Useful for existing Manager and module save buttons.
+export function protectClickHandler(button) {
+  if (!button || typeof button.onclick !== 'function' || button.dataset.singleFlightProtected === 'true') return;
+  const original = button.onclick;
+  button.dataset.singleFlightProtected = 'true';
+  button.onclick = function(event) {
+    return runActionOnce(button, () => original.call(this, event));
+  };
+}
+
 export function setInlineMessage(element, message='', type='info') {
   if (!element) return;
   element.className = `inline-message ${type}`;
@@ -155,7 +187,12 @@ function ensureConfirmModal() {
   return overlay;
 }
 
+// A single shared overlay must never have multiple unresolved confirmation promises.
+// Without this guard each tap adds another OK listener, causing repeated saves.
+let confirmationPending = false;
 export function confirmAction({title='Confirm action', message='', details='', confirmText='Confirm', danger=false}={}) {
+  if (confirmationPending) return Promise.resolve(false);
+  confirmationPending = true;
   const overlay = ensureConfirmModal();
   const titleEl = overlay.querySelector('#confirmTitle');
   const messageEl = overlay.querySelector('#confirmMessage');
@@ -173,7 +210,11 @@ export function confirmAction({title='Confirm action', message='', details='', c
   document.body.classList.add('modal-open');
 
   return new Promise(resolve => {
+    let settled = false;
     const finish = value => {
+      if (settled) return;
+      settled = true;
+      confirmationPending = false;
       overlay.hidden = true;
       document.body.classList.remove('modal-open');
       ok.removeEventListener('click', onOk);

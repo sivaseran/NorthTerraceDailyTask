@@ -6,7 +6,7 @@ import {
   createComplianceOneWeek,syncFutureComplianceDefinitions
 } from './special-tasks.js';
 import {getAssignableUsers,todayISO,weekStartISO,addDaysISO,getTasksInRange,slotForClock} from './store.js';
-import {showToast,escapeHtml,confirmAction} from './ui.js';
+import {showToast,escapeHtml,confirmAction,protectClickHandler} from './ui.js';
 const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];const $=s=>document.querySelector(s);const e=v=>escapeHtml(String(v??''));
 const monthRange=m=>{const [year,month]=m.split('-').map(Number);return [m+'-01',`${m}-${String(new Date(year,month,0).getDate()).padStart(2,'0')}`]};
 const currentMonth=()=>todayISO().slice(0,7);
@@ -63,6 +63,7 @@ export async function initSpecialManager(user){
   function collectCleaning(){for(const el of $('#cleanRows').querySelectorAll('.special-rule')){const r=cleaning.items[Number(el.dataset.i)];const val=k=>el.querySelector(`[data-k="${k}"]`);r.staffId=val('staffId').value;r.time=val('time').value;r.effortMinutes=Number(val('effortMinutes').value);if(!Number.isInteger(r.effortMinutes)||r.effortMinutes<1)throw Error('Effort must be at least 1 minute.');r.mode=val('mode').value;r.nextIndex=Math.max(0,Number(val('nextIndex').value||1)-1);r.days=[...el.querySelectorAll('[data-day]:checked')].map(x=>x.dataset.day);r.areas=val('areas').value.split('\n').map(x=>x.trim()).filter(Boolean);r.missingLabels=val('missingLabels').checked;r.photo=val('photo').checked;r.active=val('active').checked;}}
   renderCleaning();$('#cleanAdd').onclick=()=>{try{collectCleaning();cleaning.items.push({id:'rule-'+Date.now(),staffId:users[0]?.id||'',days:['Mon'],time:'14:01',effortMinutes:60,mode:'rotate',areas:['New cleaning area'],nextIndex:0,missingLabels:false,photo:false,active:true});renderCleaning();}catch(err){showToast(err.message,'error');}};
   $('#cleanSave').onclick=async()=>{try{collectCleaning();await saveCleaningConfig(cleaning.items,user);await syncFutureCleaningRules(cleaning,user);showToast('Cleaning rules saved. Completed history is unchanged.','success');}catch(err){showToast(err.message,'error');}};
+  protectClickHandler($('#cleanSave'));
   $('#cleanStaffFilter').insertAdjacentHTML('beforeend',userSelect());
   async function loadCleaningMonth(){
     const month=$('#cleanMonth').value;if(!month)return;const [from,to]=monthRange(month);
@@ -87,6 +88,7 @@ export async function initSpecialManager(user){
     $('#compSettings').innerHTML=`<h3>Temperature limits</h3><div class="form-grid">${(compliance.tempPoints||[]).map((p,i)=>`<label class="field"><span class="field-label">${e(p.name)} limit °C</span><input type="number" step="0.1" data-temp="${i}" value="${Number(p.limit)}"></label>`).join('')}</div>${field('dailyItems','Daily Safety',7)}${field('weeklyItems','Weekly Safety',6)}${field('sfbbOpening','SFBB Opening',8)}${field('sfbbClosing','SFBB Closing',8)}<p class="muted">Changes apply to newly generated checks. Submitted records retain their original questions and results. Issue reports go through the official WhatsApp channel.</p><details><summary>Checklist definition version history (up to 25 previous versions)</summary><div id="compVersions">${(compliance.definitionHistory||[]).slice().reverse().map(h=>`<p>Version ${e(h.version)} — ${e(new Date(h.savedAtMs||0).toLocaleString('en-GB'))} · ${e(h.modifiedBy||'Manager')}</p>`).join('')||'No previous versions'}</div></details>`;}
   function collectCompSettings(){document.querySelectorAll('[data-temp]').forEach(el=>compliance.tempPoints[Number(el.dataset.temp)].limit=Number(el.value));document.querySelectorAll('[data-checklist]').forEach(el=>compliance[el.dataset.checklist]=el.value.split('\n').map(x=>x.trim()).filter(Boolean));}
   renderCompSettings();$('#compSave').onclick=async()=>{try{collectCompSettings();compliance.configVersion=Number(compliance.configVersion||1)+1;await saveComplianceConfig(compliance,user);await syncFutureComplianceDefinitions(compliance,user);showToast('Checklists saved for future checks. Existing results unchanged.','success');}catch(err){showToast(err.message,'error');}};
+  protectClickHandler($('#compSave'));
   const definitions=()=>[...COMPLIANCE_STANDARD.map(t=>({id:t.key,name:compliance.taskNames?.[t.key]||t.name,effort:Number(compliance.effortMinutes?.[t.key]??t.effort),days:t.key==='weekly'?[compliance.weeklyDay||'Wed']:DAYS,items:t.type==='daily'?compliance.dailyItems:t.type==='weekly'?compliance.weeklyItems:t.type==='sfbb_open'?compliance.sfbbOpening:t.type==='sfbb_close'?compliance.sfbbClosing:compliance.tempPoints.map(x=>x.name),standard:true})),...(compliance.customTasks||[]).map(t=>({...t,id:'custom_'+t.id,effort:Number(t.effortMinutes??10),standard:false}))];
   function renderComplianceTasks(){const arr=definitions();$('#compTaskRows').innerHTML=`<div class="nt-module-table-wrap"><table class="nt-module-table"><thead><tr><th>Task name</th><th>Days</th><th>Effort</th><th>Checklist items</th><th></th></tr></thead><tbody>${arr.map(t=>`<tr><td><b>${e(t.name)}</b></td>${td((t.days||[]).join(', '))}${td(t.effort+' min')}${td((t.items||[]).length)}<td><button class="btn secondary small" data-comp-edit="${e(t.id)}">Configure</button> ${t.id==='temp_am'||t.id==='temp_pm'?'':`<button class="btn secondary small" data-comp-copy="${e(t.id)}">Duplicate</button>`}</td></tr>`).join('')}</tbody></table></div>`;
     $('#compTaskRows').querySelectorAll('[data-comp-edit]').forEach(b=>b.onclick=()=>openComplianceEditor(b.dataset.compEdit));
@@ -118,6 +120,7 @@ export async function initSpecialManager(user){
         renderComplianceTasks();$('#compTaskEdit').innerHTML='';showToast('Compliance task created.','success');
       }
     }catch(err){$('#compEditorStatus').textContent=err.message||'Could not save.';}};
+    protectClickHandler($('#compEditorSave'));
   }
   $('#compAddTask').onclick=()=>openComplianceEditor();
   async function loadComplianceMonth(){const month=$('#compMonth').value;if(!month)return;const [from,to]=monthRange(month);

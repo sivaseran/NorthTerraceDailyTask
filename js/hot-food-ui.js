@@ -1,5 +1,6 @@
 import {cookingDefaults,submitCooking,temperatureCheckContext,submitTemperatureCheck,expiryContext,submitExpiry,submitExpiryFinalCheck,reconcileHotFoodDay,canStartHotFood,getOverdueTemperatureTasks} from './hot-food-engine.js';
 import {getHotFoodConfig} from './hot-food-store.js';
+import {runActionOnce} from './ui.js';
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nowHM=()=>new Date().toTimeString().slice(0,5);
@@ -302,4 +303,4 @@ export async function openExpiryTask(task,actor){
 }
 
 export async function completeHotFoodTask(task,actor){if(task.hotFoodType==='temperature_check')return openTemperatureTask(task,actor);if(task.hotFoodType==='expiry')return openExpiryTask(task,actor);return openCookingTask(task,actor);}
-export async function renderStartHotFoodButton(date,container,actorProvider){if(!container)return;const ok=await canStartHotFood(date);let b=container.querySelector('#startHotFoodBtn');if(!ok){b?.remove();return;}if(!b){b=document.createElement('button');b.id='startHotFoodBtn';b.className='btn hf-start-btn';b.textContent='＋ Start Cooking';container.prepend(b);}b.onclick=async()=>{const actor=await actorProvider();if(!actor)return;try{await openCookingTask({id:'',date,hotFoodType:'cooking_initial'},actor,{source:'start_hot_food'});}catch(e){const message=document.createElement('div');message.className='hf-validation-error';message.setAttribute('role','alert');message.textContent=e.message||String(e);b.after(message);setTimeout(()=>message.remove(),9000);}};}
+export async function renderStartHotFoodButton(date,container,actorProvider){if(!container)return;const ok=await canStartHotFood(date);let b=container.querySelector('#startHotFoodBtn');if(!ok){b?.remove();return;}if(!b){b=document.createElement('button');b.id='startHotFoodBtn';b.className='btn hf-start-btn';b.textContent='＋ Start Cooking';container.prepend(b);}b.onclick=()=>runActionOnce(b,async()=>{const actor=await actorProvider();if(!actor)return;try{await openCookingTask({id:'',date,hotFoodType:'cooking_initial'},actor,{source:'start_hot_food'});}catch(e){const message=document.createElement('div');message.className='hf-validation-error';message.setAttribute('role','alert');message.textContent=e.message||String(e);b.after(message);setTimeout(()=>message.remove(),9000);}});}
