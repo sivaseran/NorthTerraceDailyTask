@@ -184,6 +184,42 @@ function applyShiftCoverRulesToRow(row,date,rules,users){
   };
 }
 
+// One-day cover is an explicit exception to the underlying recurring assignee.
+// Apply all affected pending tasks atomically and preserve their original IDs.
+export async function saveDateShiftCover({date,slotId,fromUserId,toUserId,taskIds},actor){
+  if(!date||date<todayISO()||!slotId||!fromUserId||!toUserId||fromUserId===toUserId)
+    throw new Error('Choose a current/future date, slot and two different people.');
+  const ids=[...new Set(taskIds||[])];
+  if(!ids.length||ids.length>180)throw new Error('Select between 1 and 180 pending tasks for one atomic cover.');
+  const users=await getUsers(),target=users.find(u=>u.id===toUserId),source=users.find(u=>u.id===fromUserId);
+  if(!target||target.active===false)throw new Error('The covering staff member is no longer active.');
+  const refs=ids.map(id=>doc(db,'dailyTasks',id));
+  const audit=doc(db,'taskManagerAudit',`shift_cover_date_${Date.now()}_${Math.random().toString(36).slice(2,8)}`);
+  await runTransaction(db,async tx=>{
+    const rows=await Promise.all(refs.map(ref=>tx.get(ref)));
+    for(const snap of rows){
+      if(!snap.exists())throw new Error('A selected task is missing. Refresh the cover preview.');
+      const t=snap.data();
+      if(t.date!==date||t.slotId!==slotId||t.assignedTo!==fromUserId||['completed','cancelled'].includes(t.status))
+        throw new Error('A task changed since the cover preview. Nothing was saved.');
+    }
+    rows.forEach((snap,i)=>{
+      const t=snap.data();
+      tx.update(refs[i],{
+        assignedTo:toUserId,assignedName:target.name||'Unassigned',
+        dayOnlyOverride:true,
+        dayOnlyFields:[...new Set([...(t.dayOnlyFields||[]),'assignedTo','assignedName'])],
+        shiftCoverScope:'date',shiftCoveredFromUserId:fromUserId,
+        shiftCoveredFromName:source?.name||'',shiftCoverDate:date,
+        updatedAt:serverTimestamp(),updatedByUserId:actor?.id||'',updatedByName:actor?.name||''
+      });
+    });
+    tx.set(audit,{type:'date_shift_cover',date,slotId,fromUserId,toUserId,taskIds:ids,
+      actorId:actor?.id||'',at:serverTimestamp()});
+  });
+  return {updated:ids.length};
+}
+
 export async function saveFutureShiftCover({date,slotId,fromUserId,toUserId},actor){
   if(!date||!slotId||!fromUserId||!toUserId) throw new Error('Cover details are incomplete.');
   if(fromUserId===toUserId) throw new Error('Choose two different people.');
@@ -296,11 +332,11 @@ async function resolveAssignee(rule,users){
 }
 
 export async function getPlannedTasksForDate(date){
-  const [templates,users,coverRules]=await Promise.all([getWeeklyTemplate(),getUsers(),getShiftCoverRules()]);
+  const [templates,users,coverRules,lifecycle]=await Promise.all([getWeeklyTemplate(),getUsers(),getShiftCoverRules(),getTaskLifecycleRules()]);
   const rows=[];
   for(const t of templates){
     const rule=ruleForDate(t,date);
-    if(!rule||rule.active===false) continue;
+    if(!rule||rule.active===false||isLifecycleInactive(lifecycle.get(t.id)||[],date)) continue;
     let assigned=await resolveAssignee(rule,users);
     if(isSundayEveningRotationTime(date,rule.sourceTime||'')){
       const rotationId=sundayEveningRotatorForDate(date);
@@ -317,12 +353,12 @@ export async function getPlannedTasksForDate(date){
           const clock=minutesToHM(start);
           rows.push({
             virtualId:`${date}_${t.id}_${clock.replace(':','')}`,
-            templateTaskId:t.id, taskName:t.taskName, date,
+            templateTaskId:t.id, taskName:rule.taskName||t.taskName, date,
             slotId:slotForClock(clock,date), sourceTime:clock,
             effortMinutes:rule.effortMinutes??null,
             assignedTo:assigned.id, assignedName:assigned.name,
             legacyAssignee:rule.legacyAssignee||'',
-            photoRequired:Boolean(t.photoRequired), temperatureRequired:Boolean(t.temperatureRequired), recurring:true, checkpoint:clock,
+            photoRequired:rule.photoRequired??Boolean(t.photoRequired),reportCategory:rule.reportCategory||t.reportCategory||'', temperatureRequired:Boolean(t.temperatureRequired), recurring:true, checkpoint:clock,
             status:'planned'
           });
         }
@@ -330,13 +366,13 @@ export async function getPlannedTasksForDate(date){
       }
     }
     rows.push({
-      virtualId:`${date}_${t.id}`,templateTaskId:t.id,taskName:t.taskName,date,
+      virtualId:`${date}_${t.id}`,templateTaskId:t.id,taskName:rule.taskName||t.taskName,date,
       slotId:rule.slotId||'',
       sourceTime:rule.sourceTime||'',
       effortMinutes:rule.effortMinutes??null,
       assignedTo:assigned.id,assignedName:assigned.name,
       legacyAssignee:rule.legacyAssignee||'',
-      photoRequired:Boolean(t.photoRequired),temperatureRequired:Boolean(t.temperatureRequired),recurring:Boolean(t.recurring),status:'planned'
+      photoRequired:rule.photoRequired??Boolean(t.photoRequired),reportCategory:rule.reportCategory||t.reportCategory||'',temperatureRequired:Boolean(t.temperatureRequired),recurring:Boolean(t.recurring),status:'planned'
     });
   }
   return rows.map(row=>applyShiftCoverRulesToRow(row,date,coverRules,users));
@@ -398,6 +434,7 @@ async function plannedToDaily(row,users){
     legacyAssignee:row.legacyAssignee||'',
     status:'pending',
     photoRequired:Boolean(row.photoRequired),
+    reportCategory:row.reportCategory||'',
     temperatureRequired:Boolean(row.temperatureRequired),
     temperatureC:null,
     recurring:Boolean(row.recurring),
@@ -454,16 +491,19 @@ export async function reconcileDailyTasksForDate(date){
     // explicitly saved it for this date. Older snapshots used assignment
     // differences as an implicit override, which could make stale assignees
     // win over the latest weekly template.
-    const hasDayOverride=Boolean(e.dayOnlyOverride);
-    const assignedTo=hasDayOverride?(e.assignedTo||''):(p.assignedTo||'');
-    const assignedName=hasDayOverride?(e.assignedName||'Unassigned'):(p.assignedName||'Unassigned');
+    const hasDayOverride=Boolean(e.dayOnlyOverride||e.shiftCoverScope==='date'&&e.shiftCoverDate===date);
+    const overrideFields=[...new Set([...(Array.isArray(e.dayOnlyFields)?e.dayOnlyFields:[]),...(e.shiftCoverScope==='date'&&e.shiftCoverDate===date?['assignedTo','assignedName']:[]),...(hasDayOverride&&!Array.isArray(e.dayOnlyFields)?['assignedTo','assignedName']:[])])];
+    const keep=(key,value)=>hasDayOverride&&overrideFields.includes(key)?e[key]:value;
+    const assignedTo=keep('assignedTo',p.assignedTo||'');
+    const assignedName=keep('assignedName',p.assignedName||'Unassigned');
 
     const patch={
-      taskName:p.taskName,
-      slotId:p.slotId,
-      sourceTime:p.sourceTime||'',
-      effortMinutes:p.effortMinutes??null,
-      photoRequired:Boolean(p.photoRequired),
+      taskName:keep('taskName',p.taskName),
+      slotId:keep('slotId',p.slotId),
+      sourceTime:keep('sourceTime',p.sourceTime||''),
+      effortMinutes:keep('effortMinutes',p.effortMinutes??null),
+      photoRequired:keep('photoRequired',Boolean(p.photoRequired)),
+      reportCategory:keep('reportCategory',p.reportCategory||''),
       temperatureRequired:Boolean(p.temperatureRequired),
       recurring:Boolean(p.recurring),
       checkpoint:p.checkpoint||'',
@@ -739,12 +779,13 @@ export async function saveFutureRule(templateTaskId,date,changes,actor){
     assigneeKey:'',
     legacyAssignee:'',
     effortMinutes:changes.effortMinutes!==undefined?changes.effortMinutes:(current.effortMinutes??null),
-    sourceTime:changes.sourceTime!==undefined?changes.sourceTime:(current.sourceTime||'')
+    sourceTime:changes.sourceTime!==undefined?changes.sourceTime:(current.sourceTime||''),
+    taskName:changes.taskName!==undefined?changes.taskName:(current.taskName||task.taskName),
+    photoRequired:changes.photoRequired!==undefined?Boolean(changes.photoRequired):(current.photoRequired??Boolean(task.photoRequired)),
+    reportCategory:changes.reportCategory!==undefined?changes.reportCategory:(current.reportCategory||task.reportCategory||'')
   };
   schedule[dkey]={versions:[...kept,next]};
   await updateDoc(ref,{
-    taskName:changes.taskName??task.taskName,
-    photoRequired:changes.photoRequired!==undefined?Boolean(changes.photoRequired):Boolean(task.photoRequired),
     schedule,updatedAt:serverTimestamp(),
     updatedByUserId:actor?.id||'',updatedByName:actor?.name||''
   });
@@ -775,46 +816,82 @@ export async function saveFutureRule(templateTaskId,date,changes,actor){
   if(touched) await batch.commit();
 }
 
+// Single-date and same-weekday recurring creation share the multi-day data
+// model and a single atomic Firestore write. This avoids orphan templates.
 export async function createTaskForDate(date,data,scope,actor){
-  const people=await getUsers();
-  const assignee=people.find(u=>u.id===data.assignedTo);
-  const name=assignee?.name||'Unassigned';
-  const templateId=`task_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
-  const dailyId=`${date}_${scope==='future'?templateId:`adhoc_${Date.now()}`}`;
-
-  if(scope==='future'){
-    const schedule={};
-    WEEK_DAYS.forEach(day=>schedule[day]={versions:[]});
-    const dkey=dayKey(date);
-    schedule[dkey]={versions:[{
-      effectiveFrom:date,active:true,slotId:data.slotId,assigneeId:data.assignedTo||'',
-      assigneeKey:'',legacyAssignee:'',effortMinutes:data.effortMinutes??null,sourceTime:data.sourceTime||''
-    }]};
-    await setDoc(doc(db,'weeklyTemplates',templateId),{
-      taskName:data.taskName,photoRequired:Boolean(data.photoRequired),recurring:false,
-      frequencyMinutes:null,schedule,schemaVersion:2,sortOrder:Date.now(),
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date<todayISO())throw new Error('Choose a current or future date.');
+  if(!['day','future'].includes(scope)||!String(data.taskName||'').trim()||
+    !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(data.sourceTime||'')))throw new Error('Enter a valid task name and HH:MM time.');
+  const existing=await getTasksForDate(date,{ensure:false});
+  if(existing.some(t=>t.status!=='cancelled'&&String(t.taskName||'').trim().toLowerCase()===String(data.taskName||'').trim().toLowerCase()&&t.sourceTime===data.sourceTime))
+    throw new Error('This task already exists at the selected time on this date.');
+  const users=await getUsers(),assigned=users.find(u=>u.id===data.assignedTo),name=assigned?.name||'Unassigned';
+  const templateId=`task_${Date.now()}_${Math.random().toString(36).slice(2,9)}`;
+  const dailyId=scope==='future'?`${date}_${templateId}`:`${date}_adhoc_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+  const schedule={};WEEK_DAYS.forEach(day=>schedule[day]={versions:[]});
+  if(scope==='future')schedule[dayKey(date)]={versions:[{effectiveFrom:date,active:true,
+    slotId:data.slotId,assigneeId:data.assignedTo||'',assigneeKey:'',legacyAssignee:'',
+    effortMinutes:data.effortMinutes??null,sourceTime:data.sourceTime,
+    taskName:data.taskName,reportCategory:data.reportCategory||'Daily Operations',photoRequired:!!data.photoRequired}]};
+  const auditId=`create_day_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+  await runTransaction(db,async tx=>{
+    if(scope==='future')tx.set(doc(db,'weeklyTemplates',templateId),{
+      taskName:data.taskName,reportCategory:data.reportCategory||'Daily Operations',
+      photoRequired:!!data.photoRequired,recurring:true,frequencyMinutes:null,
+      schedule,schemaVersion:2,sortOrder:Date.now(),createdAt:serverTimestamp(),updatedAt:serverTimestamp(),
+      createdByUserId:actor?.id||'',createdByName:actor?.name||''});
+    tx.set(doc(db,'dailyTasks',dailyId),{
+      date,templateTaskId:scope==='future'?templateId:'',
+      taskName:data.taskName,reportCategory:data.reportCategory||'Daily Operations',
+      slotId:data.slotId,sourceTime:data.sourceTime,effortMinutes:data.effortMinutes??null,
+      originalAssignedTo:data.assignedTo||'',originalAssignedName:name,
+      assignedTo:data.assignedTo||'',assignedName:name,
+      legacyAssignee:'',status:'pending',photoRequired:!!data.photoRequired,
+      recurring:scope==='future',checkpoint:'',adHoc:scope!=='future',
+      completedAt:null,completedByUserId:'',completedByName:'',
       createdAt:serverTimestamp(),updatedAt:serverTimestamp(),
-      createdByUserId:actor?.id||'',createdByName:actor?.name||''
-    });
-  }
-
-  await setDoc(doc(db,'dailyTasks',dailyId),{
-    date,templateTaskId:scope==='future'?templateId:'',
-    taskName:data.taskName,slotId:data.slotId,sourceTime:data.sourceTime||'',
-    effortMinutes:data.effortMinutes??null,
-    originalAssignedTo:data.assignedTo||'',originalAssignedName:name,
-    assignedTo:data.assignedTo||'',assignedName:name,
-    legacyAssignee:'',status:'pending',photoRequired:Boolean(data.photoRequired),
-    recurring:false,checkpoint:'',adHoc:scope!=='future',
-    completedAt:null,completedByUserId:'',completedByName:'',
-    createdAt:serverTimestamp(),updatedAt:serverTimestamp(),
-    createdByUserId:actor?.id||'',createdByName:actor?.name||''
+      createdByUserId:actor?.id||'',createdByName:actor?.name||''});
+    tx.set(doc(db,'taskManagerAudit',auditId),{type:'task_created',date,scope,taskId:dailyId,
+      templateId:scope==='future'?templateId:null,actorId:actor?.id||'',at:serverTimestamp()});
   });
   return dailyId;
 }
 
-export async function cancelTaskToday(id,actor){
-  await updateDailyTask(id,{status:'cancelled',cancelledAt:serverTimestamp()},actor);
+// V4.3 — create one task on several selected weekdays, with a single recurring
+// template for future weeks or individual dated occurrences for this week only.
+// One transaction includes all generated records; completed/history documents
+// are never overwritten. A duplicate preflight prevents accidental double adds.
+export async function createWeeklyMultiDayTask({weekStart,effectiveFrom=weekStart,weekdays,scope,data},actor){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)||!['week','future'].includes(scope))throw new Error('Choose a week and save scope.');
+  const days=[...new Set(weekdays||[])];if(!days.length||days.some(x=>!WEEK_DAYS.includes(x)))throw new Error('Choose at least one valid weekday.');
+  if(!String(data.taskName||'').trim()||!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(data.sourceTime)||!(Number(data.effortMinutes)>0))throw new Error('Enter task name, time and a positive effort.');
+  if(scope==='future'&&(!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom)||effectiveFrom<todayISO()))throw new Error('Choose a current or future effective date.');
+  const dates=days.map(day=>scope==='future'?addDaysISO(effectiveFrom,(WEEK_DAYS.indexOf(day)-WEEK_DAYS.indexOf(dayKey(effectiveFrom))+7)%7):addDaysISO(weekStart,WEEK_DAYS.indexOf(day)));
+  if(dates.some(date=>date<todayISO()))throw new Error('Cannot create a one-time task in the past. Choose a current or future week.');
+  const [person,found]=await Promise.all([getUsers(),Promise.all(dates.map(date=>getTasksForDate(date,{ensure:false})))]);
+  if(found.some((tasks,i)=>tasks.some(t=>t.status!=='cancelled'&&String(t.taskName||'').trim().toLowerCase()===String(data.taskName).trim().toLowerCase()&&t.sourceTime===data.sourceTime)))
+    throw new Error('A matching task already exists on a selected date. Review the week before creating a duplicate.');
+  const name=person.find(x=>x.id===data.assignedTo)?.name||'Unassigned';
+  const id=`ntmulti_${Date.now()}_${Math.random().toString(36).slice(2,9)}`;
+  const tpl=scope==='future'?doc(db,'weeklyTemplates',id):null;
+  const weekSchedule={};WEEK_DAYS.forEach(day=>weekSchedule[day]={versions:[]});
+  if(tpl)for(const day of days){const date=dates[days.indexOf(day)];weekSchedule[day]={versions:[{effectiveFrom:date,active:true,slotId:data.slotId,sourceTime:data.sourceTime,assigneeId:data.assignedTo||'',assigneeKey:'',legacyAssignee:'',effortMinutes:Number(data.effortMinutes),taskName:String(data.taskName).trim(),reportCategory:data.reportCategory||'Daily Operations',photoRequired:!!data.photoRequired}]};}
+  await runTransaction(db,async tx=>{
+    if(tpl)tx.set(tpl,{taskName:data.taskName,reportCategory:data.reportCategory||'Daily Operations',photoRequired:!!data.photoRequired,recurring:true,frequencyMinutes:null,schedule:weekSchedule,schemaVersion:2,sortOrder:Date.now(),createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdByUserId:actor?.id||''});
+    for(const date of dates){const id2=`${date}_${id}`;tx.set(doc(db,'dailyTasks',id2),{date,templateTaskId:tpl?id:'',taskName:data.taskName,reportCategory:data.reportCategory||'Daily Operations',slotId:data.slotId,sourceTime:data.sourceTime,effortMinutes:Number(data.effortMinutes),originalAssignedTo:data.assignedTo||'',originalAssignedName:name,assignedTo:data.assignedTo||'',assignedName:name,status:'pending',photoRequired:!!data.photoRequired,recurring:!!tpl,adHoc:!tpl,checkpoint:'',completedAt:null,completedByUserId:'',completedByName:'',createdAt:serverTimestamp(),updatedAt:serverTimestamp()});}
+    tx.set(doc(db,'taskManagerAudit',`create_multi_${id}`),{type:'multi_day_task_created',taskName:data.taskName,dates,scope,effectiveFrom:scope==='future'?effectiveFrom:null,templateId:tpl?id:'',actorId:actor?.id||'',at:serverTimestamp()});
+  });
+  return {templateId:tpl?id:null,dates};
+}
+export async function cancelTaskToday(id,actor,reason=''){
+  const ref=doc(db,'dailyTasks',id),audit=doc(db,'taskManagerAudit',`cancel_${Date.now()}_${Math.random().toString(36).slice(2,8)}`);
+  await runTransaction(db,async tx=>{
+    const snap=await tx.get(ref);if(!snap.exists())throw new Error('Task not found. Refresh.');
+    const t=snap.data();if(t.status==='completed')throw new Error('Completed history cannot be cancelled.');
+    if(t.date<todayISO()||t.status==='cancelled')throw new Error('This task is not available for cancellation.');
+    tx.update(ref,{status:'cancelled',cancelReason:String(reason||'Skipped for this date'),cancelledAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedByUserId:actor?.id||''});
+    tx.set(audit,{type:'cancel_once',taskId:id,date:t.date,reason:String(reason||''),actorId:actor?.id||'',at:serverTimestamp()});
+  });
 }
 export async function stopTaskFuture(templateTaskId,date,actor){
   await saveFutureRule(templateTaskId,date,{active:false},actor);
@@ -850,3 +927,104 @@ export async function getTasksInRange(start,end){
 }
 
 export const percent=rows=>rows.length?Math.round(rows.filter(t=>t.status==='completed').length/rows.length*100):0;
+
+// Unified Manager Editor: lifecycle events are separate from weekly templates
+// and never destroy previous completion records.
+export async function getTaskLifecycleRules(){
+  const rows=await getDocs(collection(db,'taskScheduleLifecycles'));
+  return new Map(rows.docs.map(d=>[d.id,d.data().events||[]]));
+}
+export function isLifecycleInactive(events,date){
+  const applicable=(events||[]).filter(x=>x.date<=date&&(x.type!=='pause'||!x.until||date<=x.until)).sort((a,b)=>a.date.localeCompare(b.date)||String(a.key||'').localeCompare(String(b.key||'')));
+  let ended=false;
+  for(const x of applicable){if(x.type==='pause'||x.type==='end')ended=true;else if(x.type==='resume'||x.type==='restart')ended=false;}
+  return ended;
+}
+export async function saveLifecycleAction({templateTaskId,type,date,until='',reason=''},actor){
+  if(!templateTaskId||!['pause','resume','end','restart'].includes(type)||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date)||date<todayISO())throw new Error('Invalid task action or historical date.');
+  if(type==='pause'&&(!until||until<date))throw new Error('Choose an end date on or after the pause start.');
+  const ref=doc(db,'taskScheduleLifecycles',templateTaskId),auditId=`task_lifecycle_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+  const event={key:auditId,type,date,until:type==='pause'?until:'',reason:String(reason||''),by:actor?.id||'',at:Date.now()};
+  await runTransaction(db,async tx=>{
+    const [tpl,prev]=await Promise.all([tx.get(doc(db,'weeklyTemplates',templateTaskId)),tx.get(ref)]);
+    if(!tpl.exists())throw new Error('Task template not found. Refresh.');
+    tx.set(ref,{templateTaskId,events:[...(prev.exists()?prev.data().events||[]:[]),event],updatedAt:serverTimestamp()});
+    tx.set(doc(db,'taskManagerAudit',auditId),{type:'lifecycle_action',templateTaskId,event,actorId:actor?.id||'',at:serverTimestamp()});
+  });return event;
+}
+export async function saveDayTaskEdit(taskId,date,changes,actor){
+  if(date<todayISO())throw new Error('Historical tasks are read-only.');
+  const keys=['taskName','sourceTime','slotId','effortMinutes','assignedTo','photoRequired','reportCategory'];
+  const selected=Object.fromEntries(keys.filter(k=>Object.hasOwn(changes,k)).map(k=>[k,changes[k]]));
+  const people=await getUsers(),person=people.find(x=>x.id===selected.assignedTo);
+  if(Object.hasOwn(selected,'assignedTo'))selected.assignedName=person?.name||'Unassigned';
+  const ref=doc(db,'dailyTasks',taskId),audit=doc(db,'taskManagerAudit',`single_day_${Date.now()}_${Math.random().toString(36).slice(2,8)}`);
+  await runTransaction(db,async tx=>{
+    const snap=await tx.get(ref);if(!snap.exists()||snap.data().date!==date||['completed','cancelled'].includes(snap.data().status))throw new Error('This task is no longer editable. Refresh.');
+    const fields=[...new Set([...(snap.data().dayOnlyFields||[]),...Object.keys(selected)])];
+    tx.update(ref,{...selected,dayOnlyOverride:true,dayOnlyFields:fields,updatedAt:serverTimestamp(),updatedByUserId:actor?.id||''});
+    tx.set(audit,{type:'date_only_edit',taskId,date,changes:selected,actorId:actor?.id||'',at:serverTimestamp()});
+  });
+}
+export async function previewRecurringExceptions(changes,effectiveFrom){
+  const wanted=new Set(changes.map(c=>`${c.templateTaskId}|${c.day}`));
+  const all=await getDocs(query(collection(db,'dailyTasks'),where('date','>=',effectiveFrom)));
+  return all.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.dayOnlyOverride&&!['completed','cancelled'].includes(x.status)&&wanted.has(`${x.templateTaskId}|${dayKey(x.date)}`)).map(x=>({id:x.id,date:x.date,taskName:x.taskName}));
+}
+export async function saveBulkDayEdits(entries,actor){
+  if(!entries.length||entries.length>180)throw new Error('Choose between 1 and 180 task/date changes for one atomic save.');
+  if(entries.some(x=>x.date<todayISO()))throw new Error('Historical tasks cannot be changed.');
+  const users=await getUsers(),names=new Map(users.map(x=>[x.id,x.name||'Unassigned']));
+  const refs=entries.map(x=>doc(db,'dailyTasks',x.taskId)),audit=doc(db,'taskManagerAudit',`bulk_day_${Date.now()}_${Math.random().toString(36).slice(2,8)}`);
+  await runTransaction(db,async tx=>{
+    const snaps=await Promise.all(refs.map(r=>tx.get(r)));
+    for(let i=0;i<snaps.length;i++){const s=snaps[i];if(!s.exists()||s.data().date!==entries[i].date||['completed','cancelled'].includes(s.data().status))throw new Error('Selected task changed. No changes were saved.');}
+    snaps.forEach((snap,i)=>{
+      const c=entries[i].changes;
+      const patch={...c,dayOnlyOverride:true,dayOnlyFields:[...new Set([...(snap.data().dayOnlyFields||[]),...Object.keys(c),...(Object.hasOwn(c,'assignedTo')?['assignedName']:[])])],updatedAt:serverTimestamp(),updatedByUserId:actor?.id||''};
+      if(Object.hasOwn(c,'assignedTo'))patch.assignedName=names.get(c.assignedTo)||'Unassigned';
+      tx.update(refs[i],patch);
+    });
+    tx.set(audit,{type:'bulk_date_only',entries:entries.map(x=>({taskId:x.taskId,date:x.date,changes:x.changes})),actorId:actor?.id||'',at:serverTimestamp()});
+  });return entries.length;
+}
+export async function saveBulkRecurringEdits({changes,effectiveFrom,replaceExceptions=false},actor){
+  if(!Array.isArray(changes)||!changes.length||effectiveFrom<todayISO())throw new Error('Choose tasks and a current/future effective date.');
+  const selected=new Map();
+  for(const c of changes){if(!c.templateTaskId||!WEEK_DAYS.includes(c.day))throw new Error('Invalid recurring task selection.');selected.set(`${c.templateTaskId}|${c.day}`,c);}
+  const values=[...selected.values()],ids=[...new Set(values.map(c=>c.templateTaskId))];
+  const future=await getDocs(query(collection(db,'dailyTasks'),where('date','>=',effectiveFrom)));
+  const rows=future.docs.filter(d=>selected.has(`${d.data().templateTaskId}|${dayKey(d.data().date)}`)&&!['completed','cancelled'].includes(d.data().status));
+  if(ids.length+rows.length>350)throw new Error('Too many existing future records for one atomic save. Select fewer tasks. Nothing saved.');
+  const staff=await getUsers(),names=new Map(staff.map(x=>[x.id,x.name||'Unassigned']));
+  const refs=ids.map(id=>doc(db,'weeklyTemplates',id)),audit=doc(db,'taskManagerAudit',`bulk_rule_${Date.now()}_${Math.random().toString(36).slice(2,8)}`);
+  await runTransaction(db,async tx=>{
+    const snapshots=await Promise.all([...refs,...rows.map(d=>d.ref)].map(r=>tx.get(r)));
+    if(snapshots.some(x=>!x.exists()))throw new Error('A task was changed during saving. No changes saved.');
+    const live=new Map(snapshots.slice(0,ids.length).map(d=>[d.id,{id:d.id,...d.data()}]));
+    for(const id of ids){
+      const task=live.get(id),schedule=structuredClone(task.schedule||{});
+      for(const c of values.filter(v=>v.templateTaskId===id)){
+        const offset=(WEEK_DAYS.indexOf(c.day)-WEEK_DAYS.indexOf(dayKey(effectiveFrom))+7)%7,date=addDaysISO(effectiveFrom,offset),old=normaliseVersions(schedule[c.day]);
+        const current=ruleForDate(task,date)||{};
+        const kept=old.filter(v=>String(v.effectiveFrom||'')!==date).map(v=>({...v}));
+        const before=kept.map((v,i)=>({v,i})).filter(x=>String(x.v.effectiveFrom||'')<date).sort((a,b)=>String(b.v.effectiveFrom).localeCompare(String(a.v.effectiveFrom)))[0];
+        if(before)kept[before.i].effectiveTo=addDaysISO(date,-1);
+        const later=kept.filter(v=>v.effectiveFrom>date).sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom))[0];
+        const ch=c.changes,next={effectiveFrom:date,active:ch.active??(current.active!==false),slotId:ch.slotId??current.slotId??'',assigneeId:ch.assignedTo??current.assigneeId??'',assigneeKey:'',legacyAssignee:'',effortMinutes:ch.effortMinutes!==undefined?ch.effortMinutes:current.effortMinutes??null,sourceTime:ch.sourceTime??current.sourceTime??'',taskName:ch.taskName??current.taskName??task.taskName,photoRequired:ch.photoRequired??current.photoRequired??task.photoRequired??false,reportCategory:ch.reportCategory??current.reportCategory??task.reportCategory??''};
+        if(later)next.effectiveTo=addDaysISO(later.effectiveFrom,-1);
+        schedule[c.day]={versions:[...kept,next]};
+      }
+      tx.update(doc(db,'weeklyTemplates',id),{schedule,updatedAt:serverTimestamp(),updatedByUserId:actor?.id||''});
+    }
+    for(const snap of snapshots.slice(ids.length)){
+      const x=snap.data(),c=selected.get(`${x.templateTaskId}|${dayKey(x.date)}`);if(!c)continue;
+      if(x.dayOnlyOverride&&!replaceExceptions)continue;
+      const patch={...c.changes,updatedAt:serverTimestamp(),updatedByUserId:actor?.id||''};
+      if(Object.hasOwn(c.changes,'assignedTo'))patch.assignedName=names.get(c.changes.assignedTo)||'Unassigned';
+      if(x.dayOnlyOverride&&replaceExceptions){patch.dayOnlyOverride=false;patch.dayOnlyFields=[];}
+      tx.update(snap.ref,patch);
+    }
+    tx.set(audit,{type:'bulk_recurring_edit',effectiveFrom,selected:values,replaceExceptions,actorId:actor?.id||'',at:serverTimestamp()});
+  });return {changed:values.length};
+}

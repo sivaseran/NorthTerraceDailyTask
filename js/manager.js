@@ -3,8 +3,8 @@ import {
   SLOT_DEFS,todayISO,addDaysISO,formatLongDate,slotLabelForDate,slotCapacityMinutes,sundayEveningRotatorForDate,
   getUsers,getAssignableUsers,getSystemState,getStaffAvailability,saveStaffAvailability,getWeeklyTemplate,getSetupTasksForDate,reconcileDailyTasksForDate,bulkUpdateWeeklyTemplateRows,validateUserUniqueness,saveUser,createPerson,
   ensureTasksForDate,watchTasksForDate,getTasksForDate,
-  updateDailyTask,saveFutureRule,createTaskForDate,cancelTaskToday,stopTaskFuture,saveFutureShiftCover,
-  workloadBySlot,capacityForDraft,completeTask
+  updateDailyTask,saveFutureRule,createTaskForDate,cancelTaskToday,stopTaskFuture,saveFutureShiftCover,saveDateShiftCover,
+  workloadBySlot,capacityForDraft,completeTask,ruleForDate,WEEK_DAYS,dayKey
 } from './store.js';
 // Legacy destructive startup migrations are intentionally not run from Manager.
 import {ensureFinalV36Schedule} from './final-config.js';
@@ -15,6 +15,7 @@ import {initSpecialManager} from './special-manager.js';
 import {ensureSpecialTasksForDate,ensureSafeUpgrades} from './special-tasks.js';
 import {reportCategoryForTask} from './task-category.js';
 import {getHotFoodConfig} from './hot-food-store.js';
+import {initUnifiedScheduleWorkspace} from './weekly-workspace.js';
 import {
   escapeHtml,statusView,showToast,confirmAction,setButtonLoading,setInlineMessage,
   setFieldError,clearFieldError,initNetworkStatus,registerAppServiceWorker
@@ -29,7 +30,7 @@ if(!user||user.role!=='manager') location.href='login.html';
 initNetworkStatus();
 registerAppServiceWorker();
 
-let selectedDate=todayISO(),tasks=[],people=[],unsubscribe=null;
+let selectedDate=todayISO(),tasks=[],people=[],unsubscribe=null,dayTemplateMap=new Map();
 let coverDate=todayISO(),coverTasks=[];
 let advancedEditAll=false;
 let bulkWeekAnchor=todayISO();
@@ -102,18 +103,25 @@ function slotCapacityHTML(slotId){
 }
 
 function taskEditor(t){
+  if(t.hotFoodGrouped)return `<article class="manager-task-editor compact-editor hf-manager-group"><div class="compact-task-view dense-task-row"><div class="dense-task-main"><strong class="dense-task-title">Hot Food · Hourly Display Checks</strong><small class="task-report-category">Hot Food</small></div><div class="dense-task-assignee">${t.count} automatic check(s)</div><div class="dense-task-effort">${escapeHtml(t.times.join(' · '))}</div><div class="dense-task-status">Batch-based</div><div class="dense-task-action"><button class="btn secondary small" data-hotfood-module>Hot Food</button></div></div></article>`;
   const assignee=t.assignedName||'Unassigned';
   const unassigned=!t.assignedTo;
   const effort=Number(t.effortMinutes)>0?`${Number(t.effortMinutes)} min`:'—';
   const historical=isHistoricalDate();
-
+  const special=Boolean(t.specialType||t.hotFood);
+  const tpl=dayTemplateMap.get(t.templateTaskId);
+  const weekdays=tpl?WEEK_DAYS.map(d=>{
+    const offset=(WEEK_DAYS.indexOf(d)-WEEK_DAYS.indexOf(dayKey(selectedDate))+7)%7;
+    const active=ruleForDate(tpl,addDaysISO(selectedDate,offset))?.active===true;
+    return `<span class="${active?'on':''}">${d}</span>`;
+  }).join(''):'';
   return `<article class="manager-task-editor compact-editor ${historical?'historical-task-row':''}" data-id="${t.id}" data-template="${escapeHtml(t.templateTaskId||'')}">
     <div class="compact-task-view dense-task-row">
       <div class="dense-task-main">
         <div class="task-title-and-category"><strong class="dense-task-title">${escapeHtml(t.taskName||'Untitled task')}</strong><small class="task-report-category" data-report-category="${escapeHtml(reportCategoryForTask(t))}">${escapeHtml(reportCategoryForTask(t))}</small></div>
         <div class="dense-task-badges">
           ${t.photoRequired?'<span class="mini-pill photo-pill">📷 Photo</span>':''}
-          ${t.recurring?'<span class="mini-pill recurring-pill">↻ Recurring</span>':''}
+          ${tpl?`<span class="nt-weekday-dots" aria-label="Recurring weekdays">${weekdays}</span>`:special?'<span class="mini-pill">Managed in source module</span>':'<span class="mini-pill">Date Only</span>'}
         </div>
       </div>
 
@@ -139,7 +147,7 @@ function taskEditor(t){
       </div>
     </div>
 
-    ${historical?'':`
+    ${historical||special?'':`
     <div class="row-edit-panel" hidden>
       ${t.legacyAssignee&&(!t.assignedTo)?`<div class="legacy-editor-note">Original source assignment: ${escapeHtml(t.legacyAssignee)}</div>`:''}
       <div class="editor-grid">
@@ -166,6 +174,7 @@ function newTaskEditor(slotId){
   return `<div class="new-task-editor" data-new-slot="${slotId}" hidden>
     <div class="editor-grid">
       <div class="field editor-name"><label>New task name</label><input class="new-task-name" placeholder="Task name"></div>
+      <div class="field"><label>Category</label><select class="new-category"><option value="Daily Operations">Daily Operations</option><option value="Cleaning">Cleaning</option><option value="Daily Safety">Daily Safety</option><option value="Weekly Safety">Weekly Safety</option><option value="Temperature Log">Temperature Log</option><option value="SFBB">SFBB</option><option value="Hot Food">Hot Food</option></select></div>
       <div class="field"><label>Time Order</label><input class="new-time" type="time"></div>
       <div class="field"><label>Slot</label><select class="new-slot">${slotOptions(slotId)}</select></div>
       <div class="field"><label>Task effort (min)</label><input class="new-effort" type="number" min="1" step="5" placeholder="Optional"></div>
@@ -180,7 +189,11 @@ function newTaskEditor(slotId){
 function renderSchedule(rows){
   tasks=rows;
   $('#managerSlots').innerHTML=SLOT_DEFS.map(slot=>{
-    const a=rows.filter(t=>t.slotId===slot.id&&t.status!=='cancelled');
+    const inSlot=rows.filter(t=>t.slotId===slot.id&&t.status!=='cancelled');
+    const temperature=inSlot.filter(t=>t.hotFood===true&&t.hotFoodType==='temperature_check');
+    const a=inSlot.filter(t=>!(t.hotFood===true&&t.hotFoodType==='temperature_check'));
+    if(temperature.length)a.push({hotFoodGrouped:true,count:temperature.length,times:temperature.map(t=>t.sourceTime).filter(Boolean).sort(),sourceTime:temperature.map(t=>t.sourceTime).sort()[0],slotId:slot.id});
+    a.sort((x,y)=>String(x.sourceTime||'').localeCompare(String(y.sourceTime||''));
     return `<section class="manager-slot-card dense-slot-card" data-slot="${slot.id}">
       <div class="manager-slot-head dense-slot-head">
         <div class="dense-slot-primary">
@@ -237,6 +250,7 @@ async function bindDate(){
   // Schedule Editor that previously appeared until the manager changed dates.
   try{
     if(selectedDate>=todayISO()){ await ensureSpecialTasksForDate(selectedDate); await ensureTasksForDate(selectedDate); try{await ensureHotFoodDay(selectedDate);}catch(error){console.warn('Hot Food Manager schedule sync unavailable',error);} }
+    dayTemplateMap=new Map((await getWeeklyTemplate()).map(t=>[t.id,t]));
     const initialRows=await getTasksForDate(selectedDate,{ensure:false});
     renderSchedule(initialRows);
   }catch(error){
@@ -434,6 +448,7 @@ async function createFromBox(box,scope){
   }
   const draft={
     taskName:box.querySelector('.new-task-name').value.trim(),
+    reportCategory:box.querySelector('.new-category').value,
     slotId:box.querySelector('.new-slot').value,
     effortMinutes:box.querySelector('.new-effort').value?Number(box.querySelector('.new-effort').value):null,
     assignedTo:box.querySelector('.new-assignee').value,
@@ -475,6 +490,7 @@ $('#managerSlots').addEventListener('change',e=>{
   }
 });
 $('#managerSlots').addEventListener('click',async e=>{
+  if(e.target.closest('[data-hotfood-module]')){document.querySelector('.manager-nav button[data-section="hotfood"]')?.click();return;}
   const mutatingTarget=e.target.closest('.open-row-edit,.add-task,.save-day,.save-future,.create-day,.create-future,.cancel-today,.stop-future');
   if(isHistoricalDate()&&mutatingTarget){
     showToast('Historical schedules are view only. Choose today or a future date to make changes.','warning',{title:'Read-only history'});
@@ -610,16 +626,7 @@ $('#coverDayBtn').onclick=async()=>{
 
   const btn=$('#coverDayBtn');setButtonLoading(btn,true,'Applying…');
   try{
-    for(const t of affected){
-      await updateDailyTask(t.id,{
-        assignedTo:to,
-        assignedName:target?.name||'Unassigned',
-        shiftCoverScope:'date',
-        shiftCoveredFromUserId:from,
-        shiftCoveredFromName:source?.name||'',
-        shiftCoverDate:coverDate
-      },user);
-    }
+    await saveDateShiftCover({date:coverDate,slotId:slot,fromUserId:from,toUserId:to,taskIds:affected.map(t=>t.id)},user);
     setInlineMessage($('#coverResult'),`✓ ${affected.length} task(s) moved for ${formatLongDate(coverDate)} only.`,'success');
     showToast('Shift cover applied for the selected date.','success');
     await loadCoverDate();
@@ -1736,6 +1743,7 @@ const finalSetup=await ensureFinalV36Schedule();
     );
   }
   await loadPeople();
+  initUnifiedScheduleWorkspace({getDate:()=>selectedDate,getPeople:()=>people,refreshDay:bindDate,user});
   { const a=await getStaffAvailability(); staffAvailability=a?.week||structuredClone(DEFAULT_STAFF_AVAILABILITY); }
 updateDateUI();
 updateCoverDateUI();

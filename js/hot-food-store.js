@@ -1,4 +1,4 @@
-import {db,doc,getDoc,setDoc,collection,getDocs,serverTimestamp} from './firebase.js';
+import {db,doc,getDoc,setDoc,collection,getDocs,query,where,serverTimestamp} from './firebase.js';
 
 export const HOT_FOOD_DEFAULTS={
   enabled:false,
@@ -6,7 +6,10 @@ export const HOT_FOOD_DEFAULTS={
   holdingPassC:63,
   eligibilityMinutes:15,
   cookingCutoff:'14:00',
-  holdingMinutes:240
+  holdingMinutes:240,
+  initialCookingTime:'06:00',
+  initialCookingEffortMinutes:15,
+  initialCookingStaffByDay:{}
 };
 
 export const HOT_FOOD_DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
@@ -168,4 +171,18 @@ export async function reopenHotFoodWeek(anyDate,actor){const prior=await getWeek
 export async function isHotFoodWeekLocked(date){return (await getWeekSignoff(date)).status==='signed'}
 export async function managerCorrectHotFoodRecord(kind,id,changes,actor){
   const map={batch:'hotFoodBatches',check:'hotFoodChecks'};if(!map[kind])throw new Error('Unsupported correction type.');const ref=doc(db,map[kind],id),snap=await getDoc(ref);if(!snap.exists())throw new Error('Record not found.');const before=snap.data(),safe={...changes,managerCorrectedAt:serverTimestamp(),managerCorrectedByUserId:actor?.id||'',managerCorrectedByName:actor?.name||''};await setDoc(ref,safe,{merge:true});await addHotFoodAudit('manager_correction',{kind,id,before:Object.fromEntries(Object.keys(changes).map(k=>[k,before[k]??null])),after:changes},actor);return {id,...before,...changes};
+}
+
+// Permanent manager timing edits apply to already-materialised *pending*
+// Initial Cooking prompts, never completed, cancelled or date-only overrides.
+export async function syncFutureInitialCookingPrompts({time,effortMinutes},actor){
+  const {slotForClock,todayISO}=await import('./store.js');
+  const q=await getDocs(query(collection(db,'dailyTasks'),where('date','>=',todayISO())));
+  let changed=0;
+  for(const snap of q.docs){const t=snap.data();
+    if(t.hotFoodType!=='cooking_initial'||t.date<todayISO()||['completed','cancelled','missed'].includes(t.status)||t.dayOnlyOverride)continue;
+    await setDoc(snap.ref,{sourceTime:time,checkpoint:time,slotId:slotForClock(time,t.date),effortMinutes:Number(effortMinutes),updatedAt:serverTimestamp()},{merge:true});changed++;
+  }
+  if(changed)await addHotFoodAudit('future_initial_cooking_schedule_updated',{time,effortMinutes,changed},actor);
+  return changed;
 }

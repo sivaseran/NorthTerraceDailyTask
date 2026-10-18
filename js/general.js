@@ -6,7 +6,7 @@ import {
 import {loginWithPin} from './auth.js';
 import {completeTask} from './store.js';
 import {escapeHtml,statusView,showToast,confirmAction,promptPin,initNetworkStatus,registerAppServiceWorker} from './ui.js';
-import {ensureHotFoodDay} from './hot-food-engine.js';
+import {ensureHotFoodDay,reconcileHotFoodDay} from './hot-food-engine.js';
 import {completeHotFoodTask,renderStartHotFoodButton} from './hot-food-ui.js';
 import {ensureSpecialTasksForDate,ensureSafeUpgrades} from './special-tasks.js';
 import {completeComplianceTask} from './compliance-ui.js';
@@ -469,6 +469,7 @@ function updateAlertButton(){
   if(!btn) return;
   btn.textContent=alertsArmed?'Alerts On':'Enable Alerts';
   btn.classList.toggle('alerts-active',alertsArmed);
+  const bell=$('#alarmSoundSettingsButton');if(bell){bell.classList.toggle('alerts-active',alertsArmed);bell.innerHTML=(alertsArmed?'🔔':'🔕')+' <span class="alarm-sound-button-label">'+(alertsArmed?'Alerts On':'Alerts Off')+'</span>';bell.setAttribute('aria-label',alertsArmed?'Alarm settings — alerts enabled':'Alarm settings — alerts disabled');}
   btn.title=alertsArmed
     ?'Overdue sound is enabled; tap to pause or use the Test Alarm button.'
     :'Enable overdue sound, notifications and keep-screen-awake support.';
@@ -768,3 +769,11 @@ setInterval(minuteHousekeeping,60000);
 initNetworkStatus();
 registerAppServiceWorker();
 refresh();
+
+let hotFoodSyncBusy=false;
+async function syncHotFoodMinute(){
+  if(hotFoodSyncBusy||document.visibilityState!=='visible')return;
+  hotFoodSyncBusy=true;
+  try{await reconcileHotFoodDay(todayISO());}catch(error){console.warn('Hot Food check sync unavailable',error);}finally{hotFoodSyncBusy=false;}
+}
+setInterval(syncHotFoodMinute,60000);

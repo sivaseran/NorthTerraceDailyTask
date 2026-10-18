@@ -3,7 +3,7 @@ import {escapeHtml,showToast,confirmAction,setButtonLoading} from './ui.js';
 import {
   HOT_FOOD_DAYS,getHotFoodConfig,saveHotFoodConfig,setHotFoodEnabled,
   getHotFoodProducts,saveHotFoodProduct,setHotFoodProductActive,
-  getInitialCookingPlan,saveInitialCookingPlan,ensureInitialCookingBaseline,getHotFoodAudit,getHotFoodComplianceData,getWeekSignoff,signOffHotFoodWeek,reopenHotFoodWeek,mondayOf,sundayOf,managerCorrectHotFoodRecord
+  getInitialCookingPlan,saveInitialCookingPlan,ensureInitialCookingBaseline,getHotFoodAudit,getHotFoodComplianceData,getWeekSignoff,signOffHotFoodWeek,reopenHotFoodWeek,mondayOf,sundayOf,managerCorrectHotFoodRecord,syncFutureInitialCookingPrompts
 } from './hot-food-store.js';
 
 const $=s=>document.querySelector(s);
@@ -25,6 +25,8 @@ async function loadSettings(){
   $('#hfEligibility').value=config.eligibilityMinutes;
   $('#hfCutoff').value=config.cookingCutoff;
   $('#hfHoldingMinutes').value=config.holdingMinutes;
+  $('#hfInitialCookingTime').value=config.initialCookingTime||'06:00';
+  $('#hfInitialCookingEffort').value=Number(config.initialCookingEffortMinutes||15);
 }
 
 async function loadProducts(){
@@ -84,6 +86,32 @@ function editReportRecord(title,fields,save){
     };
   });
 }
+// Monthly management views are read-only; never generate or overwrite tasks when opened.
+const monthDates=m=>{const [y,mo]=m.split('-').map(Number),last=String(new Date(y,mo,0).getDate()).padStart(2,'0');return [m+'-01',m+'-'+last]};
+function summaryBoxes(items){return `<div class="nt-module-grid">${items.map(([label,val])=>`<div class="nt-module-stat"><small>${escapeHtml(label)}</small><strong>${escapeHtml(String(val))}</strong></div>`).join('')}</div>`;}
+async function loadHotMonth(){
+  const m=$('#hfMonth')?.value;if(!m)return;const [from,to]=monthDates(m),term=String($('#hfMonthProduct')?.value||'').trim().toLowerCase();
+  try{const data=await getHotFoodComplianceData(from,to),rows=[],actual=data.tasks;
+    const start=new Date(from+'T12:00:00'),end=new Date(to+'T12:00:00');
+    for(let date=start;date<=end;date.setDate(date.getDate()+1)){
+      const ds=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+      if(date.getDay()>0&&date.getDay()<6){const found=actual.find(t=>t.date===ds&&t.hotFoodType==='cooking_initial');rows.push({date:ds,time:found?.sourceTime||config.initialCookingTime||'06:00',type:'Planned Initial Cooking',name:'Initial Cooking',person:found?.assignedName||'Recurring assignee',status:found?.status||'Scheduled'});}
+    }
+    for(const b of data.batches)rows.push({date:b.date,time:b.timeOutOven||'',type:'Actual cooking batch',name:b.productName||'',person:b.createdByName||'',status:b.status||'Recorded'});
+    for(const t of actual.filter(x=>['temperature_check','expiry'].includes(x.hotFoodType)))rows.push({date:t.date,time:t.sourceTime||'',type:t.hotFoodType==='expiry'?'Four-hour final check / disposal':'Hourly display check',name:t.taskName||'',person:t.assignedName||'',status:t.status||'Pending'});
+    rows.sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+    const visible=rows.filter(r=>!term||r.name.toLowerCase().includes(term));
+    $('#hfMonthView').innerHTML=summaryBoxes([['Cooking prompts',rows.filter(r=>r.type==='Planned Initial Cooking').length],['Actual batches',data.batches.length],['Hourly checks',actual.filter(x=>x.hotFoodType==='temperature_check').length],['Outstanding disposal',data.batches.filter(x=>x.disposalConfirmed===false&&Number(b.finalExpiryWasteQty??b.autoExpiryWasteQty??0)>0).length]])+`<div class="nt-module-table-wrap"><table class="nt-module-table"><thead><tr><th>Date</th><th>Time</th><th>Activity</th><th>Product / task</th><th>Staff</th><th>Status</th></tr></thead><tbody>${visible.map(r=>`<tr><td>${escapeHtml(r.date)}</td><td>${escapeHtml(r.time)}</td><td>${escapeHtml(r.type)}</td><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.person)}</td><td>${escapeHtml(r.status)}</td></tr>`).join('')||'<tr><td colspan="6">No matching entries</td></tr>'}</tbody></table></div>`;
+  }catch(e){$('#hfMonthView').textContent=e.message||'Could not load Hot Food month.';}
+}
+async function loadHotSummary(){const m=$('#hfSummaryMonth')?.value;if(!m)return;const [from,to]=monthDates(m);
+  try{const data=await getHotFoodComplianceData(from,to);const byStaff=new Map();
+    for(const b of data.batches){const who=b.createdByName||'Unassigned',s=byStaff.get(who)||{batches:0,qty:0,waste:0};s.batches++;s.qty+=Number(b.qtyCooked||0);s.waste+=Number(b.quantityWasted||0);byStaff.set(who,s);}
+    const qty=data.batches.reduce((n,b)=>n+Number(b.qtyCooked||0),0),waste=data.batches.reduce((n,b)=>n+Number(b.quantityWasted||0),0);
+    const soldOut=data.batches.filter(b=>b.closeReason==='sold').length;
+    $('#hfSummaryView').innerHTML=summaryBoxes([['Batches',data.batches.length],['Items cooked',qty],['Items wasted',waste],['Sold-out batches',soldOut],['Reading events',data.checks.length],['Disposal pending',data.batches.filter(b=>b.disposalConfirmed===false&&Number(b.finalExpiryWasteQty??b.autoExpiryWasteQty??0)>0).length]])+`<h3>Production by cooking staff</h3><div class="nt-module-table-wrap"><table class="nt-module-table"><thead><tr><th>Staff</th><th>Batches</th><th>Quantity cooked</th><th>Quantity wasted</th></tr></thead><tbody>${[...byStaff].map(([who,a])=>`<tr><td>${escapeHtml(who)}</td><td>${a.batches}</td><td>${a.qty}</td><td>${a.waste}</td></tr>`).join('')||'<tr><td colspan="4">No production records</td></tr>'}</tbody></table></div>`;
+  }catch(e){$('#hfSummaryView').textContent=e.message||'Could not load summary.';}
+}
 export async function initHotFoodManager(){
   if(!$('#hotfood')) return;
   await ensureInitialCookingBaseline(user);
@@ -91,10 +119,13 @@ export async function initHotFoodManager(){
   initialised=true;
   await Promise.all([loadSettings(),loadProducts()]);
   await loadPlan();
+  $('#hfMonth').value=iso(new Date()).slice(0,7);$('#hfSummaryMonth').value=iso(new Date()).slice(0,7);
+  $('#hfLoadMonth').onclick=loadHotMonth;$('#hfLoadSummary').onclick=loadHotSummary;
 
   document.querySelectorAll('.hf-subnav button').forEach(btn=>btn.onclick=async()=>{
     document.querySelectorAll('.hf-subnav button').forEach(b=>b.classList.toggle('active',b===btn));
     document.querySelectorAll('.hf-panel').forEach(p=>p.hidden=p.dataset.hfPanel!==btn.dataset.hfTarget);
+    if(btn.dataset.hfTarget==='month') await loadHotMonth(); if(btn.dataset.hfTarget==='summary') await loadHotSummary();
     if(btn.dataset.hfTarget==='audit') await loadAudit(); if(btn.dataset.hfTarget==='reports') await loadReport(); if(btn.dataset.hfTarget==='signoff') await loadSignoff();
   });
 
@@ -121,9 +152,9 @@ export async function initHotFoodManager(){
   $('#hfSaveSettings').onclick=async e=>{
     const btn=e.currentTarget;setButtonLoading(btn,true);
     try{
-      const changes={corePassC:Number($('#hfCorePass').value),holdingPassC:Number($('#hfHoldingPass').value),eligibilityMinutes:Number($('#hfEligibility').value),cookingCutoff:$('#hfCutoff').value,holdingMinutes:Number($('#hfHoldingMinutes').value)};
-      if(!(changes.corePassC>0&&changes.holdingPassC>0&&changes.eligibilityMinutes>=0&&changes.holdingMinutes>0&&changes.cookingCutoff)) throw new Error('Check all Hot Food settings.');
-      config=await saveHotFoodConfig(changes,user);showToast('Hot Food settings saved.','success');
+      const changes={corePassC:Number($('#hfCorePass').value),holdingPassC:Number($('#hfHoldingPass').value),eligibilityMinutes:Number($('#hfEligibility').value),cookingCutoff:$('#hfCutoff').value,holdingMinutes:Number($('#hfHoldingMinutes').value),initialCookingTime:$('#hfInitialCookingTime').value,initialCookingEffortMinutes:Number($('#hfInitialCookingEffort').value)};
+      if(!(changes.corePassC>0&&changes.holdingPassC>0&&changes.eligibilityMinutes>=0&&changes.holdingMinutes>0&&changes.cookingCutoff&&/^([01]\d|2[0-3]):[0-5]\d$/.test(changes.initialCookingTime)&&changes.initialCookingEffortMinutes>0)) throw new Error('Check all Hot Food settings.');
+      config=await saveHotFoodConfig(changes,user);await syncFutureInitialCookingPrompts({time:changes.initialCookingTime,effortMinutes:changes.initialCookingEffortMinutes},user);showToast('Hot Food settings saved.','success');
     }catch(err){showToast(err.message||'Could not save settings.','error');}finally{setButtonLoading(btn,false);}
   };
 
