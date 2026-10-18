@@ -193,7 +193,7 @@ function renderSchedule(rows){
     const temperature=inSlot.filter(t=>t.hotFood===true&&t.hotFoodType==='temperature_check');
     const a=inSlot.filter(t=>!(t.hotFood===true&&t.hotFoodType==='temperature_check'));
     if(temperature.length)a.push({hotFoodGrouped:true,count:temperature.length,times:temperature.map(t=>t.sourceTime).filter(Boolean).sort(),sourceTime:temperature.map(t=>t.sourceTime).sort()[0],slotId:slot.id});
-    a.sort((x,y)=>String(x.sourceTime||'').localeCompare(String(y.sourceTime||''));
+    a.sort((x,y)=>String(x.sourceTime||'').localeCompare(String(y.sourceTime||'')));
     return `<section class="manager-slot-card dense-slot-card" data-slot="${slot.id}">
       <div class="manager-slot-head dense-slot-head">
         <div class="dense-slot-primary">
