@@ -1,0 +1,75 @@
+NORTH TERRACE DAILY TASK APP — V4.5 FULL CONSOLIDATED BUILD
+18 October 2026
+
+FULL DEPLOYMENT ZIP. This replaces the V4.4 candidate; do NOT upload V4.4 first.
+
+CRITICAL CORRECTION — EXACT FOUR-HOUR FINAL CHECK
+* From the actual cooking-completion/display-start time, the ordinary hourly
+  holding-temperature checks remain at +1, +2 and +3 hours (minimum 63°C).
+* At +4 hours, the food becomes EXPIRED / NOT FOR SALE and a final temperature
+  and actual physical shelf-quantity check becomes due. Automatic reconciliation
+  does NOT waste the third-hour recorded balance.
+* The staff member enters the ACTUAL remaining quantity on the shelf.
+    - 0: SOLD OUT; waste remains 0; no disposal task. The actual sell-out
+      time can be entered if known; otherwise it is recorded as "sold out
+      between checks" and is not invented.
+    - >0: the ENTERED final quantity is recorded as waste, exactly once, and
+      the batch is closed to sale. The final display temperature is recorded.
+      Staff then get a SEPARATE physical-disposal confirmation, with an
+      optional Start Cooking another batch prompt.
+* At the four-hour deadline the batch becomes unavailable for sale EVEN IF
+  staff have not yet entered the final count. No waste is assumed until they
+  do. Unfinished final checks stay pending/overdue.
+* If no device was running, the next foreground sync recovers the overdue
+  final check on the current date. It does NOT assume last recorded balance
+  was wasted. The staff count remains mandatory.
+* The final temperature check is included in the hot-holding reporting data.
+  Completion and waste/disposal events are audited. Atomic transactions guard
+  against two staff devices recording the same final check or waste twice.
+* A stale 1st/2nd/3rd-hour form cannot be submitted after expiry.
+* Same-product overlapping cooking batches remain independent.
+* Existing legacy auto-expiry disposal records (if any) remain confirmable,
+  but are NOT rewritten retroactively.
+
+PREVIOUS V4.4 FUNCTIONALITY RETAINED
+* Desktop-first unified Manager Day/Weekly Editor, week-specific assignments,
+  full edit popup and category/effort/photo settings.
+* One-date tasks and multi-weekday future recurring creation; multi-field bulk
+  review and atomic save; date-only conflict choice; task lifecycle controls.
+* Protected one-day shift-cover assignment and completed-task history.
+* Existing Cleaning, Compliance, SFBB, reports, staff PWA, People & PIN,
+  General View tablet layout, alarms and notifications.
+* Hot Food weekdays 06:00 initial task, weekend manual-start behaviour;
+  no fixed 10:00 top-up; Start Cooking always available for new batches.
+* Core 75°C cooking check; hot holding 63°C; individual sessions, FIFO,
+  temperature failure, waste and reheat logic retained.
+
+OFFLINE VERIFICATION
+* V4.5 simulated Firestore test: correct times, no inferred third-hour waste,
+  overdue previous-day recovery, quantity 0 Sold Out, 2 -> 1 equals one waste,
+  logged final temperature, disposal confirmation without double count,
+  duplicate-submission rejection, stale hourly form rejection, premature check
+  rejection and independent concurrent batches.
+* Tablet landscape browser form: final check, live waste/Sold Out preview,
+  physical-disposal checkbox requirement, mobile zero-quantity check.
+* Unchanged V4.4 editor/shift-cover/Cleaning/Compliance/SFBB regression suites
+  passed against V4.5 working tree.
+* JS syntax, import/asset checks and ZIP integrity run on final package.
+
+IMPORTANT PRODUCTION LIMITATIONS
+* Offline tests cannot verify production Firestore rules or data, network
+  latency, PWA cache refresh or the physical Galaxy Tab A11. Do an acceptance
+  test using authorised live accounts before routine staff use.
+* GitHub Pages cannot run scheduled background tasks when all browsers are
+  closed; expired food must never be sold, and the overdue check will be
+  surfaced when a browser opens again. Food safety procedures remain primary.
+* An unusually high final count (greater than the last recorded balance) is
+  rejected to avoid false stock/waste accounting; staff should correct the
+  earlier stock error with a manager rather than entering an ungrounded count.
+* Hourly holding checks that would cross midnight are not fully validated;
+  do not treat this PWA as unattended overnight monitoring.
+
+BACKUP / ROLLBACK
+Back up the working GitHub site before replacement. Upload ZIP CONTENTS at
+repository root, preserving staff-app/. Do not delete, reset or clear Firebase.
+Restoring previous static files does not undo records created with this build.

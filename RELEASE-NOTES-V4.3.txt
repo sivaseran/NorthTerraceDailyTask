@@ -1,0 +1,104 @@
+NORTH TERRACE DAILY TASK APP — V4.3 FULL BUILD
+Release type: full GitHub Pages application. Built on V4.2.
+This is a testable release, NOT a Firebase-production-certified release.
+
+1. MANAGER WEEKLY/DAY EDITOR
+- Desktop-first Schedule Editor remains the primary manager workflow.
+- Weekly Editor now includes + Create Task: choose weekdays FIRST, enter details,
+  review, then choose THIS WEEK ONLY or ALL FUTURE WEEKS.
+- Multi-day creates are written together rather than as separate partially
+  created templates. The existing date-only and bulk edit controls remain.
+- Weekly cells continue to show assignee, time slot and clock time, not effort.
+- Special tasks are included in the weekly matrix without turning them into
+  ordinary templates.
+
+2. CLEANING ROTATION
+- One consolidated Cleaning Rotation row in Weekly Editor. Multiple areas
+  scheduled for one weekday remain separate occurrences inside that cell.
+- Week/Day Editors permit date-only changes to time, slot and effort.
+  Cleaning assignment and permanent settings are controlled in Cleaning Rotation.
+- Default cleaning effort is now 60 minutes (editable permanently per rule).
+- Cleaning Rotation has Rotation Settings, Monthly Schedule (filters), Workload
+  Summary and History & Exceptions sections, including links to Day Editor.
+- Existing sequence and completed audit records are not rewritten. Previously
+  generated pending future tasks sync time, staff and effort where no one-day
+  override or cover prevents it.
+
+3. COMPLIANCE CHECKS
+- Settings let managers edit Daily/Weekly Safety and SFBB Opening/Closing
+  checklists, preserving submitted responses and saved previous definitions.
+- Opening and Closing SFBB are BOTH item-by-item checklists; all items must
+  have an answer. Progress is shown as N/N answered.
+- Create and duplicate checklist tasks, with selected weekdays and This Week
+  Only / All Future Weeks. Built-in temperature-log check types are not copied
+  into a different checklist format.
+- Standard and created recurring Compliance Checks appear in Weekly Editor;
+  names are read-only there, while assignment, time, slot and effort can be
+  changed once or for future occurrences. Future changes prompt to retain or
+  replace date-only conflicts. Completed checks remain protected.
+- Staff assignment is chosen once for each recurring weekday and preserved;
+  rota conflicts warn rather than silently change it. Confirmed shift cover
+  may transfer affected pending occurrences without rewriting recurrence.
+- Monthly Report compares expected checks with saved results. Issues & History
+  displays individual recorded responses, not only an OK/Issue total.
+- ISSUE FLOW: staff report to the official station WhatsApp channel OUTSIDE
+  the app, then confirm management was informed. NO in-app photo uploads,
+  no WhatsApp API and no corrective-action closure workflow.
+
+4. HOT FOOD
+- Retires the separate automatic 10:00 New Cooking / Top Up task for weekdays;
+  keep the weekday Initial Cooking task only (default 06:00). Weekends retain
+  their prior manual cooking start workflow.
+- The always-available Start Cooking button remains usable for extra batches.
+- Permanent weekday Initial Cooking time and effort are now in Hot Food settings.
+- Add Monthly Schedule and Workload & Waste Summary views to existing Hot Food
+  sub-navigation; retain production reporting, weekly sign-off and audit.
+- Keep V4.2 cooking completion = display start, independent batch hourly checks,
+  75 C core, 63 C holding, quantity zero sold-out, four-hour automatic waste
+  accounting and separate physical disposal confirmation.
+- Hourly checks remain automatic per batch and not fixed recurring templates.
+
+5. GENERAL VIEW HEADER
+- Mobile/tablet header uses one bell control for alarm settings and test.
+- The alarm panel includes Enable Alerts, Test Alarm, saved sound and volume.
+- Bell shows enabled/disabled state; layout is responsive on narrow phones.
+- Main task list, overdue behaviour, categories, PIN workflow and reporting
+  are deliberately preserved.
+
+6. PRESERVATION
+- Does not wipe Firebase or replace historical records.
+- Existing main Manager tabs, People & PIN, Shift Cover, reports, PWA layout,
+  staff pages, cleaning sequences and Hot Food audits remain.
+- Service-worker cache identifier updated so deployed assets can refresh.
+
+TESTS COMPLETED IN OFFLINE SIMULATED ENVIRONMENT
+- All local JS files: syntax checks passed.
+- Local named-import consistency scan: passed.
+- Weekly Editor: edit, recurrence save, creation, bulk review/save: passed.
+- Cleaning/Compliance module: configuration, monthly preview, new task,
+  compliance report: passed.
+- Cleaning date-only edit and Compliance future edit constraints: passed.
+- SFBB Opening/Closing: mandatory item-by-item answers and WhatsApp issue
+  confirmation: passed.
+- Hot Food: hourly scheduling, independent batches, sold-out handling,
+  one-time automatic four-hour waste and disposal-pending status: passed.
+- Mobile header: checked at 390px, 768px and desktop without overflow.
+- ZIP integrity: checked after packaging.
+
+NOT VERIFIED
+- Live production Firestore reads/writes, permissions, timing and concurrency.
+- Device-specific alarm sound and notifications on Galaxy Tab A11.
+- Full data migration behaviour against production-specific historical
+  configurations and records.
+- Browser background/closed-device automatic expiry: cannot run at an exact
+  moment unless a device opens or a server-side scheduler is added.
+
+DEPLOYMENT GUIDANCE
+- BACK UP the V4.2 GitHub repo contents before deployment.
+- This ZIP is the FULL repo-root file set, not a patch.
+- Upload the contents to the site root (preserve js/, css/, icons/, staff-app/).
+- Allow GitHub Pages and the service worker to refresh; use the update prompt
+  or reload the PWA if an older UI remains cached.
+- Test in a controlled setting FIRST with a manager and staff account, and
+  check your production Firestore rules/permissions before letting staff use it.
+- See DEPLOYMENT-V4.3-CHECKLIST.txt for specific tests.

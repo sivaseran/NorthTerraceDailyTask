@@ -1,0 +1,59 @@
+NORTH TERRACE V4.4 — SINGLE DEPLOYMENT ACCEPTANCE CHECKLIST
+
+BEFORE UPLOAD
+[ ] Back up the current GitHub repository and note the restoration commit.
+[ ] Obtain permission to read/write existing collections plus taskManagerAudit,
+    taskScheduleLifecycles and shiftCoverRules; confirm Firestore security
+    rules allow audited manager operations and the Hot Food recovery queries.
+[ ] Use a test date and test staff credentials where possible; avoid
+    recording fictitious waste in the live operational day.
+
+UPLOAD
+[ ] Extract and upload the CONTENTS of the full ZIP to repository root.
+[ ] Keep js/, css/, icons/ and staff-app/ directory structure unchanged.
+[ ] Allow GitHub Pages publication and PWA service-worker cache update.
+[ ] On General/Staff PWAs: accept update/reload, confirm fresh app assets.
+
+MANAGER DESKTOP
+[ ] Day Editor > Add Task > Date Only: category, time, assignee and photo.
+[ ] Day Editor > Add Task > Every selected weekday going forward.
+[ ] Weekly Editor > Create Task: select Mon/Wed/Fri and a future start date.
+[ ] Check correct weekday recurrence, no duplicate/incorrect task copies.
+[ ] Weekly Editor > select two cells > Bulk Edit > add second field > Review
+    > save and verify both selected fields only.
+[ ] Check effective-date and conflicting one-day exception Keep/Replace.
+[ ] Cancel Once, Pause, Resume, End, Restart, and check past completions.
+[ ] Hot Food hourly group opens its detail panel, not a fixed schedule edit.
+
+SHIFT COVER
+[ ] Cover one pending task for this date only. Refresh and confirm the cover
+    still appears; next week's recurring assignee must remain unchanged.
+[ ] Check completed task cannot be transferred.
+[ ] Check future cover remains working and audit records are available.
+
+HOT FOOD — USE SAFE TEST DATA/ENVIRONMENT
+[ ] Weekday Initial Cooking at 06:00; no fixed 10:00 Top Up.
+[ ] Weekends retain existing manual Start Cooking flow.
+[ ] Start Cooking remains visible when another cooking batch is active.
+[ ] Cooking time = display start; hourly checks at +60/+120/+180 minutes.
+[ ] Quantity zero: Sold Out only for that batch/item, not other batches.
+[ ] Four-hour auto waste recorded once; physical disposal confirmation
+    separate, then optional immediate Start Another Batch.
+[ ] Simulate next-day recovery of an undischarged prior-day batch only in an
+    isolated TEST database, not production food-safety records.
+[ ] Audit, reports, FIFO and reheating/failed-temperature rules unchanged.
+
+GENERAL / STAFF
+[ ] Check Galaxy Tab A11 in landscape; no clipped tasks or header overlap.
+[ ] Check notification bell, overdue alerts, category badges and login.
+[ ] Check staff PWA task completion, shift cover and Hot Food form.
+[ ] Check desktop browser and narrow mobile portrait still usable.
+
+STOP AND RESTORE PREVIOUS STATIC VERSION IF
+- Live Firebase write permissions fail, tasks duplicate, assignees revert,
+  completed history changes, food records miscount, or Cleaning Rotation
+  moves incorrectly. Do not delete Firebase records to roll back.
+
+TECHNICAL LIMITATION
+- Expiry cannot run when every client is closed; it reconciles on reopening.
+- Hot holding continuing after midnight is not certified for hourly checks.

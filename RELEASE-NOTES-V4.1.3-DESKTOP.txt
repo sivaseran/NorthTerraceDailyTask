@@ -1,0 +1,16 @@
+NORTH TERRACE — V4.1.3 DESKTOP WORKSPACE FOUNDATION
+
+Included:
+- Wider, desktop-first Manager layout and improved weekly matrix working area.
+- Day Schedule quick links to existing Weekly Times & Effort and Weekly Staff Assignment screens.
+- Compact mobile navigation; no changes to General View or Staff View layout.
+- All existing tabs, saving behaviour, Firestore data models, reports and Hot Food rules remain unchanged.
+
+NOT YET IMPLEMENTED:
+- Fully unified Day/Weekly editor with single cell edit modal.
+- Multi-cell all-or-nothing bulk editing and lifecycle controls.
+- Dynamic hourly Hot Food checks based on cooking completion and concurrent batches.
+- Always-available Start Cooking button.
+
+IMPORTANT: This is an intermediate desktop layout build, NOT the complete agreed redesign.
+No live Firebase testing has been performed. Make a backup/test on a staging deployment before replacing the live site.

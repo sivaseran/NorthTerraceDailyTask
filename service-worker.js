@@ -1,4 +1,4 @@
-const CACHE='north-terrace-general-v4-1-2-staff-ui-update-20261017';
+const CACHE='north-terrace-general-v4-5-20261018';
 const CACHE_PREFIX='north-terrace-general-';
 const ASSETS=[
   '/NorthTerraceDailyTask/',
@@ -16,6 +16,7 @@ const ASSETS=[
   '/NorthTerraceDailyTask/js/task-category.js',
   '/NorthTerraceDailyTask/js/staff.js',
   '/NorthTerraceDailyTask/js/manager.js',
+  '/NorthTerraceDailyTask/js/weekly-workspace.js',
   '/NorthTerraceDailyTask/js/reports.js',
   '/NorthTerraceDailyTask/js/hot-food-store.js',
   '/NorthTerraceDailyTask/js/hot-food-manager.js',

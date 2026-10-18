@@ -1,0 +1,86 @@
+NORTH TERRACE DAILY TASK APP — V4.4 FULL CONSOLIDATED RELEASE
+18 October 2026
+
+ONE FULL DEPLOYMENT PACKAGE — upload ZIP contents into the GitHub Pages
+repository root. NOT a patch. No Firestore reset or migration cleanup required.
+
+SCHEDULE EDITOR (desktop/laptop primary)
+- Unified Day and Weekly Editor with task rows and Monday–Sunday columns.
+- Day Editor creates Date Only or single-weekday future recurring tasks, now
+  retaining category correctly and atomically saving the first daily record
+  and recurring template (no orphan template from a partial write).
+- Weekly Editor + Create Task allows weekday selection, task category, staff,
+  scheduled time, time slot, effort, photo, and a CHOSEN effective date for
+  future recurring tasks. This Week Only remains one-time, no recurrence.
+- Multi-field Bulk Edit: select task/day cells, change multiple fields in one
+  reviewed save, retain or replace existing one-day exceptions. Save remains
+  atomic within documented transaction size limits; oversized changes fail
+  clearly without a partial commit.
+- Edit Task: this date only vs future occurrence, workloads/rota warning,
+  date-only conflict review, and Cancel Once / Pause / Resume / End / Restart.
+- Hot Food hourly check matrix cells now open informational batch/check details
+  without incorrectly editing batch-dependent times as fixed weekly templates.
+- Cleaning/Compliance specialised editor settings from V4.3 retained.
+
+SHIFT COVER SAFEGUARD
+- This Date Only cover is now a single audited transaction across selected
+  pending tasks, with dayOnlyOverride and explicit assignment field protection.
+- Refresh/reconciliation retains that exact-date replacement; subsequent
+  weekdays still use their configured recurring assignee. Completed tasks
+  cannot be transferred.
+- Existing Future Cover logic remains as before.
+
+HOT FOOD
+- Weekday initial cooking time stays 06:00 by default; weekends retain
+  existing manual start. Fixed 10:00 Top Up is retired, but completed history
+  remains untouched.
+- Start Cooking is still available for additional independent batches.
+- Cooking completion and display start are the same timestamp; checks are
+  automatically +60/+120/+180 minutes, core threshold 75C, holding 63C.
+- Quantity zero means Sold Out for that product/batch and stops its future
+  checks without cancelling other active batches.
+- At four hours, remaining stock is automatically accounted as expired waste
+  once. Physical disposal remains separately confirmable by staff.
+- NEW: if a shop tablet/PWA was shut overnight, the next foreground refresh
+  also recovers overdue previous-day batches and creates/moves a visible
+  disposal-confirmation reminder onto the current day, without double counting.
+- NEW: staff can choose Start Another Cooking Batch as part of expiry/disposal
+  confirmation, which then opens the existing full cooking form.
+- Existing reheating, temperature-failure waste, FIFO, audit, signing and
+  reporting code is retained.
+
+WHAT HAS NOT BEEN CHANGED
+- General View layout and its task/overdue/alarm interaction model; mobile
+  portrait layout; People & PIN, shift cover screen, reports, Cleaning Rotation,
+  Compliance and SFBB, and separate staff-app PWA.
+- No history wipe, Firebase config replacement or permanent data deletion.
+- Both service workers have new cache names so existing PWA installs can update.
+
+OFFLINE TESTS COMPLETED
+- Node syntax for all JS modules, named imports, static file paths and ZIP
+  integrity.
+- Headless desktop interaction: Weekly editing, future effective date,
+  two-field bulk editing and save review, grouped Hot Food detail.
+- Mocked Firestore transaction: date-only shift cover preserved after
+  reconciliation, unchanged following week, completed rows protected.
+- Mocked Hot Food engine: actual-time checkpoints, separate sessions,
+  sold-out stock, automatic overdue previous-day waste exactly once, and
+  current-day disposal reminder.
+- Cleaning/Compliance manager, specialised editor constraints, and SFBB
+  mandatory form/WhatsApp acknowledgement interaction tests.
+
+IMPORTANT LIMITATIONS
+- Not validated against production Firestore rules, data or Samsung Galaxy
+  Tab A11 hardware. Test on the live accounts before operational rollout.
+- A static GitHub Pages PWA cannot trigger a four-hour expiry at the exact
+  instant if all browsers are closed; it catches up at the next foreground sync.
+- Sessions crossing midnight have an expiry/recovery path, but *hourly display
+  checks after midnight* have not been end-to-end validated. Do not assume
+  unattended overnight hot holding is monitored by this release.
+- This is an operational tool, not a replacement for food safety procedures.
+
+ROLLBACK
+- Back up the live GitHub repository first; restore the prior static files
+  if a blocking issue is discovered. Never delete/clear Firebase collections
+  to roll back. New records created during a pilot are not undone merely by
+  restoring old static files.

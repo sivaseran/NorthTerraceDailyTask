@@ -1,0 +1,34 @@
+NORTH TERRACE V4.5 — SINGLE DEPLOYMENT ACCEPTANCE CHECKLIST
+
+BEFORE CHANGING THE LIVE SITE
+[ ] Back up/clone the existing GitHub repository and record its commit.
+[ ] Preserve existing Firebase project, data and permissions; do not clear records.
+[ ] Schedule a quiet test interval and notify staff of the new 4-hour check.
+
+DEPLOY ONE FULL ZIP (NOT V4.4 THEN V4.5)
+[ ] Extract NorthTerrace-V4.5-FULL.zip.
+[ ] Upload the CONTENTS of the ZIP to the GitHub Pages repository root.
+[ ] Keep staff-app/, js/, css/, icons/ and service workers in their paths.
+[ ] Allow GitHub Pages to publish and accept the app's PWA update/reload prompt.
+[ ] Hard refresh/open manager, General View and staff app to check updated assets.
+
+OPERATIONS ACCEPTANCE CHECK
+[ ] Desktop Manager Weekly Editor: edit one task, create Date Only and recurring.
+[ ] Bulk-edit multiple fields, review and save; try conflict Keep / Replace.
+[ ] Check a one-day shift cover persists after General View refresh.
+[ ] Start Cooking: valid >=75°C core, record same display-start timestamp.
+[ ] Confirm hourly check times are +60, +120, +180 minutes.
+[ ] For a SAFE TEST BATCH only, confirm a +4 hour final task exists.
+[ ] Verify final quantity = 0 gives Sold Out, 0 waste, no disposal.
+[ ] Verify last check balance 2, final balance 1 gives 1 waste, not 2.
+[ ] Confirm physical disposal separately, without adding waste again.
+[ ] Confirm the final °C and waste appear in Hot Food Manager reporting.
+[ ] Confirm expired batches cannot be sold and stale hourly forms are rejected.
+[ ] Confirm another cooking batch has independent timing and stock.
+[ ] Verify General View on Galaxy Tab A11 landscape and staff PWA.
+[ ] Verify notifications/alarms still fire and other manager tabs open.
+
+LIMITATIONS
+A static PWA cannot run when every tablet/browser is closed. Recovered
+four-hour checks are due on reopening, and expired food must be removed from
+sale in the meantime. Production Firebase/device checks are not simulated.

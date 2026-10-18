@@ -1,0 +1,31 @@
+NORTH TERRACE V4.2 — COMBINED MANAGER & HOT FOOD UPDATE
+17 October 2026
+
+WHAT CHANGES
+• Desktop-first Schedule Editor: Day and Weekly views within one manager tab; Monday–Sunday matrix shows assignees, slots, weekday availability indicators.
+• Edit popup: weekday-specific name, category, time, slot, effort, assignee, photo; save one date or a recurring weekday effective from a future date.
+• Bulk Edit: select multiple task/day cells, review before/after, save selected date-only edits or recurring weekly edits. Keep All / Replace All for conflicting date-only exceptions. Firestore transaction saves are bounded to avoid partial writes.
+• Task actions: Cancel Once, Pause, Resume, End, Restart; manager audit records preserve historical completions.
+• Old Effort Allocation and Staff Assignment navigation tabs merged into the Schedule Editor; unchanged underlying data and logic retained.
+• Hot Food: weekday 06:00 fixed initial cooking, existing weekend policy retained; cooking completion and display start are the same timestamp. Each cooking session gets its own checks at +1, +2, +3 hours. Minimum cooking core 75°C; holding 63°C.
+• Start Cooking button can be used while batches are already active, allowing independent new sessions; the Staff PWA also exposes the action.
+• Each session's product stock is processed separately. Quantity zero sells out that session's product and cancels later checks; separate sessions continue independently.
+• At four hours, a foreground device automatically records remaining quantity as expired waste once. Physical disposal is separately confirmed, with the food removed from sale and recooking suggested.
+• Existing Cleaning rotation, shift cover, People & PIN, general tablet layout, reports, reheat/retest, FIFO and original Firestore data paths retained.
+• Service worker cache names bumped for updated manager/general and staff application resources.
+
+DEPLOYMENT
+Upload/extract ZIP CONTENTS into root of existing NorthTerraceDailyTask repository (not as an additional nested directory). Keep staff-app folder intact. No deletion or reset of Firebase data is needed or included.
+
+IMPORTANT LIMITATIONS / PRODUCTION CHECKS
+• Static GitHub Pages cannot run expiry processing while all PWA/browser tabs are closed. The continuously open General View (or visible Staff app) reconciles expiry approximately every minute. A true server-enforced deadline needs a Cloud Function or scheduled backend service.
+• Transaction paths were tested with mocked Firestore operations and browser UI simulation, NOT live production Firebase. Verify Firestore Security Rules permit taskScheduleLifecycles and taskManagerAudit writes, and perform a full operational smoke test before staff use.
+• Automatic waste recording is not proof of physical disposal; a staff checkbox is required.
+• Read your food-safety policy before deploying any change to how expired product is handled; the code is an operational aid, not a substitute for safe holding and disposal procedures.
+• Undo production deployment by restoring the previous ZIP; do not delete Firebase records.
+
+TEST SUMMARY
+• Node syntax and local import paths: all 25 JS files passed.
+• Chromium UI simulation: Weekly matrix, Edit Task popup, future save, bulk review, bulk save passed.
+• Hot Food simulated integration: hour generation, session stock separation, sold-out cancellation, four-hour one-time waste and pending disposal confirmation passed.
+• Live Firebase/device/network/PWA update flow remains unverified in this environment.

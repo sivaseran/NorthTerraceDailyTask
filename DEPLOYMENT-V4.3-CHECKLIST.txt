@@ -1,0 +1,58 @@
+NORTH TERRACE V4.3 — MANUAL DEPLOYMENT & ACCEPTANCE CHECKLIST
+
+PREPARE
+[ ] Back up repository V4.2 and note the restoration commit.
+[ ] Confirm live Firestore rules allow the existing app's permitted manager
+    writes to system/, dailyTasks/, taskManagerAudit/, weeklyTemplates/ and
+    recorded Compliance / Hot Food collections. No rules are supplied here.
+[ ] Deploy this full ZIP as files at repository root, not a nested directory.
+[ ] Ensure the desktop Manager and Galaxy Tab load the new assets after SW update.
+
+DAY & WEEKLY EDITOR
+[ ] Ordinary tasks still appear with correct staff, time slot and effort.
+[ ] + Create Task: first choose weekdays, then details; This Week Only does
+    not recur; All Future Weeks recurs only on selected weekdays.
+[ ] Name, photo requirement, effort, time and weekday assignment of ordinary
+    tasks still save as intended.
+[ ] Review selected bulk edits; confirm saved weekdays; test conflict options.
+[ ] Historical records remain unchanged; cancel once does not cancel future.
+
+CLEANING ROTATION
+[ ] Single row shows one or multiple cleaning occurrences for each weekday.
+[ ] Weekly/Day Editor cannot change Cleaning Rotation assignee or name.
+[ ] Date-only time, slot, effort changes do not change following weeks.
+[ ] Save cleaning default effort 60 or custom; future pending instances update.
+[ ] Month filtering, staff workload, history and Day Editor shortcut work.
+[ ] Rotation next area remains correct when staff/time change.
+
+COMPLIANCE
+[ ] All six standard checks appear with their intended assigned staff.
+[ ] A rota change yields a warning; existing recurring assignee remains.
+[ ] Confirmed shift cover transfers only affected pending checks.
+[ ] Create new checklist: this week only and recurring choices.
+[ ] Edit SFBB Opening & Closing: each question has its own status.
+[ ] 'Issue' requires official WhatsApp report confirmation; no photo upload.
+[ ] A changed checklist keeps earlier completed records intact.
+[ ] Monthly report lists expected, completed, missing and issue checks.
+
+HOT FOOD
+[ ] Weekday 06:00 Initial Cooking appears; no scheduled 10:00 Top Up.
+[ ] Existing weekend manual cooking behaviour unchanged.
+[ ] Start Cooking works while another batch is active.
+[ ] Cooking completion sets display start; +60/+120/+180 check times.
+[ ] A sold-out product ends only its own monitoring; other batches unaffected.
+[ ] Four-hour automatic waste is recorded once; physical disposal separately confirmed.
+[ ] Monthly Hot Food schedule, waste metrics, sign-off and audit display correctly.
+
+GENERAL VIEW
+[ ] Tablet landscape: top header, bell, online indicator and Login do not overlap.
+[ ] Mobile portrait: header does not wrap into an oversized banner.
+[ ] Bell popup enables/pauses alerts, selects tone, saves volume and tests sound.
+[ ] Existing overdue alarms, reminders and task progression still work.
+
+STOP / ROLLBACK CONDITIONS
+- Permission denied during critical writes, duplicate tasks or skipped task
+  generation, wrong staff assignment, corrupted cleaning rotation, missing
+  audit records or Hot Food waste/temperature logic. Restore V4.2 static files
+  and investigate BEFORE allowing operational use. Existing Firebase records
+  should not be cleared to roll back code.

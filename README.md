@@ -52,3 +52,7 @@ Do not upload the package as an extra nested folder.
 The `staff-app/` directory must remain as a subfolder.
 
 For Android deployment, Samsung Internet can be used to open each live URL and install/add each PWA separately.
+
+V4.4 full consolidated release: see RELEASE-NOTES-V4.4.txt and DEPLOYMENT-V4.4-CHECKLIST.txt.
+
+V4.5 full consolidated build (corrected four-hour final Hot Food check): see RELEASE-NOTES-V4.5.txt and DEPLOYMENT-V4.5-CHECKLIST.txt.
