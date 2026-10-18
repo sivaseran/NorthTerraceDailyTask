@@ -1,7 +1,7 @@
 import {SUNDAY_ROTATION_ANCHOR,SUNDAY_ROTATION} from './final-config.js';
 import {
   db,collection,doc,getDoc,getDocs,setDoc,updateDoc,deleteDoc,query,where,
-  onSnapshot,serverTimestamp,writeBatch,runTransaction
+  onSnapshot,serverTimestamp,writeBatch,runTransaction,documentId
 } from './firebase.js';
 
 export const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -30,6 +30,21 @@ export function formatLongDate(value){
   return dateFromISO(value).toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 }
 export function todayISO(){ return isoDate(new Date()); }
+// Date Only scheduling is allowed from today through today + 90 calendar days.
+// This does not limit permanent recurring rules, completed history, or existing
+// exceptions already recorded outside the window.
+export const DATE_ONLY_MAX_AHEAD_DAYS=90;
+export function dateOnlyMaxISO(){ return addDaysISO(todayISO(),DATE_ONLY_MAX_AHEAD_DAYS); }
+export function isDateOnlyAllowed(date){
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(date||'')) &&
+    isoDate(dateFromISO(date))===date && date>=todayISO() && date<=dateOnlyMaxISO();
+}
+export function assertDateOnlyAllowed(date){
+  if(!isDateOnlyAllowed(date))throw new Error(`One-time tasks and date-only edits must be between today and ${dateOnlyMaxISO()} (90 days ahead). Recurring schedules are not limited.`);
+}
+// Review the first 90 days of an edited recurrence, including its start date.
+export function recurringReviewEndISO(effectiveFrom){return addDaysISO(effectiveFrom,DATE_ONLY_MAX_AHEAD_DAYS);}
+
 export function compareISO(a,b){ return String(a).localeCompare(String(b)); }
 
 
@@ -141,6 +156,25 @@ export async function getWeeklyTemplate(){
   const s=await getDocs(collection(db,'weeklyTemplates'));
   return s.docs.map(d=>({id:d.id,...d.data()}))
     .sort((a,b)=>(Number(a.sortOrder)||9999)-(Number(b.sortOrder)||9999)||String(a.taskName||'').localeCompare(String(b.taskName||'')));
+}
+
+// Read-only batched lookup for initial weekday assignments saved by the
+// Compliance and Initial Cooking modules. It does not create assignments,
+// regenerate daily records, or inspect the staff rota. The document-ID query
+// uses Firestore's built-in index, so no composite index is required.
+export async function getSavedWeekdayAssignmentSnapshots(docIds){
+  const ids=[...new Set((docIds||[]).filter(id=>typeof id==='string'&&/^[a-zA-Z0-9_-]+$/.test(id)))];
+  const out=new Map();
+  // Keep the query comfortably below Firestore's `in` operand limit.
+  const batches=[];
+  for(let i=0;i<ids.length;i+=10){
+    const batch=ids.slice(i,i+10);
+    batches.push(getDocs(query(collection(db,'system'),where(documentId(),'in',batch))));
+  }
+  for(const snap of await Promise.all(batches)){
+    for(const row of snap.docs)out.set(row.id,row.data());
+  }
+  return out;
 }
 
 export async function getShiftCoverRules(){
@@ -338,7 +372,9 @@ export async function getPlannedTasksForDate(date){
     const rule=ruleForDate(t,date);
     if(!rule||rule.active===false||isLifecycleInactive(lifecycle.get(t.id)||[],date)) continue;
     let assigned=await resolveAssignee(rule,users);
-    if(isSundayEveningRotationTime(date,rule.sourceTime||'')){
+    // Default Sunday rotation applies only until a manager explicitly takes ownership
+    // of this task/weekday assignment. A deliberate recurring assignment must win.
+    if(isSundayEveningRotationTime(date,rule.sourceTime||'')&&!rule.rotationAssignmentOverride){
       const rotationId=sundayEveningRotatorForDate(date);
       const rotationUser=users.find(u=>u.id===rotationId);
       assigned={id:rotationId,name:rotationUser?.name||'Sunday rotation'};
@@ -452,7 +488,10 @@ function plannedMatch(existing,planned){
   if(String(existing.templateTaskId||'')!==String(planned.templateTaskId||'')) return false;
   const pClock=String(planned.checkpoint||planned.sourceTime||'');
   const eClock=String(existing.checkpoint||existing.sourceTime||'');
-  if(pClock&&eClock&&pClock!==eClock) return false;
+  // Ordinary recurring tasks have a stable date+template ID. Changing their
+  // scheduled time must UPDATE that task, not create a duplicate and cancel the
+  // edited occurrence. Repeated-frequency/checkpoint tasks remain clock-specific.
+  if((pClock||eClock)&&(planned.checkpoint||existing.checkpoint)&&pClock!==eClock) return false;
   return true;
 }
 
@@ -658,6 +697,13 @@ export async function uncompleteTask(id){
   await batch.commit();
 }
 export async function updateDailyTask(id,changes,actor){
+  // The older Day Editor uses this generic update method for one-day edits.
+  if(changes?.dayOnlyOverride===true){
+    const snap=await getDoc(doc(db,'dailyTasks',id));
+    if(!snap.exists())throw new Error('Task not found. Refresh the schedule.');
+    assertDateOnlyAllowed(snap.data().date);
+    if(['completed','cancelled'].includes(snap.data().status))throw new Error('Completed or cancelled tasks cannot be edited.');
+  }
   await updateDoc(doc(db,'dailyTasks',id),{
     ...changes,updatedAt:serverTimestamp(),
     updatedByUserId:actor?.id||'',updatedByName:actor?.name||''
@@ -727,7 +773,7 @@ export async function bulkUpdateWeeklyTemplateRows(changes,actor){
 
   const matching=futureSnap.docs.filter(d=>{
     const x=d.data();
-    return byKey.has(`${x.templateTaskId}|${dayKey(x.date)}`) && x.status!=='completed' && x.status!=='cancelled';
+    return byKey.has(`${x.templateTaskId}|${dayKey(x.date)}`) && !x.dayOnlyOverride && x.status!=='completed' && x.status!=='cancelled';
   });
 
   for(let i=0;i<matching.length;i+=400){
@@ -782,7 +828,8 @@ export async function saveFutureRule(templateTaskId,date,changes,actor){
     sourceTime:changes.sourceTime!==undefined?changes.sourceTime:(current.sourceTime||''),
     taskName:changes.taskName!==undefined?changes.taskName:(current.taskName||task.taskName),
     photoRequired:changes.photoRequired!==undefined?Boolean(changes.photoRequired):(current.photoRequired??Boolean(task.photoRequired)),
-    reportCategory:changes.reportCategory!==undefined?changes.reportCategory:(current.reportCategory||task.reportCategory||'')
+    reportCategory:changes.reportCategory!==undefined?changes.reportCategory:(current.reportCategory||task.reportCategory||''),
+    rotationAssignmentOverride:changes.rotationAssignmentOverride!==undefined?Boolean(changes.rotationAssignmentOverride):Boolean(current.rotationAssignmentOverride)
   };
   schedule[dkey]={versions:[...kept,next]};
   await updateDoc(ref,{
@@ -791,7 +838,7 @@ export async function saveFutureRule(templateTaskId,date,changes,actor){
   });
 
   // Update already-generated future snapshots for this weekday.
-  const futureQ=query(collection(db,'dailyTasks'),where('date','>=',date));
+  const futureQ=query(collection(db,'dailyTasks'),where('date','>=',date),where('date','<=',recurringReviewEndISO(date)));
   const future=await getDocs(futureQ);
   const people=await getUsers();
   const assignee=people.find(u=>u.id===next.assigneeId);
@@ -799,7 +846,7 @@ export async function saveFutureRule(templateTaskId,date,changes,actor){
   let touched=0;
   future.docs.forEach(d=>{
     const x=d.data();
-    if(x.templateTaskId===templateTaskId&&dayKey(x.date)===dkey&&x.status!=='completed'&&x.status!=='cancelled'){
+    if(x.templateTaskId===templateTaskId&&dayKey(x.date)===dkey&&x.status!=='completed'&&x.status!=='cancelled'&&!x.dayOnlyOverride){
       const patch={
         taskName:changes.taskName??x.taskName,
         effortMinutes:next.effortMinutes,
@@ -820,6 +867,7 @@ export async function saveFutureRule(templateTaskId,date,changes,actor){
 // model and a single atomic Firestore write. This avoids orphan templates.
 export async function createTaskForDate(date,data,scope,actor){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date<todayISO())throw new Error('Choose a current or future date.');
+  if(scope==='day')assertDateOnlyAllowed(date);
   if(!['day','future'].includes(scope)||!String(data.taskName||'').trim()||
     !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(data.sourceTime||'')))throw new Error('Enter a valid task name and HH:MM time.');
   const existing=await getTasksForDate(date,{ensure:false});
@@ -868,6 +916,7 @@ export async function createWeeklyMultiDayTask({weekStart,effectiveFrom=weekStar
   if(scope==='future'&&(!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom)||effectiveFrom<todayISO()))throw new Error('Choose a current or future effective date.');
   const dates=days.map(day=>scope==='future'?addDaysISO(effectiveFrom,(WEEK_DAYS.indexOf(day)-WEEK_DAYS.indexOf(dayKey(effectiveFrom))+7)%7):addDaysISO(weekStart,WEEK_DAYS.indexOf(day)));
   if(dates.some(date=>date<todayISO()))throw new Error('Cannot create a one-time task in the past. Choose a current or future week.');
+  if(scope==='week')dates.forEach(assertDateOnlyAllowed);
   const [person,found]=await Promise.all([getUsers(),Promise.all(dates.map(date=>getTasksForDate(date,{ensure:false})))]);
   if(found.some((tasks,i)=>tasks.some(t=>t.status!=='cancelled'&&String(t.taskName||'').trim().toLowerCase()===String(data.taskName).trim().toLowerCase()&&t.sourceTime===data.sourceTime)))
     throw new Error('A matching task already exists on a selected date. Review the week before creating a duplicate.');
@@ -887,7 +936,8 @@ export async function cancelTaskToday(id,actor,reason=''){
   const ref=doc(db,'dailyTasks',id),audit=doc(db,'taskManagerAudit',`cancel_${Date.now()}_${Math.random().toString(36).slice(2,8)}`);
   await runTransaction(db,async tx=>{
     const snap=await tx.get(ref);if(!snap.exists())throw new Error('Task not found. Refresh.');
-    const t=snap.data();if(t.status==='completed')throw new Error('Completed history cannot be cancelled.');
+    const t=snap.data();assertDateOnlyAllowed(t.date);
+    if(t.status==='completed')throw new Error('Completed history cannot be cancelled.');
     if(t.date<todayISO()||t.status==='cancelled')throw new Error('This task is not available for cancellation.');
     tx.update(ref,{status:'cancelled',cancelReason:String(reason||'Skipped for this date'),cancelledAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedByUserId:actor?.id||''});
     tx.set(audit,{type:'cancel_once',taskId:id,date:t.date,reason:String(reason||''),actorId:actor?.id||'',at:serverTimestamp()});
@@ -953,7 +1003,7 @@ export async function saveLifecycleAction({templateTaskId,type,date,until='',rea
   });return event;
 }
 export async function saveDayTaskEdit(taskId,date,changes,actor){
-  if(date<todayISO())throw new Error('Historical tasks are read-only.');
+  assertDateOnlyAllowed(date);
   const keys=['taskName','sourceTime','slotId','effortMinutes','assignedTo','photoRequired','reportCategory'];
   const selected=Object.fromEntries(keys.filter(k=>Object.hasOwn(changes,k)).map(k=>[k,changes[k]]));
   const people=await getUsers(),person=people.find(x=>x.id===selected.assignedTo);
@@ -966,14 +1016,44 @@ export async function saveDayTaskEdit(taskId,date,changes,actor){
     tx.set(audit,{type:'date_only_edit',taskId,date,changes:selected,actorId:actor?.id||'',at:serverTimestamp()});
   });
 }
+// Query only occurrences belonging to the selected recurring templates. The old
+// date >= effectiveFrom query downloaded ALL future tasks in the station before
+// showing Review & Save; that could leave the manager button stuck on Reviewing.
+// Equality / IN on a single indexed field avoids a compound Firestore index.
+async function getRecurringCandidateDocs(changes){
+  const ids=[...new Set(changes.map(x=>x.templateTaskId).filter(Boolean))];
+  const docs=[];
+  for(let i=0;i<ids.length;i+=10){
+    const group=ids.slice(i,i+10);
+    const constraint=group.length===1?where('templateTaskId','==',group[0]):where('templateTaskId','in',group);
+    // This read happens before any save transaction. If offline or blocked,
+    // fail safely instead of leaving Manager reviewing/saving indefinitely.
+    let timeout;
+    const read=getDocs(query(collection(db,'dailyTasks'),constraint));
+    let result;
+    try{
+      result=await Promise.race([
+        read,
+        new Promise((_,reject)=>{timeout=setTimeout(()=>reject(new Error('Task review could not reach Firebase within 12 seconds. Nothing was saved; check connection and retry.')),12000);})
+      ]);
+    }finally{clearTimeout(timeout);}
+    docs.push(...result.docs);
+  }
+  return docs;
+}
 export async function previewRecurringExceptions(changes,effectiveFrom){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom)||effectiveFrom<todayISO())throw new Error('Choose a current or future recurring effective date.');
+  const reviewEnd=recurringReviewEndISO(effectiveFrom);
   const wanted=new Set(changes.map(c=>`${c.templateTaskId}|${c.day}`));
-  const all=await getDocs(query(collection(db,'dailyTasks'),where('date','>=',effectiveFrom)));
-  return all.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.dayOnlyOverride&&!['completed','cancelled'].includes(x.status)&&wanted.has(`${x.templateTaskId}|${dayKey(x.date)}`)).map(x=>({id:x.id,date:x.date,taskName:x.taskName}));
+  const docs=await getRecurringCandidateDocs(changes);
+  return docs.map(d=>({id:d.id,...d.data()})).filter(x=>
+    typeof x.date==='string'&&x.date>=effectiveFrom&&x.date<=reviewEnd&&x.dayOnlyOverride&&
+    !['completed','cancelled'].includes(x.status)&&wanted.has(`${x.templateTaskId}|${dayKey(x.date)}`)
+  ).map(x=>({id:x.id,date:x.date,taskName:x.taskName}));
 }
 export async function saveBulkDayEdits(entries,actor){
   if(!entries.length||entries.length>180)throw new Error('Choose between 1 and 180 task/date changes for one atomic save.');
-  if(entries.some(x=>x.date<todayISO()))throw new Error('Historical tasks cannot be changed.');
+  entries.forEach(x=>assertDateOnlyAllowed(x.date));
   const users=await getUsers(),names=new Map(users.map(x=>[x.id,x.name||'Unassigned']));
   const refs=entries.map(x=>doc(db,'dailyTasks',x.taskId)),audit=doc(db,'taskManagerAudit',`bulk_day_${Date.now()}_${Math.random().toString(36).slice(2,8)}`);
   await runTransaction(db,async tx=>{
@@ -990,11 +1070,12 @@ export async function saveBulkDayEdits(entries,actor){
 }
 export async function saveBulkRecurringEdits({changes,effectiveFrom,replaceExceptions=false},actor){
   if(!Array.isArray(changes)||!changes.length||effectiveFrom<todayISO())throw new Error('Choose tasks and a current/future effective date.');
+  const reviewEnd=recurringReviewEndISO(effectiveFrom);
   const selected=new Map();
   for(const c of changes){if(!c.templateTaskId||!WEEK_DAYS.includes(c.day))throw new Error('Invalid recurring task selection.');selected.set(`${c.templateTaskId}|${c.day}`,c);}
   const values=[...selected.values()],ids=[...new Set(values.map(c=>c.templateTaskId))];
-  const future=await getDocs(query(collection(db,'dailyTasks'),where('date','>=',effectiveFrom)));
-  const rows=future.docs.filter(d=>selected.has(`${d.data().templateTaskId}|${dayKey(d.data().date)}`)&&!['completed','cancelled'].includes(d.data().status));
+  const future=await getRecurringCandidateDocs(values);
+  const rows=future.filter(d=>typeof d.data().date==='string'&&d.data().date>=effectiveFrom&&d.data().date<=reviewEnd&&selected.has(`${d.data().templateTaskId}|${dayKey(d.data().date)}`)&&!['completed','cancelled'].includes(d.data().status));
   if(ids.length+rows.length>350)throw new Error('Too many existing future records for one atomic save. Select fewer tasks. Nothing saved.');
   const staff=await getUsers(),names=new Map(staff.map(x=>[x.id,x.name||'Unassigned']));
   const refs=ids.map(id=>doc(db,'weeklyTemplates',id)),audit=doc(db,'taskManagerAudit',`bulk_rule_${Date.now()}_${Math.random().toString(36).slice(2,8)}`);
@@ -1011,7 +1092,7 @@ export async function saveBulkRecurringEdits({changes,effectiveFrom,replaceExcep
         const before=kept.map((v,i)=>({v,i})).filter(x=>String(x.v.effectiveFrom||'')<date).sort((a,b)=>String(b.v.effectiveFrom).localeCompare(String(a.v.effectiveFrom)))[0];
         if(before)kept[before.i].effectiveTo=addDaysISO(date,-1);
         const later=kept.filter(v=>v.effectiveFrom>date).sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom))[0];
-        const ch=c.changes,next={effectiveFrom:date,active:ch.active??(current.active!==false),slotId:ch.slotId??current.slotId??'',assigneeId:ch.assignedTo??current.assigneeId??'',assigneeKey:'',legacyAssignee:'',effortMinutes:ch.effortMinutes!==undefined?ch.effortMinutes:current.effortMinutes??null,sourceTime:ch.sourceTime??current.sourceTime??'',taskName:ch.taskName??current.taskName??task.taskName,photoRequired:ch.photoRequired??current.photoRequired??task.photoRequired??false,reportCategory:ch.reportCategory??current.reportCategory??task.reportCategory??''};
+        const ch=c.changes,next={effectiveFrom:date,active:ch.active??(current.active!==false),slotId:ch.slotId??current.slotId??'',assigneeId:ch.assignedTo??current.assigneeId??'',assigneeKey:'',legacyAssignee:'',effortMinutes:ch.effortMinutes!==undefined?ch.effortMinutes:current.effortMinutes??null,sourceTime:ch.sourceTime??current.sourceTime??'',taskName:ch.taskName??current.taskName??task.taskName,photoRequired:ch.photoRequired??current.photoRequired??task.photoRequired??false,reportCategory:ch.reportCategory??current.reportCategory??task.reportCategory??'',rotationAssignmentOverride:ch.rotationAssignmentOverride??(Object.hasOwn(ch,'assignedTo')?true:(current.rotationAssignmentOverride??false))};
         if(later)next.effectiveTo=addDaysISO(later.effectiveFrom,-1);
         schedule[c.day]={versions:[...kept,next]};
       }
@@ -1025,6 +1106,6 @@ export async function saveBulkRecurringEdits({changes,effectiveFrom,replaceExcep
       if(x.dayOnlyOverride&&replaceExceptions){patch.dayOnlyOverride=false;patch.dayOnlyFields=[];}
       tx.update(snap.ref,patch);
     }
-    tx.set(audit,{type:'bulk_recurring_edit',effectiveFrom,selected:values,replaceExceptions,actorId:actor?.id||'',at:serverTimestamp()});
+    tx.set(audit,{type:'bulk_recurring_edit',effectiveFrom,reviewEnd,selected:values,replaceExceptions,actorId:actor?.id||'',at:serverTimestamp()});
   });return {changed:values.length};
 }

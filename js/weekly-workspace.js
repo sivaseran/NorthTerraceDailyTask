@@ -1,8 +1,9 @@
 /* North Terrace V4.4 — desktop-first unified schedule workspace.
    No changes to the General View layout or other manager tabs. */
 import {
-  WEEK_DAYS,weekStartISO,addDaysISO,todayISO,dayKey,slotForClock,SLOT_DEFS,slotLabelForDate,
+  WEEK_DAYS,weekStartISO,addDaysISO,todayISO,dateOnlyMaxISO,isDateOnlyAllowed,dayKey,slotForClock,SLOT_DEFS,slotLabelForDate,
   getWeeklyTemplate,getSetupTasksForDate,getStaffAvailability,getTasksForDate,ensureTasksForDate,
+  getSavedWeekdayAssignmentSnapshots,sundayEveningRotatorForDate,isSundayEveningRotationTime,
   ruleForDate,getTaskLifecycleRules,isLifecycleInactive,saveDayTaskEdit,
   saveBulkDayEdits,saveBulkRecurringEdits,previewRecurringExceptions,
   saveLifecycleAction,cancelTaskToday,createWeeklyMultiDayTask
@@ -21,14 +22,54 @@ const optionHTML=(choices,selected)=>choices.map(x=>`<option value="${clean(x.va
 const nextWeekday=(from,day)=>addDaysISO(from,(WEEK_DAYS.indexOf(day)-WEEK_DAYS.indexOf(dayKey(from))+7)%7);
 const minutes=t=>HHMM.test(String(t))?Number(t.slice(0,2))*60+Number(t.slice(3)):null;
 const splitShift=s=>String(s||'').split(',').map(x=>x.match(/(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})/)).filter(Boolean).map(m=>[Number(m[1])*60+Number(m[2]),Number(m[3])*60+Number(m[4])]);
+// Review is READ-ONLY. A slow/offline Firestore read must never trap the editor
+// behind a permanent spinner or accidentally proceed without checking exceptions.
+const REVIEW_READ_LIMIT_MS=12000;
+function reviewRead(promise,label){
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} took too long. Check Firebase connectivity and try Review & Save again. Nothing was saved.`)),REVIEW_READ_LIMIT_MS);})
+  ]).finally(()=>clearTimeout(timer));
+}
+
 
 export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}){
-  let view='day',anchor=weekStartISO(todayISO()),templates=[],weekRows=[],lifecycle=new Map(),selected=new Set(),bulk=false,cleaningConfig=null,complianceConfig=null,hotFoodConfig=null;
+  let view='day',anchor=weekStartISO(todayISO()),templates=[],weekRows=[],lifecycle=new Map(),selected=new Set(),bulk=false,cleaningConfig=null,complianceConfig=null,hotFoodConfig=null,storedOwners=new Map(),ownerLookupFailed=false;
   const dayPane=$('#ntDayWorkspace'),weekPane=$('#ntWeeklyWorkspace');
   const week=()=>weekStartISO(anchor),dateOf=d=>addDaysISO(week(),WEEK_DAYS.indexOf(d));
   const people=()=>getPeople().filter(p=>p.active!==false&&(p.role==='staff'||p.role==='assignee'));
   const staffOptions=value=>optionHTML([{value:'',label:'Unassigned'},...people().map(p=>({value:p.id,label:p.name||p.id}))],value);
   const staffName=id=>getPeople().find(x=>x.id===id)?.name||'Unassigned';
+  // A projected week can have no dailyTasks snapshots yet. Project the real
+  // recurring assignee from its saved weekday rule, not from today's rota.
+  function projectedOperationsAssignee(rule,date){
+    if(!rule)return 'Not assigned yet';
+    if(isSundayEveningRotationTime(date,rule.sourceTime||'')&&!rule.rotationAssignmentOverride){
+      const id=sundayEveningRotatorForDate(date);
+      return id?staffName(id):'Not assigned yet';
+    }
+    if(rule.assigneeId)return staffName(rule.assigneeId);
+    const key=String(rule.assigneeKey||'');
+    if(key.startsWith('staffId:')){
+      const staffId=key.slice('staffId:'.length);
+      return getPeople().find(p=>p.role==='staff'&&String(p.staffId||'')===staffId)?.name||'Not assigned yet';
+    }
+    if(key.startsWith('person:')){
+      const wanted=key.slice('person:'.length).toLowerCase().replace(/^parth$/,'parthy');
+      return getPeople().find(p=>String(p.name||'').toLowerCase()===wanted)?.name||'Not assigned yet';
+    }
+    return 'Not assigned yet';
+  }
+  function ownerForCompliance(key,day){
+    const stable=String(key).replace(/[^a-zA-Z0-9_-]/g,'_');
+    return storedOwners.get(`complianceAssignee_${stable}_${day}`)||null;
+  }
+  function storedStaffName(id,fallback=''){
+    if(id)return getPeople().find(p=>p.id===id)?.name||fallback||'Unassigned';
+    return ownerLookupFailed?'Assignment unavailable':'Not assigned yet';
+  }
+
   async function setView(which){
     view=which;dayPane.hidden=which!=='day';weekPane.hidden=which!=='week';
     $('#ntDayTab').classList.toggle('active',which==='day');$('#ntWeekTab').classList.toggle('active',which==='week');
@@ -56,6 +97,20 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
       ]);
       cleaningConfig=cleanCfg;complianceConfig=compCfg;hotFoodConfig=cfg;
       templates=all.filter(t=>!(cfg.enabled&&/^Check hot food temperature\s+\d{1,2}:\d{2}$/i.test(t.taskName||'')));
+      // Read existing stable ownership (not staff availability) for modules
+      // whose occurrences have not been generated yet. This lookup is read-only.
+      const complianceRules=[
+        ...COMPLIANCE_STANDARD.map(x=>({key:x.key,days:x.key==='weekly'?[compCfg.weeklyDay||'Wed']:WEEK_DAYS})),
+        ...(compCfg.customTasks||[]).filter(x=>x.active!==false).map(x=>({key:'custom_'+x.id,days:x.days||[]}))
+      ];
+      const ownerIds=[...new Set(complianceRules.flatMap(rule=>rule.days.map(d=>`complianceAssignee_${String(rule.key).replace(/[^a-zA-Z0-9_-]/g,'_')}_${d}`)))];
+      if(cfg.enabled)ownerIds.push(...WEEK_DAYS.slice(0,5).map(d=>`hotFoodCookingAssignee_${d}`));
+      try{storedOwners=await getSavedWeekdayAssignmentSnapshots(ownerIds);ownerLookupFailed=false;}
+      catch(err){
+        // A future-view read must not block the editor or create a new owner.
+        // Existing daily records, config overrides and normal templates remain visible.
+        storedOwners=new Map();ownerLookupFailed=true;console.warn('Saved weekday owners unavailable',err);
+      }
       weekRows=rows;lifecycle=rules;$('#ntWeekDate').value=week();renderWeek();
     }catch(error){$('#ntWeekRows').innerHTML=`<tr><td colspan="8">${clean(error.message||'Schedule could not load.')}</td></tr>`;}
   }
@@ -72,8 +127,8 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
     $('#ntWeekRows').innerHTML=sorted.map(({t,entries})=>`<tr>
       <th><b>${clean(t.taskName)}</b><small>${clean(t.reportCategory||reportCategoryForTask(t))}</small><div class="nt-weekday-dots">${entries.map(e=>`<span class="${e.active?'on':''}">${e.day}</span>`).join('')}</div></th>
       ${entries.map(e=>{
-        const key=t.id+'|'+e.day,selectedClass=selected.has(key)?'selected':'',time=e.rule?.sourceTime||'';
-        const display=e.active?`<b>${clean(staffName(e.row?.assignedTo??e.rule.assigneeId??''))}</b><small>${clean(slotLabelForDate(e.row?.slotId||e.rule.slotId||slotForClock(time,e.date),e.date))}</small><small>${clean(time)}</small>`:'<b>＋</b><small>Not scheduled</small>';
+        const key=t.id+'|'+e.day,selectedClass=selected.has(key)?'selected':'',time=e.row?.sourceTime??e.rule?.sourceTime??'';
+        const display=e.active?`<b>${clean(e.row?.assignedName||projectedOperationsAssignee(e.rule,e.date))}</b><small>${clean(slotLabelForDate(e.row?.slotId||e.rule.slotId||slotForClock(time,e.date),e.date))}</small><small>${clean(time)}</small>`:'<b>＋</b><small>Not scheduled</small>';
         return `<td><button type="button" class="nt-week-cell ${e.active?'':'empty'} ${selectedClass}" data-template="${clean(t.id)}" data-day="${e.day}" ${e.date<todayISO()?'disabled title="Past dates are read only"':''}>${display}</button></td>`;
       }).join('')}</tr>`).join('')||'<tr><td colspan="8">No recurring tasks configured.</td></tr>';
     renderSpecialRows();
@@ -94,12 +149,22 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
       for(const type of [...regular,...custom]){
         $('#ntWeekRows').insertAdjacentHTML('beforeend',`<tr><th><b>${clean(type.name)}</b><small>Compliance Checks · name locked</small></th>${WEEK_DAYS.map((day,i)=>{const date=dateOf(day),active=type.days.includes(day),record=(weekRows[i]||[]).find(x=>x.specialType==='compliance'&&x.complianceRuleId===type.key);
           if(!active)return '<td><div class="nt-week-cell empty">—</div></td>';
-          const time=record?.sourceTime||complianceConfig.scheduleOverrides?.[type.key]?.[day]?.time||type.time||'Shift based';const slot=record?.slotId||slotForClock(time==='Shift based'?'06:00':time,date);
-          return `<td><button class="nt-week-cell" type="button" data-special="compliance" data-date="${date}" data-rule="${clean(type.key)}" ${date<todayISO()?'disabled':''}><b>${clean(record?.assignedName||'Assigned on first occurrence')}</b><small>${clean(slotLabelForDate(slot,date))}</small><small>${clean(time)}</small></button></td>`;}).join('')}</tr>`);
+          const owner=ownerForCompliance(type.key,day),candidate=complianceConfig.scheduleOverrides?.[type.key]?.[day]||{};
+          const override=String(candidate.effectiveFrom||'0000-01-01')<=date?candidate:{};
+          const id=override.staffId??owner?.staffId??'';
+          const person=record?.assignedName||storedStaffName(id,owner?.staffName||'');
+          const time=record?.sourceTime||override.time||owner?.initialTime||type.time||'';
+          const slot=record?.slotId||override.slotId||(time?slotForClock(time,date):'');
+          return `<td><button class="nt-week-cell" type="button" data-special="compliance" data-date="${date}" data-rule="${clean(type.key)}" ${date<todayISO()?'disabled':''}><b>${clean(person)}</b><small>${clean(slot?slotLabelForDate(slot,date):'Time not assigned')}</small><small>${clean(time||'—')}</small></button></td>`;}).join('')}</tr>`);
       }
     }
     if(hotFoodConfig?.enabled){
-      $('#ntWeekRows').insertAdjacentHTML('beforeend',`<tr><th><b>Initial Cooking</b><small>Hot Food · Weekday 06:00</small></th>${WEEK_DAYS.map((d,i)=>{const date=dateOf(d),dow=i+1,record=(weekRows[i]||[]).find(x=>x.hotFoodType==='cooking_initial');return `<td>${dow<=5?`<button class="nt-week-cell" data-special="hotfood" data-date="${date}" ${date<todayISO()?'disabled':''}><b>${clean(record?.assignedName||'Opening shift')}</b><small>${clean(slotLabelForDate(record?.slotId||slotForClock('06:00',date),date))}</small><small>${clean(record?.sourceTime||'06:00')}</small></button>`:'<div class="nt-week-cell empty">Manual start</div>'}</td>`}).join('')}</tr>`);
+      $('#ntWeekRows').insertAdjacentHTML('beforeend',`<tr><th><b>Initial Cooking</b><small>Hot Food · Weekday ${clean(hotFoodConfig.initialCookingTime||'06:00')}</small></th>${WEEK_DAYS.map((d,i)=>{const date=dateOf(d),dow=i+1,record=(weekRows[i]||[]).find(x=>x.hotFoodType==='cooking_initial');
+        const owner=storedOwners.get(`hotFoodCookingAssignee_${d}`),explicit=hotFoodConfig.initialCookingStaffByDay?.[d]||'';
+        const staffId=explicit||owner?.staffId||'';
+        const name=record?.assignedName||storedStaffName(staffId,owner?.staffName||'');
+        const time=record?.sourceTime||hotFoodConfig.initialCookingTime||'06:00';
+        return `<td>${dow<=5?`<button class="nt-week-cell" data-special="hotfood" data-date="${date}" ${date<todayISO()?'disabled':''}><b>${clean(name)}</b><small>${clean(slotLabelForDate(record?.slotId||slotForClock(time,date),date))}</small><small>${clean(time)}</small></button>`:'<div class="nt-week-cell empty">Manual start</div>'}</td>`}).join('')}</tr>`);
       $('#ntWeekRows').insertAdjacentHTML('beforeend',`<tr><th><b>Hot Food Hourly Display Checks</b><small>Automatically generated per batch · not fixed tasks</small></th>${WEEK_DAYS.map((day,i)=>{const d=dateOf(day),checks=(weekRows[i]||[]).filter(t=>t.hotFood&&t.hotFoodType==='temperature_check');return `<td><button type="button" class="nt-week-cell ${checks.length?'':'empty'}" data-hotgroup-date="${d}"><b>${checks.length?checks.length+' checks':'Automatic'}</b><small>${checks.length?checks.map(t=>t.sourceTime||'').filter(Boolean).sort().join(', '):'Display start + hourly'}</small><small>View details</small></button></td>`;}).join('')}</tr>`);
     }
   }
@@ -164,7 +229,7 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
     const result=[];if(c.sourceTime&&slotForClock(c.sourceTime,date)!==c.slotId)result.push('Time is outside selected time slot.');
     if(!c.assignedTo)return result;
     try{
-      const [av,rows]=await Promise.all([getStaffAvailability(),getTasksForDate(date,{ensure:false})]);
+      const [av,rows]=await reviewRead(Promise.all([getStaffAvailability(),getTasksForDate(date,{ensure:false})]),'Availability check');
       const periods=splitShift(av?.week?.[c.assignedTo]?.[dayKey(date).toLowerCase()]);
       if(!periods.some(([a,b])=>minutes(c.sourceTime)>=a&&minutes(c.sourceTime)<b))result.push('Assigned person is outside their recorded shift.');
       const effort=rows.filter(r=>r.id!==excludeId&&r.assignedTo===c.assignedTo&&r.slotId===c.slotId&&r.status!=='cancelled').reduce((sum,r)=>sum+(Number(r.effortMinutes)||0),0)+(Number(c.effortMinutes)||0);
@@ -200,11 +265,25 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
       <div class="nt-editor-actions"><button type="button" class="btn secondary" data-close>Close</button>
       <button type="button" class="btn secondary" id="ntMoreActions">More Actions</button><button type="button" class="btn" id="ntSaveEdit">Review & Save</button></div>`);
     if(locked)outer.querySelector('.nt-editor-note').textContent=(cleaning?'Cleaning assignments and permanent settings':'Task definitions and permanent settings')+' are managed in their source module. Changes here affect a selected date'+(special==='compliance'?' or future recurring compliance occurrences.':'.');
-    const scope=outer.querySelector('#ntEditScope');if(tpl&&!row){scope.value='future';outer.querySelector('#ntEditEffectiveLabel').hidden=false;}
+    const scope=outer.querySelector('#ntEditScope');
+    if(!isDateOnlyAllowed(date)){
+      const single=scope.querySelector('option[value="once"]');
+      if(single){single.disabled=true;single.textContent='This date only (maximum 90 days ahead)';}
+      scope.value='future';
+      outer.querySelector('.nt-editor-note').textContent+=' Date Only changes are available only until '+dateOnlyMaxISO()+'.';
+    }
+    if(tpl&&!row){scope.value='future';outer.querySelector('#ntEditEffectiveLabel').hidden=false;}
     scope.onchange=()=>outer.querySelector('#ntEditEffectiveLabel').hidden=scope.value!=='future';
+    outer.querySelector('#ntEditEffectiveLabel').hidden=scope.value!=='future';
     field(outer,'sourceTime').onchange=e=>{const computed=slotForClock(e.target.value,date);if(computed)field(outer,'slotId').value=computed;};
     outer.querySelector('#ntMoreActions').onclick=()=>openActions(tpl,date,day,outer,row);
     const saveEditButton=outer.querySelector('#ntSaveEdit');
+    // Existing one-off records beyond the new limit remain stored but cannot
+    // receive a new one-day override; they have no recurring save alternative.
+    if(!isDateOnlyAllowed(date)&&!tpl&&special!=='compliance'){
+      saveEditButton.disabled=true;
+      error(outer,'Existing Date Only task is outside the 90-day edit window. Its record is preserved.');
+    }
     let saveBusy=false;
     saveEditButton.onclick=async()=>{
       // A second tap during validation/confirmation must not start another save.
@@ -212,38 +291,66 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
       saveBusy=true;
       outer.dataset.saving='true';
       setButtonLoading(saveEditButton,true,'Reviewing…');
-      const c=changeValues(outer);error(outer,'');
-      if(locked){delete c.taskName;delete c.reportCategory;delete c.photoRequired;if(cleaning)delete c.assignedTo;}
-      if((!locked&&!c.taskName)||!HHMM.test(c.sourceTime)||c.effortMinutes!==null&&(!Number.isInteger(c.effortMinutes)||c.effortMinutes<=0)){error(outer,'Check task name, time and effort minutes.');saveBusy=false;delete outer.dataset.saving;setButtonLoading(saveEditButton,false);return;}
+      let savedFeedback='Task saved.',savedNotice='success';
+      const entered=changeValues(outer);error(outer,'');
+      if(locked){delete entered.taskName;delete entered.reportCategory;delete entered.photoRequired;if(cleaning)delete entered.assignedTo;}
+      const original={taskName:name,sourceTime:time,slotId:slot,assignedTo:who,
+        effortMinutes:effort===''?null:Number(effort),reportCategory:category,photoRequired:Boolean(photo)};
+      const c=Object.fromEntries(Object.entries(entered).filter(([key,value])=>value!==original[key]));
+      // The on-screen staff member is sometimes a Sunday rotating default.
+      // Saving unrelated fields must NEVER convert that default to a permanent
+      // recurring assignment. Only a manager's actual staff change overrides it.
+      if(scope.value==='future'&&Object.hasOwn(c,'assignedTo'))c.rotationAssignmentOverride=true;
+      if(!Object.keys(c).length&&!(scope.value==='future'&&tpl&&(!rule||rule.active===false))){error(outer,'No changes detected. Choose a different value before saving.');saveBusy=false;delete outer.dataset.saving;setButtonLoading(saveEditButton,false);return;}
+      if((!locked&&!entered.taskName)||!HHMM.test(entered.sourceTime)||entered.effortMinutes!==null&&(!Number.isInteger(entered.effortMinutes)||entered.effortMinutes<=0)){error(outer,'Check task name, time and effort minutes.');saveBusy=false;delete outer.dataset.saving;setButtonLoading(saveEditButton,false);return;}
       try{
         if(scope.value==='future'&&special==='compliance'){
-          const effective=outer.querySelector('#ntEditEffective').value,target=nextWeekday(effective,day);
-          const conflicts=await previewComplianceRecurringExceptions(row.complianceRuleId,day,target);
+          const effective=outer.querySelector('#ntEditEffective').value;
+          if(!/^\d{4}-\d{2}-\d{2}$/.test(effective)||effective<todayISO())throw new Error('Choose a current or future recurring effective date.');
+          const target=nextWeekday(effective,day);
+          setButtonLoading(saveEditButton,true,'Checking exceptions…');
+          const conflicts=await reviewRead(previewComplianceRecurringExceptions(row.complianceRuleId,day,target),'Compliance exception review');
           if(conflicts.length){const box=outer.querySelector('#ntEditConflicts');box.hidden=false;box.innerHTML=`<div class="nt-editor-warning">${conflicts.length} date-only exception(s): ${conflicts.map(x=>clean(x.date)).join(', ')}</div><label><input type="radio" name="ntSpecialReplace" value="keep" checked> Keep existing date-only edits</label><label><input type="radio" name="ntSpecialReplace" value="replace"> Replace date-only edits</label>`;}
-          const ok=await confirmAction({title:'Update future compliance scheduling?',message:`Change ${name} every ${day} from ${target}?`,details:'The task name and checklist remain managed in Compliance Checks. Historical records are protected.',confirmText:'Save Recurrence'});if(!ok)return;
-          await updateComplianceRecurringRule(row.complianceRuleId,day,{staffId:c.assignedTo,time:c.sourceTime,slotId:c.slotId,effortMinutes:c.effortMinutes},target,user,outer.querySelector('[name="ntSpecialReplace"]:checked')?.value==='replace');
+          setButtonLoading(saveEditButton,true,'Awaiting confirmation…');
+          const ok=await confirmAction({title:'Update future compliance scheduling?',message:`Change ${name} every ${day} from ${target}?`,details:`Only date-only exceptions through ${addDaysISO(target,90)} are reviewed. Older protected exceptions and completed history remain unchanged. Task name and checklist stay in Compliance Checks.`,confirmText:'Save Recurrence'});if(!ok)return;
+          setButtonLoading(saveEditButton,true,'Saving…');
+          await updateComplianceRecurringRule(row.complianceRuleId,day,{staffId:entered.assignedTo,time:entered.sourceTime,slotId:entered.slotId,effortMinutes:entered.effortMinutes},target,user,outer.querySelector('[name="ntSpecialReplace"]:checked')?.value==='replace');
         }else if(scope.value==='future'){
-          const effective=outer.querySelector('#ntEditEffective').value,target=nextWeekday(effective,day);
-          const changes=[{templateTaskId:tpl.id,day,changes:{...c,active:true}}],conflicts=await previewRecurringExceptions(changes,target);
+          const effective=outer.querySelector('#ntEditEffective').value;
+          if(!/^\d{4}-\d{2}-\d{2}$/.test(effective)||effective<todayISO())throw new Error('Choose a current or future recurring effective date.');
+          const target=nextWeekday(effective,day);
+          const changes=[{templateTaskId:tpl.id,day,changes:{...c,active:true}}];
+          setButtonLoading(saveEditButton,true,'Checking exceptions…');
+          const conflicts=await reviewRead(previewRecurringExceptions(changes,target),'Recurring exception review');
           let replace=false;
           if(conflicts.length){
             const box=outer.querySelector('#ntEditConflicts');box.hidden=false;
             box.innerHTML=`<div class="nt-editor-warning"><b>${conflicts.length} date-only exception(s)</b> · ${conflicts.slice(0,10).map(x=>clean(x.date)).join(', ')}</div><label><input type="radio" name="ntReplace" value="keep" checked> Keep existing exceptions</label><label><input type="radio" name="ntReplace" value="replace"> Replace existing exceptions</label>`;
           }
-          const warnings=await availabilityWarnings(target,c,row?.id||'');
-          const ok=await confirmAction({title:'Save recurring task change?',message:`Apply ${name} every ${day} from ${target}?`,details:`${conflicts.length} existing one-day exception(s). ${warnings.join(' ')} Completed history protected.`,confirmText:'Save Recurrence'});
+          setButtonLoading(saveEditButton,true,'Checking availability…');
+          const warnings=await availabilityWarnings(target,entered,row?.id||'');
+          setButtonLoading(saveEditButton,true,'Awaiting confirmation…');
+          const ok=await confirmAction({title:'Save recurring task change?',message:`Apply ${name} every ${day} from ${target}?`,details:`${Object.hasOwn(c,'assignedTo')?`Assigned staff: ${staffName(who)} → ${staffName(entered.assignedTo)}. `:''}${conflicts.length} existing one-day exception(s) through ${addDaysISO(target,90)}. Existing exceptions beyond that window and completed history are protected. ${warnings.join(' ')}`,confirmText:'Save Recurrence'});
           if(!ok)return;
           replace=outer.querySelector('input[name="ntReplace"]:checked')?.value==='replace';
+          setButtonLoading(saveEditButton,true,'Saving…');
           await saveBulkRecurringEdits({changes,effectiveFrom:target,replaceExceptions:replace},user);
+          if(!replace&&conflicts.some(x=>x.date===date)){savedFeedback='Recurring schedule saved, but this date kept an existing date-only exception. Today’s displayed assignment will not change.';savedNotice='warning';}
+          else savedFeedback=`Recurring ${day} assignment updated from ${target}${Object.hasOwn(c,'assignedTo')?` to ${staffName(entered.assignedTo)}`:''}.`;
         }else{
+          if(!isDateOnlyAllowed(date))return error(outer,'Date Only changes can be made only through '+dateOnlyMaxISO()+' (90 days from today).');
           if(!row?.id)return error(outer,'No saved occurrence exists for this date. Choose future recurrence instead.');
-          const warnings=await availabilityWarnings(date,c,row.id);
-          const ok=await confirmAction({title:'Save selected date only?',message:`Change ${name} on ${date} only?`,details:`Other days unchanged. ${warnings.join(' ')}`,confirmText:'Save This Date'});
+          setButtonLoading(saveEditButton,true,'Checking availability…');
+          const warnings=await availabilityWarnings(date,entered,row.id);
+          setButtonLoading(saveEditButton,true,'Awaiting confirmation…');
+          const ok=await confirmAction({title:'Save selected date only?',message:`Change ${name} on ${date} only?`,details:`${Object.hasOwn(c,'assignedTo')?`Assigned staff: ${staffName(who)} → ${staffName(entered.assignedTo)}. `:''}Other days unchanged. ${warnings.join(' ')}`,confirmText:'Save This Date'});
           if(!ok)return;
+          setButtonLoading(saveEditButton,true,'Saving…');
           await saveDayTaskEdit(row.id,date,c,user);
+          savedFeedback=`Saved for ${day} ${date} only${Object.hasOwn(c,'assignedTo')?`: ${staffName(who)} → ${staffName(entered.assignedTo)}`:''}. Other dates unchanged.`;
         }
         // Remove the editor only after the one confirmed save succeeds.
-        outer.remove();showToast('Task saved.','success');if(view==='week')await loadWeek();else await refreshDay();
+        outer.remove();if(view==='week')await loadWeek();else await refreshDay();showToast(savedFeedback,savedNotice);
       }catch(e){error(outer,e.message||'Save failed. No success reported.');}
       finally{saveBusy=false;delete outer.dataset.saving;if(outer.isConnected)setButtonLoading(saveEditButton,false);}
     };
@@ -266,6 +373,7 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
       try{
       const type=kind.value,chosen=outer.querySelector('#ntLifeDate').value,until=outer.querySelector('#ntLifeUntil').value,reason=outer.querySelector('#ntLifeReason').value;
       if(chosen<todayISO()||type==='pause'&&until<chosen)return error(outer,'Choose valid current or future dates.');
+      if(type==='cancel'&&!isDateOnlyAllowed(chosen))return error(outer,'One-day cancellation is limited to '+dateOnlyMaxISO()+' (90 days ahead).');
       try{
         const ok=await confirmAction({title:'Confirm schedule action?',message:`${type==='cancel'?'Cancel':type} ${name} ${type==='cancel'?'on':'from'} ${chosen}${type==='pause'?' to '+until:''}?`,details:'Completed history remains unchanged; reason optional.',confirmText:'Confirm Action'});
         if(!ok)return;
@@ -290,7 +398,7 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
       <label>Assigned staff<select name="assignedTo">${staffOptions('')}</select></label>
       <label>Effort (minutes)<input type="number" name="effortMinutes" value="15" min="1" step="1"></label>
       <label class="nt-check-photo">Photo required<input type="checkbox" name="photoRequired"></label></form>
-      <section class="nt-editor-section"><h3>2. Choose save scope</h3><label><input type="radio" name="ntCreateScope" value="week"> One-time · selected dates in this week</label><label><input type="radio" name="ntCreateScope" value="future" checked> Recurring · selected weekdays going forward</label><label id="ntCreateEffectiveLabel">Recurring effective from<input id="ntCreateEffective" type="date" value="${begin<todayISO()?todayISO():begin}" min="${todayISO()}"></label><p class="nt-editor-note">Each weekday can be edited independently after creation. Past dates cannot be created.</p></section>
+      <section class="nt-editor-section"><h3>2. Choose save scope</h3><label><input type="radio" name="ntCreateScope" value="week"> One-time · selected dates in this week (within 90 days)</label><label><input type="radio" name="ntCreateScope" value="future" checked> Recurring · selected weekdays going forward</label><label id="ntCreateEffectiveLabel">Recurring effective from<input id="ntCreateEffective" type="date" value="${begin<todayISO()?todayISO():begin}" min="${todayISO()}"></label><p class="nt-editor-note">Each weekday can be edited independently after creation. Past dates cannot be created.</p></section>
       <div id="ntCreateReview" hidden></div><div class="nt-editor-actions"><button type="button" class="btn secondary" data-close>Cancel</button><button type="button" id="ntCreateReviewButton" class="btn">Review Task</button></div>`);
     outer.querySelector('#ntCreateWeekdays').onclick=()=>outer.querySelectorAll('[data-create-day]').forEach(x=>x.checked=WEEK_DAYS.indexOf(x.dataset.createDay)<5);
     outer.querySelector('#ntCreateEveryday').onclick=()=>outer.querySelectorAll('[data-create-day]').forEach(x=>x.checked=true);
@@ -301,7 +409,7 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
       const c=changeValues(outer),days=[...outer.querySelectorAll('[data-create-day]:checked')].map(x=>x.dataset.createDay),saveScope=outer.querySelector('[name="ntCreateScope"]:checked').value,effectiveFrom=outer.querySelector('#ntCreateEffective').value;
       if(!days.length||!c.taskName||!HHMM.test(c.sourceTime)||!(Number(c.effortMinutes)>0))return error(outer,'Select weekdays and enter valid task name, time and effort.');
       if(saveScope==='future'&&(!effectiveFrom||effectiveFrom<todayISO()))return error(outer,'Select a valid current/future effective date.');
-      if(saveScope==='week'&&days.some(d=>dateOf(d)<todayISO()))return error(outer,'Some selected weekdays are in the past. Choose another week or recurring scope.');
+      if(saveScope==='week'&&days.some(d=>!isDateOnlyAllowed(dateOf(d))))return error(outer,'One-time tasks must be between today and '+dateOnlyMaxISO()+'. Choose another week or recurring scope.');
       const review=outer.querySelector('#ntCreateReview');review.hidden=false;
       review.innerHTML=`<div class="nt-editor-warning"><b>${clean(c.taskName)}</b><p>${days.join(', ')} · ${clean(c.sourceTime)} · ${clean(staffName(c.assignedTo))} · ${c.effortMinutes} min</p><p>${saveScope==='week'?'This week only · one-time':'Recurring every selected weekday'} from ${clean(saveScope==='week'?begin:effectiveFrom)}</p></div><button type="button" class="btn" id="ntCreateConfirm">Confirm & Create</button>`;
       review.querySelector('#ntCreateConfirm').onclick=()=>runActionOnce(review.querySelector('#ntCreateConfirm'),async()=>{
@@ -351,24 +459,29 @@ export function initUnifiedScheduleWorkspace({getDate,getPeople,refreshDay,user}
     const box=$('#ntBulkReviewPanel');box.hidden=true;
     if(!selected.size)return showToast('Select task/day cells first.','warning');
     const scope=$('#ntBulkScope').value,effective=$('#ntBulkEffective').value;
+    if(scope==='once'&&[...selected].some(k=>!isDateOnlyAllowed(dateOf(k.split('|')[1]))))return showToast('Date-only bulk changes must be no later than '+dateOnlyMaxISO()+' (90 days ahead).','warning');
+    if(scope==='future'&&(!/^\d{4}-\d{2}-\d{2}$/.test(effective)||effective<todayISO()))return showToast('Choose a current or future recurring effective date.','warning');
     let changes;try{changes=collectBulkChanges();}catch(e){return showToast(e.message,'warning');}
     const edits=[...selected].map(k=>{const [templateTaskId,day]=k.split('|');return {templateTaskId,day,changes:{...changes}};});
-    const conflicts=scope==='future'?await previewRecurringExceptions(edits,effective):[];
-    const warnings=(await Promise.all(edits.map(async c=>{
-      const task=templates.find(t=>t.id===c.templateTaskId),date=scope==='future'?nextWeekday(effective,c.day):dateOf(c.day),rule=ruleForDate(task,date)||{};
-      const draft={sourceTime:rule.sourceTime||'',slotId:rule.slotId||'',assignedTo:rule.assigneeId||'',effortMinutes:rule.effortMinutes??0,...c.changes};
-      return availabilityWarnings(date,draft);
-    }))).flat();
+    let conflicts,warnings;
+    try{
+      conflicts=scope==='future'?await reviewRead(previewRecurringExceptions(edits,effective),'Bulk exception review'):[];
+      warnings=(await reviewRead(Promise.all(edits.map(async c=>{
+        const task=templates.find(t=>t.id===c.templateTaskId),date=scope==='future'?nextWeekday(effective,c.day):dateOf(c.day),rule=ruleForDate(task,date)||{};
+        const draft={sourceTime:rule.sourceTime||'',slotId:rule.slotId||'',assignedTo:rule.assigneeId||'',effortMinutes:rule.effortMinutes??0,...c.changes};
+        return availabilityWarnings(date,draft);
+      })),'Bulk availability review')).flat();
+    }catch(e){showToast(e.message||'Review failed. Nothing saved.','error',{duration:10000});return;}
     const beforeAfter=edits.map(c=>{const tpl=templates.find(t=>t.id===c.templateTaskId),date=scope==='future'?nextWeekday(effective,c.day):dateOf(c.day),rule=ruleForDate(tpl,date)||{};
       const lines=Object.entries(changes).map(([key,value])=>{const before=key==='assignedTo'?staffName(rule.assigneeId):rule[key]??tpl[key]??'—';return `${key}: ${String(before)} → ${key==='assignedTo'?staffName(value):String(value)}`;});return {c,tpl,date,lines};});
     box.hidden=false;
     box.innerHTML=`<div class="nt-editor-section"><h3>Review ${edits.length} changes</h3>
       <p>Changing <b>${clean(Object.keys(changes).join(', '))}</b></p>
-      <p>Scope: <b>${scope==='future'?'Future recurrence from '+clean(effective):'These dates only'}</b></p>
+      <p>Scope: <b>${scope==='future'?'Future recurrence from '+clean(effective):'These dates only'}</b></p><p class="nt-editor-note">${scope==='future'?'Exception review ends '+clean(addDaysISO(effective,90))+'; existing exceptions beyond that date remain protected.':'Date Only limit: '+clean(dateOnlyMaxISO())+'.'}</p>
       <div class="nt-bulk-review-list">${beforeAfter.map(x=>`<div>${clean(x.tpl?.taskName)} · ${x.c.day} (${x.date}) <small>${x.lines.map(clean).join('<br>')}</small></div>`).join('')}</div>
       ${conflicts.length?`<div class="nt-editor-warning">${conflicts.length} one-day exceptions: ${conflicts.slice(0,12).map(x=>clean(x.date+' '+x.taskName)).join(' · ')}</div><label><input type="radio" name="ntBulkConflict" value="keep" checked> Keep All</label><label><input type="radio" name="ntBulkConflict" value="replace"> Replace All</label>`:''}
       ${warnings.length?`<div class="nt-editor-warning">Rota / workload warnings (saving allowed): ${[...new Set(warnings)].map(clean).join(' · ')}</div>`:''}
-      <p class="nt-editor-note">Completed records and history stay untouched. Warnings do not silently change assignments.</p>
+      <p class="nt-editor-note">Date-only changes are limited to 90 days ahead. Recurring rules continue indefinitely. Existing exceptions outside the review window and completed history stay untouched.</p>
       <div class="nt-editor-actions"><button type="button" id="ntBulkBack" class="btn secondary">Back</button><button type="button" id="ntBulkCommit" class="btn">Confirm & Save</button></div><div class="nt-editor-error"></div></div>`;
     box.querySelector('#ntBulkBack').onclick=()=>box.hidden=true;
     box.querySelector('#ntBulkCommit').onclick=()=>runActionOnce(box.querySelector('#ntBulkCommit'),async()=>{

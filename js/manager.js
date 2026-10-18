@@ -431,12 +431,15 @@ async function saveRow(row,scope){
   try{
     const assigned=people.find(p=>p.id===draft.assignedTo);
     if(scope==='day'){
-      await updateDailyTask(t.id,{...draft,assignedName:assigned?.name||'Unassigned',dayOnlyOverride:true},user);
+      await updateDailyTask(t.id,{...draft,assignedName:assigned?.name||'Unassigned',dayOnlyOverride:true,dayOnlyFields:['taskName','slotId','effortMinutes','assignedTo','assignedName','sourceTime','photoRequired']},user);
     }else{
-      await saveFutureRule(t.templateTaskId,selectedDate,draft,user);
-      await updateDailyTask(t.id,{...draft,assignedName:assigned?.name||'Unassigned',dayOnlyOverride:false},user);
+      // Permanent change: preserve any one-day exceptions, including those
+      // outside the 90-day review window. The unified Weekly Editor can review
+      // and explicitly replace exceptions within that window.
+      await saveFutureRule(t.templateTaskId,selectedDate,{...draft,...(draft.assignedTo!==t.assignedTo?{rotationAssignmentOverride:true}:{})},user);
+      await bindDate();
     }
-    setInlineMessage(msg,scope==='day'?'✓ Saved for this date only.':`✓ Saved for every ${new Date(selectedDate+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'})} from this date onward.`,'success');
+    setInlineMessage(msg,scope==='day'?'✓ Saved for this date only.':`✓ Saved for every ${new Date(selectedDate+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'})} from this date onward. Existing one-day exceptions are preserved.`,'success');
     showToast('Schedule saved.','success');
   }catch(e){setInlineMessage(msg,e.message||'Could not save.','error');}
   finally{setButtonLoading(button,false);}

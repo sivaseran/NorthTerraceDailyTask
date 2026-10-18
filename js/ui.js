@@ -271,48 +271,115 @@ export function tableSkeleton(cols=5, rows=5) {
   return Array.from({length: rows}, () => `<tr class="skeleton-row">${Array.from({length:cols}, () => '<td><span class="skeleton-line"></span></td>').join('')}</tr>`).join('');
 }
 
+// PWA update coordination. An installed update can activate before the user
+// presses Apply, so listening only for controllerchange can strand the dialog.
 let ntUpdateDialogVisible=false;
-function showAppUpdateDialog(worker){
-  if(ntUpdateDialogVisible||!worker) return;
+let ntUpdateReloading=false;
+let ntUpdateInProgress=false;
+function showAppUpdateDialog(worker,registration){
+  if(ntUpdateDialogVisible||ntUpdateReloading||!worker) return;
+  // Only an actually waiting update should block the current screen.
+  if(worker.state==='activated'||worker.state==='redundant') return;
   ntUpdateDialogVisible=true;
   const overlay=document.createElement('div');
   overlay.id='ntUpdateOverlay';
   overlay.setAttribute('role','dialog');
   overlay.setAttribute('aria-modal','true');
   overlay.setAttribute('aria-label','New app version available');
-  overlay.innerHTML=`<div class="nt-update-panel"><div class="nt-update-symbol">↻</div><h2>New app update available</h2><p>A new version of North Terrace Daily Task is ready. Update now to continue using the latest version.</p><p class="nt-update-note">Your saved tasks and Firebase records will not be deleted.</p><button type="button" id="ntUpdateApply">Update & Reload</button><p id="ntUpdateStatus" aria-live="polite"></p></div>`;
+  overlay.innerHTML=`<div class="nt-update-panel"><div class="nt-update-symbol">↻</div><h2>New app update available</h2><p>A new version of North Terrace Daily Task is ready. Update now to continue using the latest version.</p><p class="nt-update-note">Your saved tasks and Firebase records will not be deleted.</p><button type="button" id="ntUpdateApply">Update &amp; Reload</button><button type="button" id="ntUpdateLater">Continue for now</button><p id="ntUpdateStatus" aria-live="polite"></p></div>`;
   document.body.appendChild(overlay);
-  overlay.querySelector('#ntUpdateApply').addEventListener('click',()=>{
-    const button=overlay.querySelector('#ntUpdateApply');
-    button.disabled=true;button.textContent='Updating…';
-    overlay.querySelector('#ntUpdateStatus').textContent='Applying the latest version…';
-    let handled=false;
-    navigator.serviceWorker.addEventListener('controllerchange',()=>{
-      if(!handled){handled=true;location.reload();}
-    });
-    worker.postMessage({type:'SKIP_WAITING'});
-    // A retry remains available if the browser does not switch controllers.
-    setTimeout(()=>{if(!handled){button.disabled=false;button.textContent='Retry update';overlay.querySelector('#ntUpdateStatus').textContent='Update is taking longer than expected. Please retry.';}},12000);
+  const button=overlay.querySelector('#ntUpdateApply');
+  const later=overlay.querySelector('#ntUpdateLater');
+  const status=overlay.querySelector('#ntUpdateStatus');
+  let fallbackTimer=null;
+  let closed=false;
+  function finishUpdate(){
+    if(closed||ntUpdateReloading||!ntUpdateInProgress) return;
+    ntUpdateReloading=true;
+    if(fallbackTimer)clearTimeout(fallbackTimer);
+    status.textContent='Update installed. Reloading…';
+    location.reload();
+  }
+  function activated(){
+    return worker.state==='activated';
+  }
+  function dismiss(){
+    if(closed||ntUpdateReloading)return;
+    closed=true;
+    if(fallbackTimer)clearTimeout(fallbackTimer);
+    navigator.serviceWorker.removeEventListener('controllerchange',onControllerChange);
+    worker.removeEventListener('statechange',onWorkerStateChange);
+    ntUpdateInProgress=false;
+    ntUpdateDialogVisible=false;
+    overlay.remove();
+  }
+  function onControllerChange(){
+    if(closed)return;
+    if(ntUpdateInProgress)finishUpdate();
+    else if(activated())dismiss();
+  }
+  function onWorkerStateChange(){
+    if(closed)return;
+    if(ntUpdateInProgress&&activated())finishUpdate();
+    else if(activated())dismiss();
+  }
+  later.addEventListener('click',dismiss);
+  // Attach listeners before sending SKIP_WAITING, then check state again.
+  navigator.serviceWorker.addEventListener('controllerchange',onControllerChange);
+  worker.addEventListener('statechange',onWorkerStateChange);
+  button.addEventListener('click',()=>{
+    if(ntUpdateInProgress||ntUpdateReloading)return;
+    ntUpdateInProgress=true;
+    button.disabled=true;
+    button.textContent='Updating…';
+    status.textContent='Applying the latest version…';
+    // The worker may have activated between opening the dialog and this tap.
+    if(activated()){finishUpdate();return;}
+    if(worker.state==='redundant'){
+      ntUpdateInProgress=false;
+      button.disabled=false;
+      button.textContent='Retry update';
+      status.textContent='The update was replaced. Please retry or refresh this page.';
+      return;
+    }
+    try{worker.postMessage({type:'SKIP_WAITING'});}
+    catch(err){
+      ntUpdateInProgress=false;
+      button.disabled=false;
+      button.textContent='Retry update';
+      status.textContent='The browser could not apply this update. Please try again.';
+      return;
+    }
+    // Covers browsers that do not emit controllerchange after activation.
+    fallbackTimer=setTimeout(()=>{
+      if(ntUpdateReloading)return;
+      if(activated()){finishUpdate();return;}
+      ntUpdateInProgress=false;
+      button.disabled=false;
+      button.textContent='Retry update';
+      status.textContent='Update is taking longer than expected. Try again, or continue using the current screen.';
+    },12000);
   });
+  // Avoid leaving a stale modal if another tab activates the update.
+  if(activated())dismiss();
 }
-export function registerAppServiceWorker() {
-  if (!('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.register('/NorthTerraceDailyTask/service-worker.js', { scope: '/NorthTerraceDailyTask/' }).then(reg => {
+export function registerAppServiceWorker(){
+  if(!('serviceWorker' in navigator))return;
+  navigator.serviceWorker.register('/NorthTerraceDailyTask/service-worker.js',{scope:'/NorthTerraceDailyTask/'}).then(reg=>{
     const check=()=>reg.update().catch(()=>{});
     check();
-    if(reg.waiting&&navigator.serviceWorker.controller) showAppUpdateDialog(reg.waiting);
-    reg.addEventListener('updatefound', () => {
+    if(reg.waiting&&navigator.serviceWorker.controller)showAppUpdateDialog(reg.waiting,reg);
+    reg.addEventListener('updatefound',()=>{
       const worker=reg.installing;
-      if(!worker) return;
+      if(!worker)return;
       worker.addEventListener('statechange',()=>{
-        if(worker.state==='installed'&&navigator.serviceWorker.controller) showAppUpdateDialog(worker);
+        if(worker.state==='installed'&&navigator.serviceWorker.controller&&reg.waiting===worker)showAppUpdateDialog(worker,reg);
       });
     });
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)check();});
     window.addEventListener('focus',check);
   }).catch(()=>{});
 }
-
 
 export function promptPin({title='Complete task',message='Enter your 4-digit staff PIN.'}={}){
   let overlay=document.getElementById('pinOverlay');

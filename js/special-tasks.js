@@ -1,5 +1,5 @@
 import {db,collection,doc,getDoc,getDocs,setDoc,updateDoc,query,where,serverTimestamp,runTransaction} from './firebase.js';
-import {getUsers,getStaffAvailability,getShiftCoverRules,slotForClock,todayISO} from './store.js';
+import {getUsers,getStaffAvailability,getShiftCoverRules,slotForClock,todayISO,addDaysISO} from './store.js';
 
 const CLEANING_DOC='cleaningRotation';
 const COMPLIANCE_DOC='complianceConfig';
@@ -124,7 +124,7 @@ export async function ensureComplianceTasks(date){
   }
 }
 export async function previewComplianceRecurringExceptions(key,day,effectiveFrom){
-  const all=await getDocs(query(collection(db,'dailyTasks'),where('date','>=',effectiveFrom)));
+  const all=await getDocs(query(collection(db,'dailyTasks'),where('date','>=',effectiveFrom),where('date','<=',addDaysISO(effectiveFrom,90))));
   return all.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.specialType==='compliance'&&x.complianceRuleId===key&&dayName(x.date)===day&&x.dayOnlyOverride&&!['completed','cancelled'].includes(x.status)).map(x=>({id:x.id,date:x.date,taskName:x.taskName}));
 }
 // Permanent compliance changes live in the Compliance module, not ordinary weekly templates.
@@ -134,7 +134,7 @@ export async function updateComplianceRecurringRule(key,day,changes,effectiveFro
   overrides[key]={...(overrides[key]||{}),[day]:{...(overrides[key]?.[day]||{}),...changes,effectiveFrom}};
   await saveComplianceConfig({...cfg,scheduleOverrides:overrides},actor);
   // Update pending future occurrences without changing completed records or date-only exceptions.
-  const all=await getDocs(query(collection(db,'dailyTasks'),where('date','>=',effectiveFrom)));
+  const all=await getDocs(query(collection(db,'dailyTasks'),where('date','>=',effectiveFrom),where('date','<=',addDaysISO(effectiveFrom,90))));
   const people=await getUsers();for(const snap of all.docs){const t=snap.data();if(t.specialType!=='compliance'||t.complianceRuleId!==key||dayName(t.date)!==day||['completed','cancelled'].includes(t.status)||(t.dayOnlyOverride&&!replaceExceptions))continue;
     const next={updatedAt:serverTimestamp()};if(t.dayOnlyOverride&&replaceExceptions){next.dayOnlyOverride=false;next.dayOnlyFields=[];}if(changes.staffId!==undefined){next.assignedTo=changes.staffId;next.assignedName=people.find(x=>x.id===changes.staffId)?.name||'Unassigned';}if(changes.time!==undefined)next.sourceTime=changes.time;if(changes.slotId!==undefined)next.slotId=changes.slotId;if(changes.effortMinutes!==undefined)next.effortMinutes=changes.effortMinutes;
     await updateDoc(snap.ref,next);
