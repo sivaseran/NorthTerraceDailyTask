@@ -1,4 +1,4 @@
-const CACHE='north-terrace-general-v4-5-20261018';
+const CACHE='north-terrace-general-v4-5-2-20261018';
 const CACHE_PREFIX='north-terrace-general-';
 const ASSETS=[
   '/NorthTerraceDailyTask/',
@@ -48,7 +48,7 @@ self.addEventListener('activate',event=>{
 self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET') return;
   const url=new URL(event.request.url);
-  const fresh=/\.(?:js|html)$/.test(url.pathname)||url.pathname.endsWith('/NorthTerraceDailyTask/');
+  const fresh=/\.(?:js|html|css)$/.test(url.pathname)||url.pathname.endsWith('/NorthTerraceDailyTask/');
   if(fresh){event.respondWith(fetch(event.request).then(r=>{const c=r.clone();caches.open(CACHE).then(x=>x.put(event.request,c));return r;}).catch(()=>caches.match(event.request)));return;}
   event.respondWith(caches.match(event.request).then(cached=>cached||fetch(event.request)));
 });

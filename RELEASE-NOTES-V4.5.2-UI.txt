@@ -1,0 +1,10 @@
+North Terrace V4.5.2 Manager UI correction
+
+- Manager-only submenu styling for Schedule Editor, Cleaning Rotation and Compliance Checks.
+- Desktop weekly toolbar/date control and task matrix legibility.
+- Dark Schedule View bar/help and text inputs/checkboxes.
+- Manager HTML references versioned CSS; service worker fetches CSS network-first and refreshes cache version.
+- General View and Staff app layout/logic not changed.
+- No Firebase schema or data migration.
+
+Deployment: upload extracted ZIP contents and overwrite existing matching files. Keep existing Firebase data. Refresh Manager after GitHub Pages deployment.
