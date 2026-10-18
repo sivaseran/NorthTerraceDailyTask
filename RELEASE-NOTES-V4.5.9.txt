@@ -1,0 +1,43 @@
+NORTH TERRACE DAILY TASK — V4.5.9 CONSOLIDATED RELEASE
+18 OCTOBER 2026
+
+UPGRADE PATH
+Full replacement package for the last confirmed deployed version, V4.5.4.
+Includes the changes from V4.5.5, V4.5.6, V4.5.7 and V4.5.8, plus this release's future-assignee display fix.
+No intermediate deployment is needed. The source package removes no files from V4.5.4.
+
+MANAGER / SCHEDULING
+- Sunday recurring manager assignee edits are protected from the default Sunday rotation.
+- Existing Sunday rotation is unchanged for tasks without a deliberate override.
+- Review & Save uses a targeted, timeout-protected review of the selected recurring task(s).
+- One-off tasks and date-only exceptions are limited to today through today + 90 calendar days.
+- Permanent recurring edits may have a later effective date; 90-day exception review is measured from that effective date.
+- Existing exceptions beyond the 90-day review window, completed tasks and historical records remain preserved.
+- Safe-save guards from V4.5.4 remain included; one tap does not create multiple parallel submissions.
+- Weekly Editor shows the saved first assignee for Compliance and weekday Initial Cooking, even when no future daily record has been generated yet.
+- If no initial assignee has ever been saved, the Weekly Editor explicitly shows 'Not assigned yet'.
+- If the saved-owner lookup fails, it shows 'Assignment unavailable' rather than guessing.
+- The Weekly Editor displays actual one-day assignment records before the normal weekday owner; a permanent Compliance override overrides the baseline owner where effective.
+- Ordinary recurring task weekday assignment displays are derived from the actual template rule; Sunday rotation remains the established exception.
+- Viewing the Weekly Editor does not initialise or change staff assignments, generate new daily tasks, or write to Firebase.
+
+GENERAL VIEW / PWA
+- V4.5.6's update-popup reliability fix is included. This addresses a stalled 'Retry update' prompt.
+- General View HTML/CSS layout is unchanged in V4.5.9; operational Hot Food, staff and audit logic is inherited from the prior releases.
+
+TECHNICAL NOTE
+Saved owner IDs are read via batched, document-ID-based Firestore queries against the existing 'system' collection, without introducing a composite index or new collection. The lookups are read-only. Query failure is visible, not treated as a reason to reassign someone.
+
+IMPORTANT LIMITATIONS
+- The live Firebase project and real Galaxy Tab have not been accessed or tested from this workspace.
+- Future recurring review is logically bounded to 90 days, but the existing selected-template query may still fetch older records before filtering. This release does not change that legacy query to avoid new Firestore index or legacy-record compatibility risks.
+- For Initial Cooking, the new display reflects the saved owner and existing config; this release does not introduce an additional permanent weekday-assignment editor outside the existing Hot Food source module.
+- No automatic reassignment of ordinary recurring tasks occurs just because the rota changes. Hot Food hourly checks continue to use their existing cooking-batch responsibility and cover rules.
+
+OFFLINE TESTS
+- All JavaScript files passed module syntax checks.
+- 90-day date-boundary, create/edit/cancel, future recurrence, and exception retention tests passed.
+- Existing Compliance owner retained after a rota change (actual mocked Firestore create/next-week scenario).
+- Batched Firestore-owner lookup tested with saved and nonexistent owner IDs, read-only.
+- Chromium interactive weekly editor tests (desktop and 390px mobile) passed saved owner display, date-only precedence, permanent override, Sunday rotation, missing-owner fallback and read failure.
+- Package ZIP integrity and file comparison against V4.5.4 verified.

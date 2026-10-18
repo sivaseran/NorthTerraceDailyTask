@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <!-- North Terrace Daily Task V4.0 --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#1A1F2B">
-<title>North Terrace - Manager</title><link rel="manifest" href="/NorthTerraceDailyTask/manifest.json"><link rel="apple-touch-icon" href="/NorthTerraceDailyTask/icons/general-192.png"><link rel="stylesheet" href="css/style.css?v=4.5.4"></head>
+<title>North Terrace - Manager</title><link rel="manifest" href="/NorthTerraceDailyTask/manifest.json"><link rel="apple-touch-icon" href="/NorthTerraceDailyTask/icons/general-192.png"><link rel="stylesheet" href="css/style.css?v=4.5.5"></head>
 <body class="nt-theme nt-manager-desktop">
 <header class="topbar">
   <div class="brand"><div class="brand-mark">NT</div><div class="brand-text"><div class="brand-kicker">North Terrace</div><h1>Manager Control</h1><p>Schedule, people, workload and reporting.</p></div></div>
@@ -44,7 +44,7 @@
     <div><strong>Schedule view</strong><span id="scheduleModeHelp">Compact by default. Edit one task at a time.</span></div>
     <button id="toggleAdvancedEdit" class="btn secondary small" type="button">▾ Advanced: Edit all tasks</button>
   </div>
-  <div class="manager-tip"><strong>How editing works:</strong> edit directly in the schedule. <b>Save this date only</b> changes only the selected day. <b>Every weekday going forward</b> changes that weekday from this date onward; historical dates stay unchanged.</div>
+  <div class="manager-tip"><strong>How editing works:</strong> edit directly in the schedule. <b>Save this date only</b> changes only the selected day (maximum 90 days ahead). <b>Every weekday going forward</b> changes that weekday from its effective date onward; historical and existing protected exceptions stay unchanged.</div>
   <div id="managerSlots"></div>  </div>
   <div id="ntWeeklyWorkspace" hidden>
     <div class="nt-week-toolbar">
@@ -66,7 +66,7 @@
         <label>Field to change<select id="ntBulkField"><option value="assignedTo">Assigned staff</option><option value="sourceTime">Scheduled time</option><option value="slotId">Time slot</option><option value="effortMinutes">Effort minutes</option><option value="reportCategory">Category</option><option value="photoRequired">Photo required</option></select></label>
         <label>New value<span id="ntBulkValueHolder"></span></label>
         <div class="nt-bulk-extra-wrap"><div id="ntBulkExtraRows"></div><button id="ntBulkAddField" type="button" class="btn secondary small">＋ Add another field</button></div>
-        <label>Save scope<select id="ntBulkScope"><option value="future">Selected weekdays from effective date</option><option value="once">Selected dates in this week only</option></select></label>
+        <label>Save scope<select id="ntBulkScope"><option value="future">Selected weekdays from effective date</option><option value="once">Selected dates in this week only (within 90 days)</option></select></label>
         <label>Effective from<input id="ntBulkEffective" type="date"></label>
         <button id="ntBulkReview" class="btn">Review Selected Changes</button>
       </div>
@@ -575,7 +575,7 @@
 </section>
 
 </main>
-<script type="module" src="js/manager.js?v=4.5.4"></script>
+<script type="module" src="js/manager.js?v=4.5.9"></script>
 <script>
 // Navigation-only shortcuts. Keep the existing manager controllers and save logic intact.
 document.querySelectorAll('[data-workspace]').forEach(button=>{

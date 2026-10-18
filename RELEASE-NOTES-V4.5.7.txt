@@ -1,0 +1,42 @@
+NORTH TERRACE V4.5.7 — MANAGER REVIEW & SAVE TIMEOUT FIX
+2026-10-18
+
+BASE: V4.5.6 full application; all current V4.5.6 features retained.
+
+SYMPTOM:
+Manager -> Schedule Editor -> Edit Task -> Review & Save remains on
+"Reviewing…" without confirmation or an error.
+
+FIXES:
+1. Recurring exception review now queries occurrences of the selected recurring
+   task/template(s), not every future Daily Task in Firebase.
+2. Review-only Firebase reads have a bounded 12-second wait. If Firebase fails
+   to respond, the editor shows a visible error, re-enables Review & Save,
+   and does NOT submit the save.
+3. Progress text distinguishes checking exceptions, checking availability,
+   waiting for confirmation, and saving.
+4. The same bounded review handling applies to Bulk Edit previews and special
+   Compliance recurring review. Date-only and Sunday rotation behavior is
+   unchanged.
+5. Future recurring save uses the same selected-template query to avoid scanning
+   unrelated daily tasks.
+
+DEPLOY:
+Small patch: replace manager.html, js/store.js, js/weekly-workspace.js.
+No Firebase reset, no changes to General View or service worker are required.
+Wait for GitHub Pages publishing, then hard-refresh Manager (Ctrl+Shift+R).
+If your last deployed version is older than V4.5.6, use the FULL V4.5.7 ZIP
+instead to include all intermediate fixes.
+
+OFFLINE TESTS:
+- 3,000 unrelated future tasks did not enter selected-task review query.
+- Selected Sunday date-only exception detection, Keep and Replace passed.
+- Existing completed tasks, other weekdays and rotation remained intact.
+- Simulated browser confirmed one-click/date-only and recurring save flows.
+- Simulated stalled review re-enabled button with error, with zero writes.
+- JavaScript syntax checked, ZIP validated.
+
+LIMITATIONS:
+No production Firebase, live GitHub Pages, or shop tablet test has occurred.
+Slow Firebase writes after confirmation should not be retried until their final
+outcome is known; this update targets the pre-save REVIEWING stall.

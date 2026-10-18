@@ -1,0 +1,18 @@
+V4.5.9 SINGLE-STEP DEPLOYMENT CHECKLIST (FROM V4.5.4)
+
+1. Back up the entire currently live NorthTerraceDailyTask GitHub repository before making changes.
+2. Extract NorthTerrace-V4.5.9-CONSOLIDATED-FULL.zip.
+3. Upload all CONTENTS (not the enclosing folder) to the ROOT of the NorthTerraceDailyTask repository.
+4. Replace matching files and retain the same folder structure (js/, css/, staff-app/, icons/).
+5. Do not delete any Firestore data, run a migration or manually remove repository files.
+6. Wait until GitHub Pages shows deployment completed.
+7. On Manager desktop, refresh with Ctrl+Shift+R; open Weekly Editor for a future week that has no generated tasks.
+8. Verify SFBB, Daily Safety and Temperature Log display the REAL previously assigned staff, or Not assigned yet for never-assigned rules. They should no longer say Assigned on first occurrence.
+9. Verify Initial Cooking shows previously saved weekday assignee, not Opening shift, on any weekday where one exists. Weekend remains Manual start.
+10. Change one NONCRITICAL pending task for TODAY only, confirm once and refresh; only that occurrence should change.
+11. Make a noncritical recurring weekday assignee edit, ensure one confirmation appears, check the following week and confirm other weekdays and Sunday rotation are unchanged.
+12. Verify the 90-day rule by trying a Date Only edit on day 91 (it should be rejected) without saving any unwanted change.
+13. On the General View tablet, allow the new PWA version to load; check the current slot and tasks still work. The General View design has not changed.
+14. Check the Developer Tools console for errors and confirm Manager, General View and Staff views load.
+
+WARNING: The checks above validate the LIVE environment; they cannot be completed from this isolated build system. Stop and restore the backed-up repository if a production regression is observed.

@@ -1,0 +1,23 @@
+NORTH TERRACE V4.5.6 - STUCK UPDATE PROMPT FIX
+
+BASE VERSION: V4.5.5 (includes prior assignee and safe-save corrections).
+
+CHANGE: The General/Manager/Staff update prompt now detects a service worker
+that has already activated even when controllerchange is not delivered.
+If an update stalls, a Continue for now option allows the existing app to
+remain usable. No Firebase data or task scheduling logic is changed.
+
+PATCH DEPLOYMENT: Upload these three files over the GitHub repository paths:
+  css/style.css
+  js/ui.js
+  service-worker.js
+Do not remove other files or clear site data / Firebase.
+Wait until GitHub Pages finishes publishing, then reload the page.
+
+TESTS: Browser simulations (desktop and mobile viewport): activation via
+statechange, activation via controllerchange, activation before user tap,
+and stalled update with dismissal and subsequent successful retry. All passed.
+JavaScript syntax and service-worker asset-path checks also passed.
+
+LIMITATION: These are browser simulations, not verification of a live GitHub
+Pages service worker or your shop tablet.

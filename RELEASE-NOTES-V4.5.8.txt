@@ -1,0 +1,47 @@
+NORTH TERRACE DAILY TASK — V4.5.8
+90-DAY DATE ONLY AND RECURRING-EXCEPTION RULE
+18 October 2026
+
+BASELINE
+Full V4.5.7 application. The only modified original files are:
+ manager.html
+ js/manager.js
+ js/store.js
+ js/weekly-workspace.js
+ js/special-tasks.js
+Also included: this release note.
+
+AGREED BEHAVIOUR
+- A new standalone Date Only task may be created for today through today+90 calendar days, inclusive.
+- A one-day change (including assignee edits and one-off cancellation) to an existing task may be saved only for that same rolling 90-day period.
+- The limit applies to both the desktop Weekly Editor and older Day Editor, with validation again in the Firestore save functions.
+- Permanent recurring schedules and their manager-selected effective dates are NOT limited to 90 days. They continue normally until edited or ended.
+- For a future recurring change, review existing one-day exceptions only from its effective date to effective date+90 days, inclusive. Within that period the Manager keeps the choice to KEEP or REPLACE reviewed exceptions.
+- Any existing exceptions outside the review period are preserved: even choosing Replace does NOT erase them. Existing completed/cancelled and historic records remain protected.
+- Pending future occurrences outside the review period pick up the latest recurring template when their date is reconciled/opened; explicit existing date-only exceptions are still preserved.
+- Sunday default rotation stays unchanged, unless the manager explicitly changes that task's recurring assignee. Bulk recurring assignee changes now also set the appropriate override flag.
+- Legacy Day Editor future-save path preserves date-only exceptions rather than silently clearing today's.
+- Compliance future recurrence review also uses the 90-day window.
+
+DEFINITION OF 90 DAYS
+The cutoff is TODAY + 90 calendar days (local device date). For example on 18 October 2026, Date Only is allowed through 16 January 2027 inclusive. The rule rolls over each day.
+
+FIREBASE & PERFORMANCE NOTE
+No Firebase collection, stored task or historical record is deleted or migrated. For ordinary recurring templates, the index-free query still fetches documents belonging to the *selected template(s)* and filters/reconciles by the 90-day window; it does not yet bound Firestore network reads by date. This avoids introducing a new composite index requirement and does not guarantee a reduced number of database reads. The V4.5.7 12-second review timeout remains in place. Compliance queries themselves now use a 90-day date range.
+
+PWA UPDATE
+Manager HTML script URL has been versioned to 4.5.8. The General View layout, staff app, service-worker.js and CSS are unchanged to avoid an unnecessary General View update notification. Manager: reload after GitHub Pages publishes (Ctrl+Shift+R on laptop). This is a full replacement ZIP: upload contents to repository root, replacing matching files. No deletions or Firebase reset.
+
+TESTS COMPLETED OFFLINE
+- Today / day 90 allowed; day 91 / past / invalid dates rejected.
+- Standalone one-time creation in Day Editor and multi-weekday Weekly Editor.
+- One-day edits, one-day cancellation and bulk one-day changes; old Day Editor path.
+- Future recurring creation and edits remain possible beyond day 90.
+- Preview and Keep/Replace changes restricted to reviewed dates, leaving older protected exceptions beyond 90 unchanged.
+- Completed-task protection, Sunday manager assignment override, legacy future edit, Compliance review.
+- Chromium desktop browser harness: one-day save, beyond-90 Date Only disabled, one-time creation beyond cutoff rejected.
+- Prior V4.5.7 regression tests (selected-task query, Sunday rotation, completed history).
+- 25 JavaScript module syntax checks and ZIP integrity.
+
+NOT YET VERIFIED
+Production Firebase rules/writes, full tablet/PWA test and simultaneous edits across devices. These must be tested with one low-risk task before reliance on production.

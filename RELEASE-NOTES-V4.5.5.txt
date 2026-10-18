@@ -1,0 +1,24 @@
+North Terrace V4.5.5 — Verified Sunday Assignment & Safe Save
+
+REPLACES V4.5.3 and V4.5.4. It includes the V4.5.4 repeated-click safeguards.
+
+WHY: Sunday rotating staff were assigned by the planner to all Sunday tasks after 13:30, regardless of a manager's future recurring assignee change. Task pm08, "Fill up coffee items in the cabinet", falls within this rule at 16:15 on Sunday. This could make the displayed assignee appear unchanged after a successful recurring save. We cannot determine the exact live save result without inspecting production Firebase. Existing date-only overrides, if present, could also legitimately keep today's assignment when a future change is saved.
+
+FIXES:
+1. Explicit recurring assignee changes in the manager editor now win over the Sunday rotating default for that task and weekday only. Other Sunday shifts still follow the existing rotation sequence. Effort/time/photo-only changes do not pin a Sunday rotator as a recurring assignee.
+2. A selected-date assignment is recorded as a field-scoped exception. Reconciliation preserves it without changing future Sundays.
+3. Future recurring edits respect existing single-day exceptions unless manager chooses Replace. If today's exception is kept, save feedback explicitly explains why today's assignment stays as-is.
+4. Standard recurring tasks are matched on stable template+date identity when schedule time changes; this avoids regenerating an unnecessary duplicate task and cancelling the previously edited item.
+5. Weekly matrix uses the date's actual task time where available. Save confirmation shows assignee before/after and a scoped success notice.
+6. All V4.5.4 single-flight protections for Manager, General View, Cleaning, Compliance, shift cover, People & PIN and Hot Food are included.
+7. New PWA cache versions for General and Staff, updated Manager JS/CSS URLs.
+
+TESTED OFFLINE:
+- Storage simulation exercising genuine store.js: date-only assignment survives reconciliation, future recurring Sunday assignment overrides the default, time-only edits do not duplicate the task, effort-only edit retains Sunday rotation, Keep/Replace existing one-day exceptions, and completed-task immutability.
+- Chromium phone-viewport interaction test of the actual weekly-workspace.js save handler with mocked data access: five repeated taps create one confirmation and one simulated date-only save with the expected field; one future assignment carries the explicit override marker; updated staff is displayed in the matrix.
+- JS module syntax check and ZIP integrity.
+
+NOT TESTED: Production Firestore writes/security rules, live devices, all end-to-end cross-device scenarios. Do not assume earlier attempted saves already resulted in the desired current assignment. Check today's assignment after deploying using one noncritical pending task, and select Keep/Replace consciously when existing one-day exceptions are listed.
+
+DEPLOYMENT:
+Back up repository and Firebase data. From a deployed V4.5.3 use V4.5.5-FROM-V4.5.3-PATCH.zip or replace with V4.5.5-FULL.zip. Do not deploy V4.5.4 separately. No deletions and no Firebase data reset. Installed PWAs may require Update & Reload / reopening.

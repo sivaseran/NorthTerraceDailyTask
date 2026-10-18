@@ -1,4 +1,4 @@
-const CACHE='north-terrace-general-v4-5-4-singleflight-20261018';
+const CACHE='north-terrace-general-v4-5-6-update-lifecycle-20261018';
 const CACHE_PREFIX='north-terrace-general-';
 const ASSETS=[
   '/NorthTerraceDailyTask/',
