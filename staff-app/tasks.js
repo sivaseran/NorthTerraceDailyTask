@@ -58,7 +58,7 @@ function render(all){
   });
 }
 await ensureSpecialTasksForDate(todayISO());await ensureTasksForDate(todayISO());await ensureHotFoodDay(todayISO());watchTasksForDate(todayISO(),render,()=>showToast('Live updates unavailable.','error'));
-$('#logout').onclick=()=>{clearSession();location.href='./';};
+$('#logout').onclick=()=>{clearSession();location.href='../index.html';};
 initNetworkStatus();if('serviceWorker' in navigator) navigator.serviceWorker.register('/NorthTerraceDailyTask/staff-app/sw.js',{scope:'/NorthTerraceDailyTask/staff-app/'}).catch(()=>{});
 
 let cookingTimerBusy=false;
