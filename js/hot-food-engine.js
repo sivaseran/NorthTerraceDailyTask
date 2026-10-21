@@ -20,6 +20,13 @@ const validTime=value=>/^([01]\d|2[0-3]):[0-5]\d$/.test(String(value||''));
 const dayLower=d=>dayKey(d).toLowerCase();
 const parseShift=s=>String(s||'').split(',').map(x=>x.trim()).map(x=>{const m=x.match(/(\d{1,2}):?(\d{2})?\s*[-–]\s*(\d{1,2}):?(\d{2})?/);return m?{a:+m[1]*60+(+m[2]||0),b:+m[3]*60+(+m[4]||0)}:null}).filter(Boolean);
 const activeStatus=x=>!['completed','cancelled','missed'].includes(x.status);
+// Independent operational cutoff: every day at 23:00 local shop time.
+// This ends data entry, NOT the 4-hour hot-holding safety limit.
+export const HOT_FOOD_DAILY_CUTOFF='23:00';
+const cutoffElapsed=(date,now=new Date())=>date<isoDate(now)||(date===isoDate(now)&&now.getHours()*60+now.getMinutes()>=mins(HOT_FOOD_DAILY_CUTOFF));
+const requireEntryWindow=date=>{
+  if(cutoffElapsed(date))throw new Error(`Hot Food for ${date} closed at ${HOT_FOOD_DAILY_CUTOFF}. Historical records are read-only; contact the manager for an audited correction.`);
+};
 
 export function hotFoodSchedule(date){
   const sun=new Date(date+'T12:00:00').getDay()===0;
@@ -135,52 +142,101 @@ async function checksForDate(date){const s=await getDocs(query(collection(db,'ho
 // templates are retired without editing old completed records.
 export function displayCheckTimes(startTime,holdingMinutes=240){
   const start=mins(startTime),limit=Number(holdingMinutes);if(start===null||!Number.isFinite(limit))return [];
-  const times=[];for(let n=start+60;n<start+limit&&n<1440;n+=60)times.push(hm(n));return times;
+  const times=[];for(let n=start+60;n<start+limit;n+=60)times.push(hm(n));return times;
 }
+// End-of-day administrative closure. At 23:00 the app automatically closes
+// UNFINISHED forms, never fabricates a temperature reading, and attributes
+// unsold stock to system-calculated waste (disposal is NOT falsely confirmed).
+// Idempotent Firestore transactions prevent duplicate quantities on reconnection.
+export async function closeHotFoodAtCutoff(date){
+  if(!cutoffElapsed(date))return {closed:false,reason:'Before 23:00'};
+  const cfg=await getHotFoodConfig();if(!cfg.enabled)return {closed:false,reason:'Module disabled'};
+  const state=await getDoc(doc(db,'hotFoodDayState',date));
+  if(state.exists()&&state.data().hotFoodClosed===true)return {closed:true,alreadyClosed:true,wasteRecorded:0,tasksClosed:0};
+  const batches=await batchesForDate(date);
+  const sessions=new Set(batches.map(b=>b.sessionId).filter(Boolean));
+  const logs=await getDocs(query(collection(db,'hotFoodChecks'),where('date','==',date)));
+  const checkRows=logs.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.isFourHourFinalCheck);
+  let wasteRecorded=0,closedBatches=0;
+  for(const b of batches){
+    if(!['active','expired_pending_check'].includes(b.status))continue;
+    // Prefer the latest SCHEDULED paper reading for this product, regardless
+    // of when a colleague typed it into the application.
+    const matches=checkRows.filter(c=>c.hotFoodSessionId===b.sessionId&&
+      (c.readings||[]).some(r=>r.productId===b.productId))
+      .sort((a,z)=>String((a.scheduledTimes||[]).at(-1)||'').localeCompare(String((z.scheduledTimes||[]).at(-1)||'')));
+    const last=matches.at(-1);
+    const reading=last?.readings?.find(r=>r.productId===b.productId);
+    const proposed=reading&&Number.isInteger(Number(reading.qty))&&Number(reading.qty)>=0?Number(reading.qty):Number(b.remainingQty)||0;
+    const ref=doc(db,'hotFoodBatches',b.id),auditRef=doc(db,'hotFoodAudit',`daily_close_${b.id}`);
+    const result=await runTransaction(db,async tx=>{
+      const current=await tx.get(ref),priorAudit=await tx.get(auditRef);
+      if(!current.exists()||!['active','expired_pending_check'].includes(current.data().status)||priorAudit.exists())return {waste:0,closed:false};
+      const x=current.data(),lastSystemQty=Math.max(0,Number(x.remainingQty)||0);
+      const qty=Math.min(lastSystemQty,Math.max(0,proposed));
+      tx.update(ref,{status:'closed',remainingQty:0,closeReason:qty>0?'daily_cutoff_auto_waste':'sold',
+        quantityWasted:(Number(x.quantityWasted)||0)+qty,autoCloseWasteQty:qty,autoCloseStockBasis:last?'latest_scheduled_check':'last_system_balance',
+        autoCloseAt:HOT_FOOD_DAILY_CUTOFF,autoCloseDate:date,autoCloseSystemCalculated:true,
+        disposalConfirmed:qty>0?false:null,finalCheckRequired:false,
+        closedAt:serverTimestamp(),updatedAt:serverTimestamp()});
+      tx.set(auditRef,{type:'hot_food_daily_cutoff',date,scheduledCutoff:HOT_FOOD_DAILY_CUTOFF,
+        details:{batchId:b.id,productName:x.productName,lastSystemQty,sourceCheckId:last?.id||'',
+          lastScheduledCheck:(last?.scheduledTimes||[]).at(-1)||'',systemWasteQty:qty,
+          physicalDisposalConfirmed:false,entryTimeNotAReading:true},
+        actorUserId:'system',actorName:'23:00 Hot Food auto-close',createdAt:serverTimestamp(),createdAtMs:Date.now()});
+      return {waste:qty,closed:true};
+    });
+    if(result.closed){closedBatches++;wasteRecorded+=result.waste;}
+  }
+  const base=await getDocs(query(collection(db,'dailyTasks'),where('date','==',date)));
+  const source=await getDocs(query(collection(db,'dailyTasks'),where('hotFoodSourceDate','==',date)));
+  const taskDocs=new Map([...base.docs,...source.docs].map(x=>[x.id,x]));
+  // Include any session final tasks whose calendar date crosses midnight.
+  for(const id of sessions){
+    const related=await getDocs(query(collection(db,'dailyTasks'),where('hotFoodSessionId','==',id)));
+    for(const d of related.docs)taskDocs.set(d.id,d);
+  }
+  let tasksClosed=0;
+  for(const d of taskDocs.values()){
+    const t=d.data();
+    if(t.hotFood!==true||!['temperature_check','expiry','expiry_session'].includes(t.hotFoodType)||!activeStatus(t))continue;
+    const did=await runTransaction(db,async tx=>{
+      const snap=await tx.get(d.ref);if(!snap.exists()||!activeStatus(snap.data()))return false;
+      tx.update(d.ref,{status:'cancelled',cancelReason:'Hot Food daily 23:00 closure — entry not submitted',
+        closedBySystem:'hot_food_cutoff',closedScheduledTime:HOT_FOOD_DAILY_CUTOFF,updatedAt:serverTimestamp()});return true;
+    });
+    if(did)tasksClosed++;
+  }
+  await setDoc(doc(db,'hotFoodDayState',date),{date,hotFoodClosed:true,closingCutoff:HOT_FOOD_DAILY_CUTOFF,
+    closingProcessedAt:serverTimestamp(),updatedAt:serverTimestamp()},{merge:true});
+  return {closed:true,wasteRecorded,closedBatches,tasksClosed};
+}
+
 // Recovery is requested by foreground clients (General, Manager and Staff).
 // No scheduled backend exists; catch up after downtime without double-counting.
 export async function recoverOverdueHotFood(){
-  const now=Date.now();
-  if(backlogBusy||now-backlogLastCheckedAt<5*60*1000)return;
+  const now=Date.now();if(backlogBusy||now-backlogLastCheckedAt<5*60*1000)return;
   backlogBusy=true;
   try{
     const cfg=await getHotFoodConfig();if(!cfg.enabled)return;
     const today=isoDate(new Date());
-    // Expired batches remain unsellable while the fourth-hour *actual* count
-    // is outstanding. Never estimate waste from the third-hour reading.
-    const oldActive=await getDocs(query(collection(db,'hotFoodBatches'),where('status','==','active')));
-    const overdueDates=[...new Set(oldActive.docs.map(d=>d.data()).filter(b=>b.date<today&&deadlineAt(b.date,b.timeOutOven,Number(cfg.holdingMinutes||240)).getTime()<=now).map(b=>b.date))];
-    for(const date of overdueDates)await reconcileHotFoodDay(date);
-    const [finalDue,legacyDisposal]=await Promise.all([
+    const [active,expired,days]=await Promise.all([
+      getDocs(query(collection(db,'hotFoodBatches'),where('status','==','active'))),
       getDocs(query(collection(db,'hotFoodBatches'),where('status','==','expired_pending_check'))),
-      getDocs(query(collection(db,'hotFoodBatches'),where('closeReason','==','expiry_waste_pending_disposal')))
+      getDocs(query(collection(db,'hotFoodDayState'),where('hotFoodActive','==',true)))
     ]);
-    const pending=new Map([...finalDue.docs,...legacyDisposal.docs].map(d=>[d.id,{id:d.id,...d.data()}]));
-    for(const b of pending.values()){
-      if(b.date>=today||b.disposalConfirmed===true)continue;
-      const dueDate=isoDate(deadlineAt(b.date,b.timeOutOven,Number(cfg.holdingMinutes||240)));
-      // Batches that expire today already have their ordinary final-check task.
-      if(dueDate>=today)continue;
-      const finalPending=b.status==='expired_pending_check';
-      const id=`hf_final_${b.id}`,ref=doc(db,'dailyTasks',id),existing=await getDoc(ref);
-      const row={date:today,taskName:finalPending?`OVERDUE 4-Hour Final Check — ${b.productName}`:`Confirm Expired Hot Food Disposal — ${b.productName}`,
-        hotFoodType:'expiry',hotFoodBatchId:b.id,sourceTime:nowHM(),checkpoint:nowHM(),
-        slotId:slotForClock(nowHM(),today),effortMinutes:4,
-        assignedTo:b.createdByUserId||'',assignedName:b.createdByName||'Unassigned'};
-      if(existing.exists()){
-        if(activeStatus(existing.data()))await updateDoc(ref,{...row,updatedAt:serverTimestamp()});
-      }else await upsertHFTask(id,row);
-      // Keep just one actionable entry, on the current day. The old record
-      // stays available for audit as cancelled, never deleted.
-      const oldRef=doc(db,'dailyTasks',`hf_${dueDate}_expiry_${b.id}`),old=await getDoc(oldRef);
-      if(old.exists()&&activeStatus(old.data()))await updateDoc(oldRef,{status:'cancelled',cancelReason:'Overdue four-hour follow-up moved to current day',updatedAt:serverTimestamp()});
-    }
+    const yesterday=previousDate(today);
+    const unfinishedDays=days.docs.map(d=>d.data()).filter(d=>d.hotFoodClosed!==true).map(d=>d.date);
+    const closedDates=[...new Set([yesterday,...unfinishedDays,...[...active.docs,...expired.docs].map(x=>x.data().date)]
+      .filter(date=>date&&cutoffElapsed(date)))];
+    for(const date of closedDates)await closeHotFoodAtCutoff(date);
     backlogLastCheckedAt=Date.now();
   }finally{backlogBusy=false;}
 }
 
 export async function reconcileHotFoodDay(date){
   const cfg=await getHotFoodConfig();if(!cfg.enabled)return;
+  if(cutoffElapsed(date)){await closeHotFoodAtCutoff(date);return;}
   const all=await batchesForDate(date),active=all.filter(x=>x.status==='active');
   const today=isoDate(new Date()),now=Date.now();
   const snapshot=await getDocs(query(collection(db,'dailyTasks'),where('date','==',date)));
@@ -205,8 +261,8 @@ export async function reconcileHotFoodDay(date){
         actorUserId:'system',actorName:'Four-hour deadline',createdAt:serverTimestamp(),createdAtMs:Date.now()});
     });
   }
-  if(date===today)try{await recoverOverdueHotFood();}catch(error){console.warn('Overnight Hot Food recovery failed',error);}
-  const remaining=await getActiveBatches(date),sessions=new Map();
+  if(date===today)try{await recoverOverdueHotFood();}catch(error){console.warn('Hot Food daily cutoff recovery failed',error);}
+  const remaining=all.filter(b=>b.status==='active'||b.status==='expired_pending_check'),sessions=new Map();
   for(const b of all){if(!b.sessionId||b.closeReason==='failed_core_waste')continue;if(!sessions.has(b.sessionId))sessions.set(b.sessionId,[]);sessions.get(b.sessionId).push(b);}
   const needAssignment=[...sessions].some(([sessionId,batches])=>displayCheckTimes(batches[0].timeOutOven,Number(cfg.holdingMinutes||240)).some((_,i)=>!tasks.some(t=>t.id===`hf_${date}_session_${sessionId}_check_${i+1}`)&&remaining.some(b=>b.sessionId===sessionId)));
   const [allPeople,availability,coverRules]=needAssignment?await Promise.all([getUsers(),getStaffAvailability(),getShiftCoverRules()]):[[],{},[]];
@@ -221,21 +277,63 @@ export async function reconcileHotFoodDay(date){
   for(const [sessionId,batches] of sessions){
     let owner=batches[0].createdByUserId||'',ownerName=batches[0].createdByName||'Unassigned';
     const hours=displayCheckTimes(batches[0].timeOutOven,Number(cfg.holdingMinutes||240));
-    const liveAt=t=>remaining.some(b=>b.sessionId===sessionId&&mins(b.timeOutOven)<=mins(t)&&mins(b.timeOutOven)+Number(cfg.holdingMinutes||240)>mins(t));
+    const acrossMidnight=batches[0].finalCheckMode==='session'&&hours.some((_,i)=>isoDate(deadlineAt(date,batches[0].timeOutOven,(i+1)*60))!==date);
+    const sessionTasks=acrossMidnight?(await getDocs(query(collection(db,'dailyTasks'),where('hotFoodSessionId','==',sessionId)))).docs.map(d=>({id:d.id,ref:d.ref,...d.data()})):tasks;
+    const liveAt=i=>remaining.some(b=>b.sessionId===sessionId&&mins(b.timeOutOven)+Number(cfg.holdingMinutes||240)>mins(batches[0].timeOutOven)+(i+1)*60);
     for(let i=0;i<hours.length;i++){
-      const time=hours[i],id=`hf_${date}_session_${sessionId}_check_${i+1}`,old=tasks.find(t=>t.id===id);
-      if(!liveAt(time)){if(old&&activeStatus(old))await updateDoc(old.ref,{status:'cancelled',cancelReason:'Session sold out, wasted or expired',updatedAt:serverTimestamp()});continue;}
-      if(old){if(old.assignedTo){owner=old.assignedTo;ownerName=old.assignedName||ownerName;}continue;}
+      const time=hours[i],checkDate=isoDate(deadlineAt(date,batches[0].timeOutOven,(i+1)*60));
+      const id=`hf_${date}_session_${sessionId}_check_${i+1}`,old=sessionTasks.find(t=>t.id===id);
+      if(!liveAt(i)){
+        if(old&&activeStatus(old)){
+          // Cancel only genuinely unnecessary FUTURE checks; already-due
+          // paper entries remain available until the 23:00 cutoff.
+          const at=deadlineAt(date,batches[0].timeOutOven,(i+1)*60);
+          if(at.getTime()>now)await updateDoc(old.ref,{status:'cancelled',cancelReason:'All session food sold out before this check',updatedAt:serverTimestamp()});
+        }
+        continue;
+      }
+      if(old){
+        if(old.status==='missed'&&old.missedReason==='No reading recorded before four-hour deadline')
+          await updateDoc(old.ref,{status:'pending',missedReason:'',updatedAt:serverTimestamp()});
+        if(old.assignedTo){owner=old.assignedTo;ownerName=old.assignedName||ownerName;}
+        continue;
+      }
       // The cook is responsible until unavailable; never revert to them after
       // confirmed cover or workload-balanced takeover.
       if(!isWorking(owner,time)){
         const cover=covering(owner,time),replacement=cover?allPeople.find(x=>x.id===cover):await chooseAssignee(date,time);
         if(replacement){owner=replacement.id;ownerName=replacement.name||'Unassigned';}
       }
-      await upsertHFTask(id,{date,taskName:'Hot Food Hourly Display Check',hotFoodType:'temperature_check',hotFoodSessionId:sessionId,sourceTime:time,checkpoint:time,slotId:slotForClock(time,date),effortMinutes:5,assignedTo:owner,assignedName:ownerName});
+      await upsertHFTask(id,{date:checkDate,hotFoodSourceDate:date,scheduledDate:checkDate,
+        taskName:'Hot Food Hourly Display Check',hotFoodType:'temperature_check',hotFoodSessionId:sessionId,
+        sourceTime:time,checkpoint:time,slotId:slotForClock(time,checkDate),
+        effortMinutes:5,assignedTo:owner,assignedName:ownerName});
     }
   }
+  // New sessions have ONE final task for every active/expired food item.
+  // Older sessions continue to use their pre-existing individual expiry tasks.
+  for(const [sessionId,batches] of sessions){
+    if(batches[0].finalCheckMode!=='session')continue;
+    const stillOpen=batches.some(b=>b.status==='active'||b.status==='expired_pending_check');
+    if(!stillOpen){
+      // A sold-out session needs no fourth-hour final check.
+      const dueDate=isoDate(deadlineAt(date,batches[0].timeOutOven,Number(cfg.holdingMinutes||240)));
+      const ref=doc(db,'dailyTasks',`hf_${dueDate}_session_${sessionId}_final`),prior=await getDoc(ref);
+      if(prior.exists()&&activeStatus(prior.data()))await updateDoc(ref,{status:'cancelled',cancelReason:'All session products sold out or closed before deadline',updatedAt:serverTimestamp()});
+      continue;
+    }
+    const due=deadlineAt(date,batches[0].timeOutOven,Number(cfg.holdingMinutes||240));
+    const dueDate=isoDate(due),clock=hm(mins(batches[0].timeOutOven)+Number(cfg.holdingMinutes||240));
+    const id=`hf_${dueDate}_session_${sessionId}_final`;
+    if(tasks.some(t=>t.id===id))continue;
+    const last=tasks.filter(t=>t.hotFoodSessionId===sessionId&&t.hotFoodType==='temperature_check').sort((a,z)=>String(a.sourceTime).localeCompare(String(z.sourceTime))).at(-1);
+    await upsertHFTask(id,{date:dueDate,scheduledDate:dueDate,taskName:'4-Hour Final Temperature & Quantity Check',
+      hotFoodType:'expiry_session',hotFoodSessionId:sessionId,sourceTime:clock,checkpoint:clock,
+      slotId:slotForClock(clock,dueDate),effortMinutes:5,
+      assignedTo:last?.assignedTo||batches[0].createdByUserId||'',assignedName:last?.assignedName||batches[0].createdByName||'Unassigned'});
+  }
   for(const b of all){
+    if(b.finalCheckMode==='session')continue;
     const exp=mins(b.timeOutOven)+Number(cfg.holdingMinutes||240);
     if(b.closeReason==='sold'||b.closeReason==='failed_core_waste'||b.disposalConfirmed===true)continue;
     if(b.status!=='active'&&b.status!=='expired_pending_check'&&b.closeReason!=='expiry_waste_pending_disposal')continue;
@@ -255,19 +353,24 @@ export async function cookingDefaults(date,type='initial'){
   return {products,planned};
 }
 
-export async function submitCooking({date,taskId,actor,timeOutOven,items,noCooking=false,source='scheduled'}){
+export async function submitCooking({date,taskId,actor,timeOutOven,items,noCooking=false,noCookingReason='',noCookingComment='',source='scheduled',submissionId=''}){
+  requireEntryWindow(date);
   if(await isHotFoodWeekLocked(date))throw new Error('This compliance week has been signed off. Ask a Manager to reopen the week.');
   const cfg=await getHotFoodConfig(); if(!cfg.enabled)throw new Error('Hot Food is disabled.');
   if(!validTime(timeOutOven))throw new Error('Enter a valid cooking-completed/display-start time (HH:MM).');
   if(!noCooking&&date===isoDate(new Date())&&mins(timeOutOven)>mins(nowHM()))throw new Error('Cooking completion cannot be later than the current time. Correct the time and try again.');
   if(noCooking){
-    if(taskId)await completeTask(taskId,actor,{hotFoodResult:'no_cooking'});
-    if(source==='cooking_initial'){
-      const q=await getDocs(query(collection(db,'dailyTasks'),where('date','==',date)));
-      for(const d of q.docs){const x=d.data();if(x.hotFood===true&&d.id!==taskId&&activeStatus(x))await updateDoc(d.ref,{status:'cancelled',cancelReason:'No cooking required at Initial Cooking',updatedAt:serverTimestamp()});}
-      await setDoc(doc(db,'hotFoodDayState',date),{date,initialCancelled:true,hotFoodActive:false,updatedAt:serverTimestamp()},{merge:true});
-    }
-    await addHotFoodAudit('no_cooking_required',{date,taskId,source},actor); return {batches:[]};
+    const allowed=['no_stock','equipment_problem','manager_instruction','other'];
+    if(!taskId||source!=='cooking_initial')throw new Error('No cooking required applies only to the planned Initial Cooking task.');
+    if(!allowed.includes(noCookingReason))throw new Error('Select a reason for No cooking required.');
+    if(noCookingReason==='other'&&!String(noCookingComment||'').trim())throw new Error('Explain why cooking was not required.');
+    const existing=await getDoc(doc(db,'dailyTasks',taskId));
+    if(existing.exists()&&existing.data().status==='completed')throw new Error('Initial Cooking has already been completed. Refresh the task list.');
+    await completeTask(taskId,actor,{hotFoodResult:'no_cooking',noCookingReason,noCookingComment:String(noCookingComment||'').trim()});
+    // A planned cooking task may be skipped without touching a different cooking session.
+    await setDoc(doc(db,'hotFoodDayState',date),{date,initialCancelled:true,updatedAt:serverTimestamp()},{merge:true});
+    await addHotFoodAudit('no_cooking_required',{date,taskId,source,reason:noCookingReason,comment:String(noCookingComment||'').trim()},actor);
+    return {batches:[]};
   }
   const valid=(items||[]).filter(x=>Number(x.qty)>0);
   if(!valid.length)throw new Error('Add at least one cooked product or choose No cooking required.');
@@ -278,29 +381,113 @@ export async function submitCooking({date,taskId,actor,timeOutOven,items,noCooki
     x.coreReadings=readings;x.coreTempC=readings[readings.length-1];
     if(Number(x.coreTempC)<Number(cfg.corePassC)&&!x.wasteFailed)throw new Error(`${x.productName} is below ${cfg.corePassC}°C. Reheat/retest and add the new reading, or choose Waste if failed.`);
   }
-  const sessionId=`hfs_${date}_${Date.now()}`; const made=[];
-  for(const x of valid){
-    const id=`hfb_${date}_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
-    const failed=Number(x.coreTempC)<Number(cfg.corePassC); const row={date,sessionId,productId:x.productId,productName:x.productName,qtyCooked:Number(x.qty),remainingQty:failed?0:Number(x.qty),coreTempC:Number(x.coreTempC),coreReadings:x.coreReadings,timeOutOven,status:failed?'closed':'active',closeReason:failed?'failed_core_waste':'',quantityWasted:failed?Number(x.qty):0,source,createdByUserId:actor.id,createdByName:actor.name,createdAt:serverTimestamp(),createdAtMs:Date.now()};
-    await setDoc(doc(db,'hotFoodBatches',id),row); made.push({id,...row});
+  // Cooking, its products and the cooking session commit together. Retries of the
+  // SAME form use a stable submissionId, never creating extra cooking sessions.
+  const suffix=String(submissionId||`${Date.now()}_${Math.random().toString(36).slice(2,8)}`).replace(/[^a-zA-Z0-9_-]/g,'').slice(0,80);
+  const sessionId=`hfs_${date}_${suffix}`;
+  const scheduledCookingTime=source==='cooking_initial'?(cfg.initialCookingTime||'06:00'):'';
+  const made=valid.map((x,i)=>{
+    const id=`hfb_${date}_${suffix}_${i}`;
+    const failed=Number(x.coreTempC)<Number(cfg.corePassC);
+    return {id,date,sessionId,finalCheckMode:'session',scheduledCookingTime,
+      productId:x.productId,productName:x.productName,qtyCooked:Number(x.qty),remainingQty:failed?0:Number(x.qty),
+      coreTempC:Number(x.coreTempC),coreReadings:x.coreReadings,timeOutOven,
+      status:failed?'closed':'active',closeReason:failed?'failed_core_waste':'',quantityWasted:failed?Number(x.qty):0,
+      source,createdByUserId:actor.id,createdByName:actor.name,createdAt:serverTimestamp(),createdAtMs:Date.now()};
+  });
+  const sessionRef=doc(db,'hotFoodSessions',sessionId);
+  const fresh=await runTransaction(db,async tx=>{
+    const prior=await tx.get(sessionRef);
+    if(prior.exists())return false;
+    if(taskId){
+      const sourceRef=doc(db,'dailyTasks',taskId),sourceTask=await tx.get(sourceRef);
+      if(!sourceTask.exists())throw new Error('The Initial Cooking task no longer exists. Refresh the schedule.');
+      const priorSession=sourceTask.data().hotFoodSessionId||'';
+      if(sourceTask.data().status==='completed'||(priorSession&&priorSession!==sessionId))
+        throw new Error('Initial Cooking is already closed or linked to another batch. Use Start Cooking for additional cooking.');
+      // Reserve this task for this cooking form. Concurrent devices cannot
+      // create separate sessions for the same Initial Cooking task.
+      tx.update(sourceRef,{hotFoodSessionId:sessionId,updatedAt:serverTimestamp()});
+    }
+    for(const row of made){const {id,...fields}=row;tx.set(doc(db,'hotFoodBatches',id),fields);}
+    tx.set(sessionRef,{date,timeOutOven,scheduledCookingTime,finalCheckMode:'session',source,taskId:taskId||'',
+      batchIds:made.map(x=>x.id),createdByUserId:actor.id,createdByName:actor.name,
+      createdAt:serverTimestamp(),createdAtMs:Date.now()});
+    return true;
+  });
+  await setDoc(doc(db,'hotFoodDayState',date),{date,hotFoodActive:true,
+    ...(source==='cooking_initial'?{initialCancelled:false}:{}),updatedAt:serverTimestamp()},{merge:true});
+  if(taskId){
+    const task=await getDoc(doc(db,'dailyTasks',taskId));
+    if(task.exists()&&task.data().status==='completed'&&task.data().hotFoodSessionId!==sessionId)
+      throw new Error('Initial Cooking was already completed using a different session. Refresh and contact the manager.');
+    if(!task.exists()||task.data().status!=='completed')await completeTask(taskId,actor,{hotFoodSessionId:sessionId});
+  }else{
+    // A completed informational record is visible in General View after each top-up.
+    const previous=(await batchesForDate(date)).filter(b=>b.sessionId!==sessionId);
+    const count=new Set(previous.map(b=>b.sessionId).filter(Boolean)).size+1;
+    const recordRef=doc(db,'dailyTasks',`hf_${date}_cooking_session_${sessionId}`),existing=await getDoc(recordRef);
+    if(!existing.exists())await setDoc(recordRef,{
+      date,taskName:count===2?'Second Cooking Started':`Additional Cooking Started — Session ${count}`,
+      hotFood:true,hotFoodType:'cooking_additional_record',hotFoodSessionId:sessionId,
+      reportCategory:'Hot Food',sourceTime:timeOutOven,checkpoint:timeOutOven,
+      slotId:slotForClock(timeOutOven,date),effortMinutes:0,
+      assignedTo:actor.id||'',assignedName:actor.name||'Staff',status:'completed',
+      completedByUserId:actor.id||'',completedByName:actor.name||'Staff',
+      completedAt:serverTimestamp(),createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
   }
-  await setDoc(doc(db,'hotFoodDayState',date),{date,initialCancelled:false,hotFoodActive:true,updatedAt:serverTimestamp()},{merge:true});
-  await setDoc(doc(db,'hotFoodSessions',sessionId),{date,timeOutOven,source,taskId:taskId||'',batchIds:made.map(x=>x.id),createdByUserId:actor.id,createdByName:actor.name,createdAt:serverTimestamp(),createdAtMs:Date.now()});
-  if(taskId)await completeTask(taskId,actor,{hotFoodSessionId:sessionId});
-  await addHotFoodAudit('cooking_recorded',{date,sessionId,timeOutOven,items:valid.map(x=>({productId:x.productId,productName:x.productName,qty:+x.qty,coreTempC:+x.coreTempC,coreReadings:x.coreReadings}))},actor);
-  await reconcileHotFoodDay(date); return {sessionId,batches:made};
+  // The audit record also uses the deterministic session ID: repeated submissions
+  // won't double-report the event. Actual entry is createdAt; scheduled cooking
+  // and actual Time Out Oven remain distinct.
+  const auditRef=doc(db,'hotFoodAudit',`cooking_${sessionId}`);
+  const existingAudit=await getDoc(auditRef);
+  if(!existingAudit.exists())await setDoc(auditRef,{type:'cooking_recorded',
+    details:{date,sessionId,scheduledCookingTime,timeOutOven,
+      items:valid.map(x=>({productId:x.productId,productName:x.productName,qty:Number(x.qty),
+        coreTempC:Number(x.coreTempC),coreReadings:x.coreReadings}))},
+    actorUserId:actor.id,actorName:actor.name,createdAt:serverTimestamp(),createdAtMs:Date.now()});
+  let schedulePending=false;
+  try{await reconcileHotFoodDay(date);}catch(error){
+    // Never encourage resubmission of cooking already safely committed.
+    console.error('Cooking saved but automatic hourly scheduling must retry',error);
+    schedulePending=true;
+  }
+  return {sessionId,batches:made,schedulePending,alreadyRecorded:!fresh};
 }
 
 export async function getOverdueTemperatureTasks(date,currentTask){
   // Never complete another session's checkpoint as a side-effect of this one.
   return [currentTask];
 }
-export async function temperatureCheckContext(date,scheduledTime,sessionId=''){
-  const cfg=await getHotFoodConfig(),all=await getActiveBatches(date),t=mins(scheduledTime);
-  const eligible=all.filter(b=>(!sessionId||b.sessionId===sessionId)&&mins(b.timeOutOven)<=t&&mins(b.timeOutOven)+Number(cfg.holdingMinutes||240)>t);
-  const by=new Map();for(const b of eligible){const x=by.get(b.productId)||{productId:b.productId,productName:b.productName,currentSystemQty:0,batches:[]};x.currentSystemQty+=Number(b.remainingQty)||0;x.batches.push(b);by.set(b.productId,x);}
+export async function temperatureCheckContext(date,scheduledTime,sessionId='',scheduledDate=date){
+  const cfg=await getHotFoodConfig();
+  const all=await batchesForDate(date);
+  const clock=mins(scheduledTime)+(scheduledDate>date?1440:0);
+  const eligible=all.filter(b=>(!sessionId||b.sessionId===sessionId)&&
+    mins(b.timeOutOven)<=clock&&mins(b.timeOutOven)+Number(cfg.holdingMinutes||240)>clock&&b.closeReason!=='failed_core_waste');
+  const historical=sessionId?(await getDocs(query(collection(db,'hotFoodChecks'),where('hotFoodSessionId','==',sessionId))))
+    .docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.isFourHourFinalCheck):[];
+  const by=new Map();
+  for(const b of eligible){
+    let x=by.get(b.productId);
+    if(!x){x={productId:b.productId,productName:b.productName,currentSystemQty:0,batches:[]};by.set(b.productId,x);}
+    x.batches.push(b);
+  }
+  for(const x of by.values()){
+    // A delayed paper reading uses the latest earlier scheduled reading,
+    // not a current physical stock of zero after the final check.
+    const earlier=historical.filter(c=>{
+      const source=(c.scheduledTimes||[]).at(-1)||'';
+      return source&&mins(source)<mins(scheduledTime)&&(c.readings||[]).some(r=>r.productId===x.productId);
+    }).sort((a,z)=>mins((a.scheduledTimes||[]).at(-1))-mins((z.scheduledTimes||[]).at(-1)));
+    const previous=earlier.at(-1)?.readings?.find(r=>r.productId===x.productId);
+    const starting=x.batches.reduce((n,b)=>n+Number(b.qtyCooked||0),0);
+    const current=x.batches.reduce((n,b)=>n+Number(b.remainingQty||0),0);
+    x.currentSystemQty=previous?Number(previous.qty):sessionId?Math.max(current,starting):current;
+  }
   return {config:cfg,products:[...by.values()]};
 }
+
 async function applyFifo(date,productId,targetQty,{wasteQty=0,reason='',sellOutTime='',sellOutTimes={}},actor,sessionId=''){
   const batches=(await getActiveBatches(date)).filter(b=>b.productId===productId&&(!sessionId||b.sessionId===sessionId)).sort((a,b)=>mins(a.timeOutOven)-mins(b.timeOutOven));
   let system=batches.reduce((a,b)=>a+(+b.remainingQty||0),0), sold=Math.max(0,system-Number(targetQty)), waste=Math.max(0,Number(wasteQty)||0);
@@ -308,16 +495,19 @@ async function applyFifo(date,productId,targetQty,{wasteQty=0,reason='',sellOutT
   for(const b of batches){let rem=+b.remainingQty||0; const s=Math.min(rem,soldLeft);rem-=s;soldLeft-=s; const w=Math.min(rem,wasteLeft);rem-=w;wasteLeft-=w; const patch={remainingQty:rem,updatedAt:serverTimestamp()}; if(rem<=0){patch.status='closed';patch.closedAt=serverTimestamp(); if(w>0){patch.closeReason='waste';patch.quantityWasted=(+b.quantityWasted||0)+w;}else{patch.closeReason='sold';patch.sellOutTime=sellOutTimes?.[b.id]||sellOutTime||nowHM();}} else if(w>0)patch.quantityWasted=(+b.quantityWasted||0)+w; await updateDoc(doc(db,'hotFoodBatches',b.id),patch);if(rem<=0)await cancelBatchExpiryTask(date,b.id,patch.closeReason==='sold'?'Batch sold out before expiry':'Batch closed by waste before expiry');}
   return {sold,wasted:waste,remaining:Math.max(0,Number(targetQty)-waste)};
 }
-export async function submitTemperatureCheck({date,taskId,taskIds,actor,scheduledTimes,actualReadingTime,readings,sessionId=''}){
-  if(await isHotFoodWeekLocked(date))throw new Error('This compliance week has been signed off. Ask a Manager to reopen the week.');
+export async function submitTemperatureCheck({date,taskId,taskIds,actor,scheduledTimes,actualReadingTime,readings,sessionId='',sourceDate=date}){
+  if(await isHotFoodWeekLocked(sourceDate))throw new Error('This compliance week has been signed off. Ask a Manager to reopen the week.');
+  requireEntryWindow(sourceDate);
   const cfg=await getHotFoodConfig();
-  // A stale hourly form must not overwrite or circumvent an expired batch.
-  if(sessionId){
-    const sessionBatches=(await batchesForDate(date)).filter(b=>b.sessionId===sessionId);
-    if(sessionBatches.some(b=>b.status==='expired_pending_check'||b.closeReason==='expiry_waste_pending_disposal'||
-      (b.status==='active'&&deadlineAt(b.date,b.timeOutOven,Number(cfg.holdingMinutes||240)).getTime()<=Date.now())))
-      throw new Error('The four-hour deadline has passed. Complete the Final Temperature & Quantity Check instead.');
-  }
+  const sessionBatches=sessionId?(await batchesForDate(sourceDate)).filter(b=>b.sessionId===sessionId):[];
+  // After expiry, late entries are audit-only, never stock/sale adjustments.
+  // The four-hour sale restriction is NOT extended by permitting paper logs.
+  const afterDeadline=sessionBatches.some(b=>deadlineAt(b.date,b.timeOutOven,Number(cfg.holdingMinutes||240)).getTime()<=Date.now()||b.status!=='active');
+  const previousLogs=sessionId?(await getDocs(query(collection(db,'hotFoodChecks'),where('hotFoodSessionId','==',sessionId)))).docs
+    .map(x=>x.data()).filter(x=>!x.isFourHourFinalCheck):[];
+  const lastScheduled=previousLogs.map(x=>(x.scheduledTimes||[]).at(-1)||'').filter(Boolean).sort().at(-1)||'';
+  const isOutOfOrder=Boolean(lastScheduled&&lastScheduled>String((scheduledTimes||[]).at(-1)||''));
+  const auditOnly=afterDeadline||isOutOfOrder;
   if(!validTime(actualReadingTime))throw new Error('Enter a valid actual reading time (HH:MM).');
   if(date===isoDate(new Date())&&mins(actualReadingTime)>mins(nowHM()))throw new Error('Actual reading time cannot be in the future. Correct it and try again.');
   for(const r of readings){
@@ -329,20 +519,146 @@ export async function submitTemperatureCheck({date,taskId,taskIds,actor,schedule
     if(r.wasteReason==='other'&&!String(r.wasteComment||'').trim())throw new Error(`Add a short comment for Other waste reason (${r.productName}).`);
     for(const [batchId,t] of Object.entries(r.sellOutTimes||{})){const b=(await expiryContext(batchId));if(!/^\d{2}:\d{2}$/.test(t)||mins(t)<mins(b.timeOutOven)||mins(t)>mins(actualReadingTime))throw new Error(`Sell Out Time for ${r.productName} must be between ${b.timeOutOven} and ${actualReadingTime}.`);}
   }
-  const currentStock=(await getActiveBatches(date)).filter(b=>!sessionId||b.sessionId===sessionId);
-  for(const r of readings){const stock=currentStock.filter(b=>b.productId===r.productId).reduce((x,b)=>x+(Number(b.remainingQty)||0),0);if(Number(r.qty)>stock)throw new Error(`${r.productName}: remaining stock has changed. Reopen the check.`);}
+  const currentStock=(await getActiveBatches(sourceDate)).filter(b=>!sessionId||b.sessionId===sessionId);
+  const ctx=await temperatureCheckContext(sourceDate,(scheduledTimes||[]).at(-1)||'',sessionId,date);
+  for(const r of readings){const stock=auditOnly?(ctx.products.find(p=>p.productId===r.productId)?.currentSystemQty??0):
+    currentStock.filter(b=>b.productId===r.productId).reduce((x,b)=>x+(Number(b.remainingQty)||0),0);
+    if(Number(r.qty)>stock)throw new Error(`${r.productName}: quantity exceeds the previous recorded balance. Review the paper entry.`);
+  }
+  const existing=await getDoc(doc(db,'dailyTasks',taskId));
+  if(!existing.exists()||!activeStatus(existing.data()))throw new Error('This check was already completed or closed. Refresh the tasks.');
+  // Backfilled paper logs are historical observations, not fresh sales.
+  // Commit the log and task completion atomically with a deterministic ID.
+  if(auditOnly){
+    const eventId=`hfc_late_${taskId}`;
+    const results=readings.map(r=>({...r,failed:Number(r.qty)>0&&Number(r.temperatureC)<Number(cfg.holdingPassC),
+      historicalBackfill:true,sold:0,wasted:0,remaining:Number(r.qty)}));
+    await runTransaction(db,async tx=>{
+      const taskRef=doc(db,'dailyTasks',taskId),checkRef=doc(db,'hotFoodChecks',eventId);
+      const [taskSnap,checkSnap]=await Promise.all([tx.get(taskRef),tx.get(checkRef)]);
+      if(!taskSnap.exists()||!activeStatus(taskSnap.data())||checkSnap.exists())
+        throw new Error('This paper-record entry has already been submitted. Refresh the tasks.');
+      tx.set(checkRef,{date,scheduledTimes,actualReadingTime,actualEntryDate:isoDate(new Date()),
+        historicalBackfill:true,hotFoodSessionId:sessionId,readings:results,
+        performedByUserId:actor.id,performedByName:actor.name,createdAt:serverTimestamp(),createdAtMs:Date.now()});
+      tx.update(taskRef,{status:'completed',completedAt:serverTimestamp(),completedByUserId:actor.id,
+        completedByName:actor.name,hotFoodCheckId:eventId,actualReadingTime,
+        entryMode:'paper_backfill',updatedAt:serverTimestamp()});
+      tx.set(doc(db,'taskCompletionLedger',taskId),{taskId,date,status:'completed',
+        completedAt:serverTimestamp(),completedByUserId:actor.id,completedByName:actor.name,updatedAt:serverTimestamp()});
+      tx.set(doc(db,'hotFoodAudit',`temperature_${eventId}`),{type:'temperature_check_paper_backfill',
+        details:{date,sourceDate,eventId,sessionId,scheduledTimes,actualReadingTime,
+          noStockAdjustment:true,readings:results},actorUserId:actor.id,actorName:actor.name,
+        createdAt:serverTimestamp(),createdAtMs:Date.now()});
+    });
+    await reconcileHotFoodDay(sourceDate);
+    return results;
+  }
   const eventId=`hfc_${date}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`; const results=[];
   for(const r of readings){
     const fail=Number(r.qty)>0&&Number(r.temperatureC)<Number(cfg.holdingPassC); const waste=fail?Number(r.qty):Number(r.wasteQty||0);
-    const stock=await applyFifo(date,r.productId,Number(r.qty),{wasteQty:waste,reason:fail?'temperature_failure':r.wasteReason||'',sellOutTime:r.sellOutTime||actualReadingTime,sellOutTimes:r.sellOutTimes||{}},actor,sessionId);
+    const stock=auditOnly?{sold:0,wasted:0,remaining:Number(r.qty),historicalBackfill:true}:
+      await applyFifo(sourceDate,r.productId,Number(r.qty),{wasteQty:waste,reason:fail?'temperature_failure':r.wasteReason||'',sellOutTime:r.sellOutTime||actualReadingTime,sellOutTimes:r.sellOutTimes||{}},actor,sessionId);
     results.push({...r,failed:fail,...stock});
   }
-  await setDoc(doc(db,'hotFoodChecks',eventId),{date,scheduledTimes,actualReadingTime,hotFoodSessionId:sessionId,readings:results,performedByUserId:actor.id,performedByName:actor.name,createdAt:serverTimestamp(),createdAtMs:Date.now()});
+  await setDoc(doc(db,'hotFoodChecks',eventId),{date,scheduledTimes,actualReadingTime,actualEntryDate:isoDate(new Date()),historicalBackfill:auditOnly,hotFoodSessionId:sessionId,readings:results,performedByUserId:actor.id,performedByName:actor.name,createdAt:serverTimestamp(),createdAtMs:Date.now()});
   for(const id of (taskIds?.length?taskIds:(taskId?[taskId]:[])))await completeTask(id,actor,{hotFoodCheckId:eventId,actualReadingTime});
-  await addHotFoodAudit('temperature_check_recorded',{date,eventId,sessionId,scheduledTimes,actualReadingTime,readings:results},actor); if(!(await getActiveBatches(date)).length)await cancelFutureTemperatureTasks(date,actualReadingTime); await reconcileHotFoodDay(date); return results;
+  await addHotFoodAudit('temperature_check_recorded',{date,sourceDate,eventId,sessionId,scheduledTimes,actualReadingTime,historicalBackfill:auditOnly,readings:results},actor);
+  if(!(await getActiveBatches(sourceDate)).length)await cancelFutureTemperatureTasks(sourceDate,actualReadingTime);
+  await reconcileHotFoodDay(sourceDate);return results;
 }
 
 export async function expiryContext(batchId){const s=await getDoc(doc(db,'hotFoodBatches',batchId));if(!s.exists())throw new Error('Batch not found.');return {id:s.id,...s.data()};}
+
+// New session-level fourth-hour task. One form/transaction records all product
+// outcomes and physical-disposal acknowledgement; no separate reminder is generated.
+export async function sessionFinalContext(sessionId){
+  const snapshot=await getDoc(doc(db,'hotFoodSessions',sessionId));
+  if(!snapshot.exists()||snapshot.data().finalCheckMode!=='session')throw new Error('Cooking session not found.');
+  const session={id:sessionId,...snapshot.data()};
+  const ids=Array.isArray(session.batchIds)?session.batchIds:[];
+  const batches=(await Promise.all(ids.map(async id=>{const b=await getDoc(doc(db,'hotFoodBatches',id));return b.exists()?{id,...b.data()}:null;}))).filter(Boolean);
+  return {session,batches};
+}
+export async function submitSessionFinalCheck({taskId,sessionId,actor,readings,actualReadingTime,disposalConfirmed=false}){
+  if(!validTime(actualReadingTime))throw new Error('Enter the actual check time (HH:MM).');
+  const {session,batches}=await sessionFinalContext(sessionId);
+  requireEntryWindow(session.date);
+  if(await isHotFoodWeekLocked(session.date))throw new Error('This compliance week is signed off. Ask a Manager to reopen it.');
+  const cfg=await getHotFoodConfig(),deadline=deadlineAt(session.date,session.timeOutOven,Number(cfg.holdingMinutes||240));
+  if(Date.now()<deadline.getTime())throw new Error('The four-hour final check is not due yet.');
+  const at=isoDate(new Date());
+  if(at===isoDate(deadline)&&mins(actualReadingTime)<mins(hm(mins(session.timeOutOven)+Number(cfg.holdingMinutes||240))))
+    throw new Error('Final check time cannot precede the scheduled four-hour deadline.');
+  if(at===isoDate(new Date())&&mins(actualReadingTime)>mins(nowHM()))throw new Error('Check time cannot be in the future.');
+  const open=batches.filter(b=>b.status==='expired_pending_check'&&b.closeReason==='expiry_final_check_pending');
+  if(!open.length)throw new Error('No products awaiting a final check. Refresh the list.');
+  if(readings.length!==open.length||new Set(readings.map(r=>r.batchId)).size!==open.length)
+    throw new Error('Enter final quantities for every product still awaiting a check.');
+  let totalWaste=0;
+  for(const b of open){
+    const r=readings.find(x=>x.batchId===b.id);
+    if(!r||!Number.isInteger(r.qty)||r.qty<0||r.qty>Number(b.remainingQty))
+      throw new Error(`Check the remaining quantity for ${b.productName} (maximum ${Number(b.remainingQty)||0}).`);
+    if(r.qty>0&&(r.temperatureC===null||r.temperatureC===''||!Number.isFinite(Number(r.temperatureC))||Number(r.temperatureC)<-50||Number(r.temperatureC)>200))
+      throw new Error(`Enter the measured final display temperature for ${b.productName}.`);
+    if(r.qty===0){
+      const sellTime=String(r.sellOutTime||'');
+      const dueTime=hm(mins(session.timeOutOven)+Number(cfg.holdingMinutes||240));
+      if(!validTime(sellTime)||mins(sellTime)<mins(session.timeOutOven)||mins(sellTime)>mins(dueTime)||mins(sellTime)>mins(actualReadingTime))
+        throw new Error(`Sell-out time for ${b.productName} must be between Time Out Oven and the four-hour deadline, and not after the actual check.`);
+      if(at===isoDate(new Date())&&mins(sellTime)>mins(nowHM()))throw new Error('Sell-out time cannot be in the future.');
+    }
+    totalWaste+=r.qty;
+  }
+  if(totalWaste>0&&!disposalConfirmed)throw new Error('Confirm physical disposal of the listed expired items before saving.');
+  const taskRef=doc(db,'dailyTasks',taskId),checkRef=doc(db,'hotFoodChecks',`hfc_final_session_${sessionId}`);
+  const actorName=actor?.name||'Staff',result=await runTransaction(db,async tx=>{
+    const taskSnap=await tx.get(taskRef),checkSnap=await tx.get(checkRef);
+    const batchSnaps=await Promise.all(open.map(b=>tx.get(doc(db,'hotFoodBatches',b.id))));
+    if(!taskSnap.exists()||['completed','cancelled','missed'].includes(taskSnap.data().status)||checkSnap.exists())
+      throw new Error('This final check has already been submitted or moved. Refresh the list.');
+    const latest=batchSnaps.map((snapshot,i)=>({id:open[i].id,snapshot}));
+    const events=[];
+    for(const item of latest){
+      if(!item.snapshot.exists())throw new Error('The batch was removed. Refresh the list.');
+      const b=item.snapshot.data(),r=readings.find(x=>x.batchId===item.id);
+      if(b.status!=='expired_pending_check'||b.closeReason!=='expiry_final_check_pending'||r.qty>Number(b.remainingQty))
+        throw new Error(`${b.productName}: the stock has changed. Refresh the final check.`);
+      const waste=r.qty,previous=Number(b.remainingQty)||0;
+      const patch={status:'closed',remainingQty:0,closedAt:serverTimestamp(),updatedAt:serverTimestamp(),
+        finalCheckRequired:false,finalCheckQty:waste,finalCheckTemperatureC:waste>0?Number(r.temperatureC):null,
+        finalCheckActualTime:actualReadingTime,finalCheckActualDate:at,
+        finalCheckRecordedAt:serverTimestamp(),finalCheckedByUserId:actor?.id||'',finalCheckedByName:actorName,
+        soldAfterLastCheckQty:Math.max(0,previous-waste),quantityWasted:(Number(b.quantityWasted)||0)+waste,
+        closeReason:waste>0?'expiry_waste':'sold',disposalConfirmed:waste>0?true:null,
+        finalExpiryWasteQty:waste};
+      if(waste>0){patch.actualRemovalTime=actualReadingTime;patch.actualRemovalDate=at;}
+      else{patch.sellOutTime=r.sellOutTime;patch.soldOutBetweenChecks=true;}
+      tx.update(doc(db,'hotFoodBatches',item.id),patch);
+      events.push({batchId:item.id,productId:b.productId,productName:b.productName,qty:waste,
+        temperatureC:waste>0?Number(r.temperatureC):null,wasted:waste,previousRemainingQty:previous,
+        soldSinceLast:Math.max(0,previous-waste),sellOutTime:waste===0?r.sellOutTime:null,disposalConfirmed:waste>0});
+    }
+    const due=hm(mins(session.timeOutOven)+Number(cfg.holdingMinutes||240));
+    tx.set(checkRef,{date:session.date,scheduledDate:isoDate(deadline),scheduledTimes:[due],
+      actualReadingTime,actualReadingDate:at,hotFoodSessionId:sessionId,isFourHourFinalCheck:true,
+      readings:events,performedByUserId:actor?.id||'',performedByName:actorName,
+      createdAt:serverTimestamp(),createdAtMs:Date.now()});
+    tx.update(taskRef,{status:'completed',completedAt:serverTimestamp(),completedByUserId:actor?.id||'',
+      completedByName:actorName,hotFoodExpiryResult:{actualWasteQty:totalWaste,
+      actualReadingTime,disposalConfirmed:totalWaste>0,items:events},updatedAt:serverTimestamp()});
+    tx.set(doc(db,'taskCompletionLedger',taskId),{taskId,date:taskSnap.data().date,status:'completed',
+      completedAt:serverTimestamp(),completedByUserId:actor?.id||'',completedByName:actorName,updatedAt:serverTimestamp()});
+    tx.set(doc(db,'hotFoodAudit',`session_final_${sessionId}`),{
+      type:'session_final_check_recorded',details:{sessionId,scheduledDate:isoDate(deadline),scheduledTime:due,
+        actualReadingTime,actualReadingDate:at,items:events,totalWaste,disposalConfirmed:totalWaste>0},
+      actorUserId:actor?.id||'',actorName,createdAt:serverTimestamp(),createdAtMs:Date.now()});
+    return {sessionId,totalWaste,events};
+  });
+  try{await reconcileHotFoodDay(session.date);}catch(error){console.warn('Session final check saved; refresh will retry',error);}
+  return result;
+}
 
 // Fourth-hour staff check: the actual shelf count determines waste, never
 // the previous (third-hour) count. Commit batch, task and audit atomically
@@ -352,6 +668,7 @@ export async function submitExpiryFinalCheck({taskId,batchId,actor,finalQty,temp
   if(!Number.isInteger(finalQty)||finalQty<0)throw new Error('Enter the actual remaining quantity as a whole number (0 or more).');
   if(finalQty>0&&(temperatureC===null||temperatureC===''||!Number.isFinite(Number(temperatureC))||Number(temperatureC)<-50||Number(temperatureC)>200))
     throw new Error('Enter the final display temperature (−50°C to 200°C).');
+  const item=await expiryContext(batchId);requireEntryWindow(item.date);
   const cfg=await getHotFoodConfig();
   const batchRef=doc(db,'hotFoodBatches',batchId),taskRef=doc(db,'dailyTasks',taskId),auditRef=doc(db,'hotFoodAudit',`final_check_${batchId}`),checkRef=doc(db,'hotFoodChecks',`hfc_final_${batchId}`);
   const now=new Date(),at=isoDate(now),actorName=actor?.name||'Staff';
@@ -401,7 +718,7 @@ export async function submitExpiryFinalCheck({taskId,batchId,actor,finalQty,temp
       disposalPending:finalQty>0},actorUserId:actor?.id||'',actorName,createdAt:serverTimestamp(),createdAtMs:Date.now()});
     return {soldOut:finalQty===0,wasted:finalQty,disposalPending:finalQty>0};
   });
-  // The ordinary hourly tasks must never remain actionable after expiry.
+  // Earlier paper-recorded hourly checks stay available until the 23:00 cutoff.
   try{await reconcileHotFoodDay((await expiryContext(batchId)).date);}
   catch(error){console.warn('Final check saved; background Hot Food refresh will retry',error);}
   return outcome;
@@ -411,6 +728,7 @@ export async function submitExpiryFinalCheck({taskId,batchId,actor,finalQty,temp
 // already recorded the actual waste quantity; it never adds waste again.
 export async function submitExpiry({taskId,batchId,actor,actualWasteQty,removalTime,sellOutTime='',earlyReason='',earlyComment=''}){
   const b=await expiryContext(batchId);
+  requireEntryWindow(b.date);
   const pending=b.closeReason==='expiry_waste_pending_disposal'&&b.disposalConfirmed!==true;
   if(!pending&&await isHotFoodWeekLocked(b.date))throw new Error('This compliance week has been signed off. Ask a Manager to reopen the week.');
   const waste=Number(actualWasteQty),expected=Math.max(0,Number(b.remainingQty)||0);
@@ -458,5 +776,5 @@ export async function canStartHotFood(date){
   const cfg=await getHotFoodConfig();
   // Additional batches may be started at any time on the current day,
   // including when another batch is already holding.
-  return Boolean(cfg.enabled&&date===isoDate(new Date()));
+  return Boolean(cfg.enabled&&date===isoDate(new Date())&&!cutoffElapsed(date));
 }

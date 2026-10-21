@@ -1,6 +1,6 @@
-import {cookingDefaults,submitCooking,temperatureCheckContext,submitTemperatureCheck,expiryContext,submitExpiry,submitExpiryFinalCheck,reconcileHotFoodDay,canStartHotFood,getOverdueTemperatureTasks} from './hot-food-engine.js';
+import {cookingDefaults,submitCooking,temperatureCheckContext,submitTemperatureCheck,expiryContext,submitExpiry,submitExpiryFinalCheck,sessionFinalContext,submitSessionFinalCheck,reconcileHotFoodDay,canStartHotFood,getOverdueTemperatureTasks} from './hot-food-engine.js';
 import {getHotFoodConfig} from './hot-food-store.js';
-import {runActionOnce} from './ui.js';
+import {runActionOnce,showToast} from './ui.js';
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nowHM=()=>new Date().toTimeString().slice(0,5);
@@ -122,7 +122,7 @@ function updateHoldingRow(row,pass){
   else{status.textContent='Pass';status.className='hf-holding-status hf-pass';}
 }
 export async function openCookingTask(task,actor,{source}={}){
-  const initial=task?.hotFoodType==='cooking_initial'||source==='start_hot_food';
+  const initial=task?.hotFoodType==='cooking_initial'&&Boolean(task?.id)&&source!=='start_hot_food';
   const [d,cfg]=await Promise.all([cookingDefaults(task.date,initial?'initial':'second'),getHotFoodConfig()]);
   const pass=Number(cfg.corePassC||75);
   const planned=new Map(d.planned.map(x=>[x.productId,x.qty]));
@@ -135,28 +135,50 @@ export async function openCookingTask(task,actor,{source}={}){
     <span class="hf-cook-status hf-neutral" role="status">Awaiting reading</span>
     <div class="hf-cook-extra" hidden><small class="hf-core-hint"></small><button type="button" class="btn secondary small hf-add-retest">+ Reheat / Retest</button><label class="hf-failed-waste-label" hidden><input class="hf-failed-waste" type="checkbox"> Waste product (failed core)</label></div>
   </div>`).join('');
-  const heading=initial?'Initial Cooking':'New Cooking / Top Up';
+  const heading=initial?'Initial Cooking':'Additional Cooking';
+  const submissionId=`${Date.now()}_${Math.random().toString(36).slice(2,10)}`;
   const available=ordered.filter(p=>!planned.has(p.id));
   const picker=available.length?`<div class="hf-add-product"><select class="hf-add-product-select" aria-label="Additional product"><option value="">Select another product…</option>${available.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select><button type="button" class="btn secondary hf-add-product-btn">+ Add Product</button></div>`:'';
-  const body=`<div class="hf-compact-top"><span class="hf-brief">${initial?'Today’s plan · quantities editable':'Select products cooked now'} · Minimum core ${pass}°C</span><label class="hf-inline-time">Time Out Oven <input class="hf-time" type="time" value="${nowHM()}" required></label></div>
+  const body=`<div class="hf-compact-top"><span class="hf-brief">${initial?'Today’s plan · quantities editable':'Select products cooked now'} · Minimum core ${pass}°C</span></div>
+    <section class="hf-time-important"><label><b>TIME OUT OVEN / DISPLAY START</b><input class="hf-time" type="time" value="${nowHM()}" required></label>
+      <small>This is the actual time the cooked food went on display, NOT the form submission time. The +1h, +2h, +3h and +4h checks are scheduled from this time.</small>
+      <label class="hf-time-agree"><input type="checkbox" class="hf-confirm-time"> I have checked that the Time Out Oven is correct.</label></section>
     <div class="hf-grid-caption hf-cook-columns"><span>PRODUCT</span><span>QTY</span><span>CORE °C</span><span>RESULT</span></div>
     <div class="hf-cook-grid">${rows||'<p>No active products. Ask a manager to add products.</p>'}</div>
-    ${picker}<label class="hf-no-cook"><input type="checkbox" class="hf-no-cooking"><span>No cooking required today <small>Stops this planned cooking. Start Hot Food is available before 14:00.</small></span></label>`;
+    ${picker}${initial?`<section class="hf-no-cook-panel"><label class="hf-no-cook"><input type="checkbox" class="hf-no-cooking"> No cooking required today</label>
+      <div class="hf-no-cook-reason" hidden><label>Reason (required)<select class="hf-no-cook-select"><option value="">Select a reason…</option><option value="no_stock">No stock available</option><option value="equipment_problem">Equipment problem</option><option value="manager_instruction">Manager instruction</option><option value="other">Other</option></select></label>
+      <label class="hf-no-cook-other" hidden>Explain reason<input class="hf-no-cook-comment" type="text" maxlength="300" placeholder="Required for Other"></label>
+      <small>Reason and actual submission time are retained in Audit History. You can start cooking later using + Start Cooking.</small></div></section>`:''}`;
   const result=modal(heading,body,'Confirm Cooking',async root=>{
-    const no=root.querySelector('.hf-no-cooking').checked,time=root.querySelector('.hf-time').value;
+    const no=root.querySelector('.hf-no-cooking')?.checked===true,time=root.querySelector('.hf-time').value;
+    if(!no&&!root.querySelector('.hf-confirm-time').checked)throw new Error('Confirm the actual Time Out Oven before saving.');
+    const noCookingReason=no?(root.querySelector('.hf-no-cook-select')?.value||''):'';
+    const noCookingComment=no?(root.querySelector('.hf-no-cook-comment')?.value||''):'';
+    if(no&&!noCookingReason)throw new Error('Select a reason for No cooking required.');
+    if(no&&noCookingReason==='other'&&!noCookingComment.trim())throw new Error('Explain why cooking was not required.');
     const items=no?[]:selectedItems(root);
     if(!no&&!items.length)throw new Error('Select at least one product or choose No cooking required today.');
     for(const x of items){
       if(x.coreReadings.some(t=>t<-50||t>200))throw new Error(`${x.productName}: enter a measured core temperature between −50°C and 200°C.`);
       if(x.coreTempC<pass&&!x.wasteFailed)throw new Error(`${x.productName}: below ${pass}°C. Reheat and retest, or confirm waste.`);
     }
-    await submitCooking({date:task.date,taskId:task.id||'',actor,timeOutOven:time,items,noCooking:no,source:source||task.hotFoodType});
+    const outcome=await submitCooking({date:task.date,taskId:task.id||'',actor,timeOutOven:time,items,noCooking:no,
+      noCookingReason,noCookingComment,source:source||task.hotFoodType,submissionId});
+    if(outcome.schedulePending)showToast('Cooking saved, but hourly checks need synchronisation. Do not resubmit; inform the manager.','warning');
   },{kind:'hf-compact hf-compact-cooking'});
   const wrap=[...document.querySelectorAll('.hf-modal-overlay')].at(-1);
   if(wrap){
     wrap.querySelectorAll('.hf-cook-row').forEach(row=>updateCookingRow(row,pass));
     const refresh=e=>{const row=e.target.closest('.hf-cook-row');if(row)updateCookingRow(row,pass);};
     wrap.addEventListener('input',refresh);wrap.addEventListener('change',refresh);
+    wrap.addEventListener('change',e=>{
+      if(e.target.matches('.hf-no-cooking')){
+        const no=e.target.checked;
+        wrap.querySelector('.hf-no-cook-reason').hidden=!no;
+        wrap.querySelector('.hf-time-important').hidden=no;
+      }
+      if(e.target.matches('.hf-no-cook-select'))wrap.querySelector('.hf-no-cook-other').hidden=e.target.value!=='other';
+    });
     wrap.addEventListener('hf-refresh',refresh);
     // Prevent automatic completed state simply from opening the form: modal
     // returns true only after all required records are written successfully.
@@ -185,7 +207,7 @@ export async function openTemperatureTask(task,actor){
   const overdue=await getOverdueTemperatureTasks(task.date,task);
   const taskIds=overdue.length?overdue.map(x=>x.id):[task.id];
   const scheduledTimes=overdue.length?overdue.map(x=>x.sourceTime):[task.sourceTime];
-  const ctx=await temperatureCheckContext(task.date,task.sourceTime,task.hotFoodSessionId||'');
+  const ctx=await temperatureCheckContext(task.hotFoodSourceDate||task.date,task.sourceTime,task.hotFoodSessionId||'',task.date);
   if(!ctx.products.length)throw new Error('No eligible active Hot Food products for this check.');
   const pass=Number(ctx.config.holdingPassC||63);
   const rows=ctx.products.map(p=>`<section class="hf-temp-row" data-id="${esc(p.productId)}" data-name="${esc(p.productName)}" data-manual-waste="false" data-was-failed="false">
@@ -198,7 +220,7 @@ export async function openTemperatureTask(task,actor){
       <label class="hf-confirm-all-waste" hidden><input type="checkbox" class="hf-waste-confirmed"> I confirm all current items were wasted</label><div class="hf-sell-out-batches"></div>
     </div>
   </section>`).join('');
-  const body=`<div class="hf-compact-top"><span class="hf-brief">Qty physically present <b>before waste</b> · Minimum holding ${pass}°C ${scheduledTimes.length>1?`· Catch-up ${esc(scheduledTimes.join(', '))}`:''}</span><label class="hf-inline-time">Reading Time<input class="hf-actual-time" type="time" value="${nowHM()}" required></label></div>
+  const body=`<div class="hf-compact-top"><span class="hf-brief">Scheduled check <b>${esc(task.sourceTime)}</b> · Qty physically present <b>before waste</b> · Minimum holding ${pass}°C ${scheduledTimes.length>1?`· Catch-up ${esc(scheduledTimes.join(', '))}`:''}. Paper readings may be entered until 23:00. The report keeps the scheduled time; submission time is recorded automatically in Audit History. Food is not available for sale beyond four hours.</span><label class="hf-inline-time">Actual Reading Time (audit)<input class="hf-actual-time" type="time" value="${nowHM()}" required></label></div>
   <div class="hf-grid-caption hf-temp-columns"><span>PRODUCT</span><span>CURRENT QTY</span><span>LOWEST °C</span><span>RESULT</span></div>
   <div class="hf-temp-grid">${rows}</div>`;
   const result=modal(`${task.sourceTime} Hot Food Temperature Check`,body,'Confirm Check',async root=>{
@@ -224,7 +246,8 @@ export async function openTemperatureTask(task,actor){
       }
       readings.push({productId:r.dataset.id,productName:r.dataset.name,qty,temperatureC:qty===0?null:Number(tempEl.value),wasteQty,wasteReason:reason,wasteComment:comment,sellOutTime:actualReadingTime,sellOutTimes});
     }
-    await submitTemperatureCheck({date:task.date,taskId:task.id,taskIds,actor,scheduledTimes,actualReadingTime,readings,sessionId:task.hotFoodSessionId||''});
+    await submitTemperatureCheck({date:task.date,sourceDate:task.hotFoodSourceDate||task.date,
+      taskId:task.id,taskIds,actor,scheduledTimes,actualReadingTime,readings,sessionId:task.hotFoodSessionId||''});
   },{kind:'hf-compact hf-compact-holding'});
   const wrap=[...document.querySelectorAll('.hf-modal-overlay')].at(-1);
   if(wrap){
@@ -246,7 +269,6 @@ export async function openExpiryTask(task,actor){
     b=await expiryContext(task.hotFoodBatchId);
     if(b.status==='active')throw new Error(`The four-hour final check is not due yet (scheduled ${b.timeOutOven} + 4 hours).`);
   }
-  let recook=false;
   if(b.status==='expired_pending_check'&&b.closeReason==='expiry_final_check_pending'){
     // The third-hour shelf quantity is only informational; staff must
     // physically count stock at the fourth-hour deadline.
@@ -256,8 +278,8 @@ export async function openExpiryTask(task,actor){
       `<div class="hf-note"><b>Four-hour deadline: ${esc(due)}${b.expiredAtDate?' on '+esc(b.expiredAtDate):''}.</b> Food has expired and must not be sold. Last recorded quantity: <b>${Number(b.remainingQty)||0}</b> (not yet recorded as waste). Count the actual quantity on the shelf now.</div>
       <div class="hf-exp-final-grid"><label>ACTUAL REMAINING QTY<input class="hf-final-qty" type="number" inputmode="numeric" min="0" step="1" placeholder="Enter actual quantity" required></label>
       <label>FINAL DISPLAY °C<input class="hf-final-temperature" type="number" inputmode="decimal" step="0.1" placeholder="Required if quantity > 0"></label>
-      <label class="hf-time-label">Actual check time<input class="hf-actual-time" type="time" value="${nowHM()}"></label>
-      <label class="hf-sellout-time" hidden>Sell-out time (if known)<input class="hf-final-sell" type="time"></label></div>
+      <label class="hf-time-label">Actual check time<input class="hf-actual-time" type="time" value="${esc(due)}" required></label>
+      <label class="hf-sellout-time" hidden>Sell-out time<input class="hf-final-sell" type="time" value="${esc(due)}" max="${esc(due)}"></label></div>
       <div class="hf-final-result hf-note" role="status">Enter the actual remaining quantity: 0 = Sold Out; anything remaining = waste.</div>`,
       'Record Final Check',async root=>{
         const qtyInput=root.querySelector('.hf-final-qty'),text=qtyInput.value.trim();
@@ -267,7 +289,6 @@ export async function openExpiryTask(task,actor){
         if(finalQty>0&&(rawTemp===''||!Number.isFinite(Number(rawTemp))||Number(rawTemp)<-50||Number(rawTemp)>200))throw new Error('Measure and enter the final display temperature.');
         await submitExpiryFinalCheck({taskId:task.id,batchId:b.id,actor,finalQty,temperatureC:finalQty?Number(rawTemp):null,
           actualReadingTime:root.querySelector('.hf-actual-time').value,sellOutTime:finalQty===0?root.querySelector('.hf-final-sell')?.value||'':''});
-        recook=finalQty>0;
       },{kind:'hf-compact hf-expiry-final'});
     const wrap=[...document.querySelectorAll('.hf-modal-overlay')].at(-1);
     if(wrap){
@@ -281,7 +302,6 @@ export async function openExpiryTask(task,actor){
       wrap.querySelector('.hf-final-qty')?.addEventListener('input',refresh);refresh();
     }
     const completed=await finalCheckPromise;
-    if(completed&&recook)return openExpiryTask(task,actor);
     return completed;
   }
   if(b.closeReason==='sold'&&b.finalCheckRecordedAt)throw new Error('This batch was already recorded as Sold Out. Refresh the task list.');
@@ -291,16 +311,69 @@ export async function openExpiryTask(task,actor){
     `<div class="hf-note"><b>${recorded} item${recorded===1?'':'s'} already recorded as waste.</b> This food must not be sold. Confirm actual physical disposal. Waste will NOT be counted a second time.</div>
      <label class="hf-exp-disposal-confirm"><input type="checkbox" class="hf-exp-disposal-check"> I confirm these expired items have been physically disposed of</label>
      <label class="hf-time-label">Physical disposal time<input class="hf-exp-time" type="time" value="${nowHM()}"></label>
-     <label class="hf-exp-recook"><input type="checkbox" class="hf-recook-check"> Start another cooking batch afterwards</label>`,
+     `,
     'Confirm Disposal',async root=>{
       if(!root.querySelector('.hf-exp-disposal-check').checked)throw new Error('Confirm that the expired food has been physically disposed of.');
       await submitExpiry({taskId:task.id,batchId:b.id,actor,actualWasteQty:recorded,removalTime:root.querySelector('.hf-exp-time').value});
-      recook=root.querySelector('.hf-recook-check')?.checked===true;
     });
-  if(completed&&recook&&await canStartHotFood(todayISO()))
-    await openCookingTask({id:'',date:todayISO(),hotFoodType:'cooking_initial'},actor,{source:'start_hot_food'});
   return completed;
 }
 
-export async function completeHotFoodTask(task,actor){if(task.hotFoodType==='temperature_check')return openTemperatureTask(task,actor);if(task.hotFoodType==='expiry')return openExpiryTask(task,actor);return openCookingTask(task,actor);}
+export async function openSessionFinalTask(task,actor){
+  const {session,batches}=await sessionFinalContext(task.hotFoodSessionId);
+  // Expiry blocking occurs in the engine; no item can be sold after the due time.
+  await reconcileHotFoodDay(session.date);
+  const current=await sessionFinalContext(task.hotFoodSessionId);
+  const due=new Date(`${session.date}T${session.timeOutOven}:00`);
+  due.setMinutes(due.getMinutes()+240);
+  const dueClock=`${String(due.getHours()).padStart(2,'0')}:${String(due.getMinutes()).padStart(2,'0')}`;
+  const eligible=current.batches.filter(b=>b.status==='expired_pending_check'&&b.closeReason==='expiry_final_check_pending');
+  if(!eligible.length)throw new Error('No food items are awaiting this final check. Refresh the task list.');
+  const others=current.batches.filter(b=>!eligible.some(x=>x.id===b.id));
+  const rows=eligible.map(b=>`<div class="hf-session-row" data-batch="${esc(b.id)}" data-name="${esc(b.productName)}" data-prev="${Number(b.remainingQty)||0}">
+    <strong>${esc(b.productName)}</strong><small>Last recorded: ${Number(b.remainingQty)||0}</small>
+    <label>Final shelf quantity<input class="hf-session-qty" type="number" inputmode="numeric" min="0" max="${Number(b.remainingQty)||0}" step="1" placeholder="0 or more" required></label>
+    <label>Holding °C<input class="hf-session-temp" type="number" inputmode="decimal" step="0.1" placeholder="If quantity > 0"></label>
+    <label class="hf-session-selltime" hidden>Sell-out time<input class="hf-session-sell" type="time" value="${esc(dueClock)}" min="${esc(session.timeOutOven)}" max="${esc(dueClock)}"></label>
+    <span class="hf-session-outcome" role="status">Awaiting count</span></div>`).join('');
+  const body=`<div class="hf-session-info"><b>Scheduled final check: ${esc(dueClock)} on ${esc(session.date)}</b><p>Actual entry time is recorded in Audit History. Enter the real shelf balance now. Any expired stock must be disposed of, not sold.</p></div>
+    <label class="hf-session-audit-time">Actual check time<input class="hf-actual-time" type="time" value="${esc(dueClock)}" required></label>
+    <div class="hf-session-time-help">Defaults to the scheduled four-hour deadline. If the paper record gives a different actual check or sell-out time, correct it before confirming. Neither may be in the future.</div>
+    <div class="hf-session-items">${rows}</div>
+    ${others.length?`<p class="hf-note">Already closed / sold out: ${others.map(x=>esc(x.productName)).join(', ')}. Their records are preserved.</p>`:''}`;
+  const result=modal('Final Hot Food Check — Cooking Session',body,'Review Final Check',async root=>{
+    const readings=[];
+    for(const row of root.querySelectorAll('.hf-session-row')){
+      const field=row.querySelector('.hf-session-qty'),raw=field.value.trim(),temp=row.querySelector('.hf-session-temp').value.trim();
+      if(!/^\d+$/.test(raw)||Number(raw)>Number(row.dataset.prev))throw new Error(`${row.dataset.name}: enter a whole remaining quantity (0–${row.dataset.prev}).`);
+      if(Number(raw)>0&&(temp===''||!Number.isFinite(Number(temp))||Number(temp)<-50||Number(temp)>200))throw new Error(`${row.dataset.name}: enter the measured holding temperature.`);
+      const sellOutTime=Number(raw)===0?row.querySelector('.hf-session-sell')?.value||'':'';
+      if(Number(raw)===0&&!sellOutTime)throw new Error(`${row.dataset.name}: enter a valid Sell-out time.`);
+      readings.push({batchId:row.dataset.batch,qty:Number(raw),temperatureC:Number(raw)===0?null:Number(temp),sellOutTime});
+    }
+    const waste=readings.filter(x=>x.qty>0),total=waste.reduce((sum,x)=>sum+x.qty,0);
+    const lines=readings.map(r=>{const b=eligible.find(x=>x.id===r.batchId);return `<div class="hf-confirm-line"><b>${esc(b?.productName||'')}</b><span>${r.qty>0?`Waste ${r.qty}`:'Sold Out — 0 waste'}</span></div>`;}).join('');
+    const confirmBody=`<div class="hf-session-info"><b>Scheduled: ${esc(dueClock)} · Actual reading: ${esc(root.querySelector('.hf-actual-time').value)}</b><p>Check these final quantities before saving. The recorded schedule time will not change.</p></div>${lines}
+      <div class="hf-note"><b>Total expired waste: ${total}</b>${total===0?' · Everything sold out; no disposal required.':' · These items must be physically discarded.'}</div>
+      ${total>0?`<label class="hf-session-dispose"><input class="hf-disposed-confirm" type="checkbox"> I confirm the above expired items have been physically disposed of.</label>`:''}`;
+    const confirmed=await modal('Confirm Final Quantities & Disposal',confirmBody,'Confirm & Save',async second=>{
+      if(total>0&&!second.querySelector('.hf-disposed-confirm').checked)throw new Error('Confirm physical disposal before saving waste.');
+      await submitSessionFinalCheck({taskId:task.id,sessionId:session.id,actor,readings,
+        actualReadingTime:root.querySelector('.hf-actual-time').value,disposalConfirmed:total>0});
+    },{kind:'hf-compact hf-session-final-confirm'});
+    if(!confirmed)throw new Error('Confirmation cancelled — nothing was saved.');
+  },{kind:'hf-compact hf-session-final'});
+  const wrap=[...document.querySelectorAll('.hf-modal-overlay')].at(-1);
+  if(wrap)wrap.addEventListener('input',e=>{
+    if(!e.target.matches('.hf-session-qty'))return;
+    const row=e.target.closest('.hf-session-row'),raw=e.target.value.trim(),qty=raw===''?null:Number(raw);
+    row.querySelector('.hf-session-outcome').textContent=qty===null?'Awaiting count':!Number.isInteger(qty)||qty<0||qty>Number(row.dataset.prev)?'Invalid quantity':qty===0?'Sold Out':'Waste '+qty;
+    row.querySelector('.hf-session-temp').disabled=qty===0;
+    const sellTime=row.querySelector('.hf-session-selltime');
+    if(sellTime)sellTime.hidden=qty!==0;
+  });
+  return result;
+}
+
+export async function completeHotFoodTask(task,actor){if(task.hotFoodType==='temperature_check')return openTemperatureTask(task,actor);if(task.hotFoodType==='expiry_session')return openSessionFinalTask(task,actor);if(task.hotFoodType==='expiry')return openExpiryTask(task,actor);return openCookingTask(task,actor);}
 export async function renderStartHotFoodButton(date,container,actorProvider){if(!container)return;const ok=await canStartHotFood(date);let b=container.querySelector('#startHotFoodBtn');if(!ok){b?.remove();return;}if(!b){b=document.createElement('button');b.id='startHotFoodBtn';b.className='btn hf-start-btn';b.textContent='＋ Start Cooking';container.prepend(b);}b.onclick=()=>runActionOnce(b,async()=>{const actor=await actorProvider();if(!actor)return;try{await openCookingTask({id:'',date,hotFoodType:'cooking_initial'},actor,{source:'start_hot_food'});}catch(e){const message=document.createElement('div');message.className='hf-validation-error';message.setAttribute('role','alert');message.textContent=e.message||String(e);b.after(message);setTimeout(()=>message.remove(),9000);}});}

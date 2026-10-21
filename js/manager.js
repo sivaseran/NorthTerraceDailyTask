@@ -24,6 +24,8 @@ import {
 const $=s=>document.querySelector(s);
 const user=getSession();
 if(!user||user.role!=='manager') location.href='login.html';
+// Re-check session on browser Back navigation after Logout (bfcache protection).
+window.addEventListener('pageshow',()=>{if(getSession()?.role!=='manager')location.replace('index.html');});
 
 // Start connection indicator immediately. Manager startup performs several async
 // checks; the status pill must not remain on ‘Checking…’ while those run.
@@ -1730,7 +1732,7 @@ async function checkSystemReady(){
 }
 
 
-$('#logout').onclick=()=>{clearSession();location.href='login.html';};
+$('#logout').onclick=()=>{clearSession();location.replace('index.html');};
 
 initReports({root:document.querySelector('#reports'),userProvider:()=>user});
 await ensureSafeUpgrades();

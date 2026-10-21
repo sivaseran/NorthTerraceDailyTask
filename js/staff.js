@@ -39,5 +39,5 @@ function render(all){
   });
 }
 await ensureTasksForDate(todayISO());watchTasksForDate(todayISO(),render,()=>showToast('Live updates unavailable.','error'));
-$('#logout').onclick=()=>{clearSession();location.href='login.html';};
+$('#logout').onclick=()=>{clearSession();location.replace('index.html');};
 initNetworkStatus();registerAppServiceWorker();
