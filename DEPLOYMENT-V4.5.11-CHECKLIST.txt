@@ -1,0 +1,23 @@
+NORTH TERRACE V4.5.11 — FULL DEPLOYMENT CHECKLIST
+
+1. Back up the live NorthTerraceDailyTask GitHub repository and confirm the deployed version.
+2. Back up or export critical production Firestore collections / review a recovery plan.
+3. Upload contents of V4.5.11 FULL ZIP to repo root, preserving folders. Replace files with same names; do not delete Firebase records.
+4. Allow GitHub Pages to publish and install the new PWA update on General View and Staff PWA.
+5. Test with a controlled, NON-CRITICAL cooking record (avoid duplicating an existing real batch):
+   - confirm Time Out Oven and session-generated 1h, 2h, 3h and ONE 4h final task;
+   - confirm overdue hourly forms remain actionable after the four-hour deadline;
+   - enter one paper reading late and verify its original scheduled time in report, submission time in audit;
+   - confirm the batch is unavailable for sale after 4 hours;
+   - enter a final check with 0 for Sold Out, then separately test positive Waste/disposal confirmation;
+   - verify a second cooking session remains independent.
+6. Confirm 23:00 cutoff during a dedicated controlled test or staging database (do NOT fabricate live food-safety readings):
+   - unanswered checks close, latest recorded stock is booked as system-estimated waste;
+   - no newly created "Missed" status;
+   - no duplicate waste after reload;
+   - positive automatically recorded waste has physical disposal unconfirmed, not falsely signed;
+   - reopening the following morning reconciles last night's cutoff when the app was closed.
+7. Verify unchanged General View, Manager Editor, Cleaning, Compliance, staff assignments and Sunday rotation.
+8. If anything is wrong, restore the backed-up repository. Do not delete production Firestore records.
+
+IMPORTANT: This is a client-side PWA; with every device closed/offline, scheduled work runs on next reconnect, not at 23:00 precisely. For strict server-side execution at 23:00, a scheduled cloud function is necessary.

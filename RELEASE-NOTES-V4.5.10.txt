@@ -1,0 +1,30 @@
+NORTH TERRACE V4.5.10 — HOT FOOD SESSION WORKFLOW
+Date: 21 October 2026
+Baseline: V4.5.9 consolidated full application
+
+NEW HOT FOOD BEHAVIOUR (NEW COOKING SESSIONS ONLY)
+- Initial Cooking can be recorded after 06:00. The prominently highlighted and explicitly confirmed Time Out Oven is the actual cooking-completion/display-start time. It is not the task's nominal 06:00 time or the form's submission time.
+- No cooking required remains available ONLY for scheduled Initial Cooking. A reason is mandatory (No Stock / Equipment Problem / Manager Instruction / Other plus explanation), is recorded in the task and Audit History, and does not cancel checks belonging to other cooking sessions.
+- Every new cooking session creates its own +1, +2 and +3 hour Hot Food display-check tasks and ONE +4 hour final-check task encompassing all remaining products, rather than a separate final task for each product.
+- Normal holding minimum is 63°C; core cooking minimum is 75°C (existing settings and reheat/waste rules retained).
+- At the +4h final check, staff enter the quantity and display temperature for all remaining products. A second confirmation displays all Sold Out (qty 0) and expired waste (qty >0). If waste remains, staff must confirm physical disposal before saving. The entire final check is committed as one Firestore transaction; repeated final saves cannot double-count waste.
+- There is no automatic recooking prompt. Staff can use + Start Cooking to create another independent cooking session at any time. A completed informational task (Second Cooking Started / Additional Cooking Started) is added for the new session.
+- Delayed data entry never shifts scheduled check times in task lists or compliance reports. Actual measured time (where entered) and server submission timestamp remain separately in Audit History. Hourly check records retain both scheduledTimes and actualReadingTime; standard printed compliance report presents the scheduled column, not the late entry time.
+- If cooking is submitted after some hourly checks became due, the missed checkpoints are generated as overdue while still within four hours. Unfinished checkpoints are recorded as Missed after the expiry deadline, rather than invisibly discarded.
+- After four hours, food becomes expired and cannot be sold. A final-count task remains required, including if the app was offline. No earlier stock balance is auto-assumed to be waste.
+- Overnight new cooking sessions support following-day hourly checks and fourth-hour check.
+- New cooking submissions are keyed by their form ID: an in-progress save/retry will not generate duplicate sessions; Initial Cooking cannot be completed twice as separate sessions.
+
+HISTORY COMPATIBILITY
+- Existing completed tasks, recorded cooking batches, recorded temperatures, existing per-product final checks, and the Firebase data collections are not deleted or rewritten.
+- Sessions created BEFORE this version retain their existing per-product final/disposal workflow. New sessions use ONE session final check.
+- No data migrations and no Firebase resets are included.
+
+UNMODIFIED AREAS
+- Schedule Editor, People & PINs, Staff Availability, Shift Cover, Cleaning Rotation, Compliance Checks, normal Operations tasks and established staff assignment rules remain the same as V4.5.9.
+- General View layout remains the same. Staff task list layout remains the same.
+
+TECHNICAL LIMITATIONS / LIVE VERIFICATION
+- GitHub Pages cannot run background jobs while all browsers are closed. Expired tasks reconcile when a client opens/connects; expired stock must never be offered for sale in the meantime.
+- Automated tests used a mocked Firestore in Node.js and an isolated Chromium browser-form harness at desktop and phone sizes. Live production Firebase, network-loss/retry behaviour with the real Firestore SDK, and the actual shop tablet have NOT been verified.
+- Before allowing staff to rely on the release, run the controlled acceptance checks in DEPLOYMENT-V4.5.10-CHECKLIST.txt.

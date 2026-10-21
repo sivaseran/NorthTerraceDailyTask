@@ -1,0 +1,15 @@
+North Terrace Daily Task V4.5.12 — Responsive header release
+Baseline: V4.5.11 (Hot Food cutoff at 23:00 retained).
+
+Changed files (excluding this note):
+- css/style.css — phone-only header responsiveness for login and General View.
+- login.html — login-page CSS scope and shorter back-button label on very narrow phones.
+- index.html — stylesheet revision for cache-safe delivery.
+- service-worker.js — cache revision so installed PWA gets current header CSS.
+
+No change to Hot Food, task scheduling, Firebase schema or data, or staff rota.
+The My Shifts screenshot is from a different app and is not bundled here.
+
+To deploy: back up repository, extract complete ZIP, copy its contents to repo root,
+replace matching files; do not delete Firebase data.
+After publishing, accept PWA update and check both phone headers.

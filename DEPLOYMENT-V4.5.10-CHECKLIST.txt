@@ -1,0 +1,16 @@
+NORTH TERRACE V4.5.10 — SINGLE FULL-ZIP DEPLOYMENT CHECKLIST
+
+1. Back up the LIVE GitHub repository and confirm your current known-good version before making changes.
+2. Download the FULL ZIP and extract it. Upload the EXTRACTED CONTENTS to the repository root; overwrite matching paths. Do not upload the ZIP file itself as the website. Do not manually delete unfamiliar or unrelated repository files.
+3. No Firebase data reset and no Firestore collection deletion. Existing batch histories and cancelled or completed tasks remain in place.
+4. Wait for GitHub Pages publication. Close/reopen the General View and Staff PWA. Accept the PWA update prompt as necessary. Check that the updated form appears on both the General and Staff apps; older cached JavaScript should not remain active.
+5. In the controlled test period, start ONE small noncritical new cooking session. Verify the highlighted Time Out Oven with an actual time different from the form submission time. Confirm it and verify three scheduled hourly tasks plus exactly one four-hour session final task in General View and Manager Monthly Schedule. Do not submit the same cooking twice.
+6. Check that delayed submission leaves the original checkpoint times in the printed compliance report, while Audit History retains the actual entered/check time and server submission timestamp.
+7. Complete an hourly temperature check with one item at 0 quantity and another >0, then verify the sold-out item no longer requires subsequent monitoring and that other items remain active.
+8. At the fourth-hour deadline, enter actual quantities for each remaining product; verify ONE summary confirmation popup. Positive quantities become waste only after physical disposal confirmation; all zeros mean Sold Out without disposal or recooking prompt.
+9. Verify + Start Cooking remains available while the first session is active, and its hourly checks use its own recorded Time Out Oven. Verify an informational completed cooking-start record is displayed.
+10. In a planned controlled scenario, test Initial Cooking → No Cooking Required requires a reason and preserves existing unrelated cooking batches. Do not use the no-cooking option just to dismiss a genuine cooking task.
+11. Verify Manager Weekly Editor, general task list, notifications and existing Compliance/Cleaning/Shift Cover on an ordinary day after deploying.
+12. If any save error, missing check or PWA update problem appears, stop relying on new Hot Food logging, capture the browser error and relevant Audit History, and restore the backed-up repository while investigating. Do not delete Firestore data.
+
+Tests passed OFFLINE; a mock Firestore cannot guarantee production Firestore rules or actual tablet behaviour. A native backend timer is not included; overdue checks are reconciled by the running PWA.

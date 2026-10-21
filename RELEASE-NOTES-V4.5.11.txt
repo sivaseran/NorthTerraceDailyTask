@@ -1,0 +1,47 @@
+NORTH TERRACE DAILY TASK — V4.5.11
+HOT FOOD PAPER-ENTRY WINDOW AND FIXED 23:00 CLOSING
+Baseline: V4.5.10 full application
+
+AGREED RULE
+- Every day Hot Food administrative entry closes at 23:00 (shop local clock), independent of store closing.
+- Hourly checks from each cooking session remain accessible for entry from staff paper logs until 23:00, including when their four-hour deadline has passed. No new automatic "Missed" status is applied.
+- Scheduled hourly check time is retained in temperature reports. The actual reading time entered by staff and the actual Firebase submission timestamp remain available for audit.
+- Four hours after Time Out Oven, any food remaining becomes EXPIRED and UNAVAILABLE FOR SALE. Keeping the form editable DOES NOT permit selling the food.
+- A completed four-hour final check still uses one task per session and its entered final stock quantities; 0 = Sold Out, positive quantity = Waste with physical disposal confirmation.
+- If required Hot Food records have not been completed by 23:00, unfinished check forms close, and the latest recorded quantity for each still-open food batch is booked as system-calculated end-of-day waste. If no later check is entered, the last system balance is used. Zero stock is Sold Out.
+- Automatic end-of-day waste is clearly identified as system-calculated; disposalConfirmed remains false for positive quantities. The application NEVER claims staff physically disposed of food without their confirmation.
+- A 23:00 closing audit record is created once for each remaining batch; repeated refresh/reconnect does not add waste twice.
+- No browser can execute at an exact time if every device is closed/offline. The next connected opening reconciles the preceding day's 23:00 closing, with the scheduled cutoff recorded separately from when it was processed.
+- Existing historical records and earlier completed final checks are preserved. Only new pending Hot Food tasks/batches are closed.
+
+UNMODIFIED
+- General View layout and existing Manager, Compliance, Cleaning and shift-cover functionality.
+- Existing weekday Initial Cooking task and optional No Cooking Required with audited reason.
+- Actual Time Out Oven confirmation; three hourly session checks and a single fourth-hour final check; independent additional batches.
+- Other historical Firebase data and completed tasks; no data reset.
+
+TECHNICAL FILES CHANGED FROM V4.5.10
+- js/hot-food-engine.js (cutoff and paper-record backfilling; no missed statuses)
+- js/hot-food-ui.js (user-facing explanation of paper entry and cutoff)
+- service-worker.js, staff-app/sw.js (PWA cache versions)
+- manager.html (CSS cache reference)
+- release notes and deployment checklist
+
+TESTING PERFORMED (OFFLINE)
+- Syntax validation for all JavaScript files
+- Delayed paper check entered after 4-hour expiry, retaining scheduled report time and audit submission time
+- No new Missed status at four hours; pending records remain through 22:59
+- Cutoff at exactly 23:00 and refusal of entry beyond the cutoff
+- Latest recorded quantity used for automatic waste (not original unadjusted cooked quantity)
+- Duplicate protection: a second cutoff run does not count waste again
+- System-calculated waste does not imply physical disposal
+- Next-day reconnection closes previous day's still-open food
+- Existing single-session final check and additional cooking regressions
+- Hourly form browser interactions at desktop (1280x800) and mobile (390x844) viewports
+
+NOT VERIFIED
+- Production Firestore permissions and concurrent writes from real devices
+- Physical Galaxy Tab running the live Firebase dataset
+- Notifications, Service Worker activation, or low-connectivity devices in the shop
+
+DO NOT rely on this build for live food-safety records until a controlled shop acceptance test is completed.

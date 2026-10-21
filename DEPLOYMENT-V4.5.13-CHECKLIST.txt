@@ -1,0 +1,17 @@
+NORTH TERRACE V4.5.13 — DEPLOYMENT CHECKLIST
+
+1. Back up / download your current GitHub Pages repository.
+2. Extract NorthTerrace-V4.5.13-CONSOLIDATED-FULL.zip.
+3. Upload the CONTENTS of the ZIP into the EXISTING NorthTerraceDailyTask repository root, preserving all folders.
+4. Replace files with the same names. Do not delete Firestore collections or histories. No schema migration is required.
+5. Allow GitHub Pages to publish. Refresh PIN Login, Manager Control and General View. Allow the new PWA update prompt if one appears.
+6. Navigation: General View -> Login -> PIN. PIN Live View -> General. Manager PIN -> Manager. Manager Logout -> General; browser Back must not expose Manager without PIN.
+7. General header: Live label, alarm bell, Login. Manager header: Live and Logout. Check on phone and desktop.
+8. Hot Food: test an approved small controlled session; set Time Out Oven, verify generated +1/+2/+3 hour checks and single +4h final task. DO NOT create duplicate production cooking to test unnecessarily.
+9. Final form: if oven-out 06:00, Actual check time defaults 10:00. For quantity=0 Sell-out time defaults 10:00 and can be edited earlier. For quantity>0 record measured temperature and confirm disposal in the single combined confirmation.
+10. Verify Manager Hot Food / Compliance Audit and reports retain scheduled time and show real entered/sell-out time separately.
+11. Check No Cooking Required reason is mandatory only for Initial Cooking. Additional Cooking opens with a Cancel button and no No Cooking option.
+12. Check that 23:00 cutoff still closes pending paper entries automatically on connected devices and reconciles on reconnection if previously offline.
+13. Verify other task assignments, Sunday rotation, cleaning, compliance and reports remain unchanged.
+
+LIMITATIONS: Offline browser/Firestore simulations are not live Firebase integration tests. Keep the prior ZIP available for rollback if an operational issue is found.

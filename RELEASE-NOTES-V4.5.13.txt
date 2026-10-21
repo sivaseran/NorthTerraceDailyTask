@@ -1,0 +1,46 @@
+NORTH TERRACE DAILY TASK — V4.5.13 CONSOLIDATED FULL RELEASE
+Date: 21 October 2026
+Base: V4.5.12 (which incorporates V4.5.10 session-based Hot Food and V4.5.11 23:00 cutoff)
+
+THIS IS A FULL REPLACEMENT APPLICATION. Previous intermediate releases are not needed.
+
+CHANGES SINCE V4.5.12
+1. Navigation and branding
+   - General View (index.html) is the landing page; its Login button opens the PIN page.
+   - PIN Login shares the compact NT / NORTH TERRACE / Operations header, and has a Live View button returning to General View.
+   - Manager Control now shares the same compact Operations header, displays Live status and Logout (no redundant General View button).
+   - Manager Logout clears the authenticated session and goes directly to General View.
+   - Browser Back to cached Manager page after logout is checked for a valid Manager session.
+   - Standard Staff logout and installed Staff PWA logout also return to General View.
+   - General View alarm bell and Live indicator remain.
+
+2. Hot Food single-session four-hour final check
+   - Time Out Oven is the cooking completion/display start time.
+   - One 4-hour final task per *new* cooking session; includes every remaining product.
+   - The editable Actual check time now defaults to Time Out Oven + 4 hours, NOT the time the popup was opened.
+   - For items entered at zero remaining, Sell-out time becomes visible and defaults to Time Out Oven + 4 hours.
+   - Sell-out time is editable between the oven-out time and 4-hour deadline, and cannot be after the actual check time.
+   - Actual check time may be edited using a true paper-recorded time; actual entry timestamp is tracked separately.
+   - Both fields are checked so a future time cannot be recorded as an event that has already occurred.
+   - One combined confirmation summarises Sold Out vs Waste and confirms physical disposal when waste >0; no second disposal popup for NEW sessions.
+   - The legacy per-product disposal code remains only as a safety fallback for existing legacy records, NOT generated for new sessions.
+   - Improved readability in the session-level final check on phones and tablets.
+
+CARRIED FORWARD UNCHANGED
+   - Initial Cooking has No Cooking Required with a mandatory reason and audit entry. Additional Cooking does not.
+   - Additional Cooking is cancellable and remains accessible all day through + Start Cooking.
+   - Three hourly checks at oven-out +1,+2,+3 hours; one session final at +4 hours.
+   - Earlier scheduled checks can be entered late from paper before 23:00; normal reports keep scheduled time and audit keeps entered time.
+   - Daily Hot Food admin cutoff at 23:00, with automatic reconciliation/recovery and waste accounting.
+   - All existing task assignment rules, Sunday rotation, Cleaning/Compliance, 90-day one-time limits and historical Firebase records.
+   - Desktop-first Manager Schedule Editor, compact responsive PIN / General headers, General alarm settings.
+
+VERIFICATION
+   - Offline browser layout checks: PIN Login, General and Manager at 320, 390, 768 and 1280 pixel widths.
+   - Simulated browser form checks: +4h default times, editable sell-out time, combined confirmation, single submit.
+   - Simulated Firestore transaction tests: sold-out and waste results, persisted sell-out time, audit, second submission rejection and 4-hour maximum.
+   - Syntax checks on all application JavaScript, archive and file-list integrity.
+
+NOT VERIFIED: Production Firebase permissions/writes, actual shop tablet, live simultaneous devices, GitHub Pages PWA activation. Please back up the current repository and test a small noncritical flow before broad use.
+
+NO DATABASE MIGRATION OR FIREBASE RESET. NEVER DELETE HISTORICAL DATA.
