@@ -2586,3 +2586,160 @@ body.nt-manager-desktop #confirmOverlay.modal-overlay { z-index: 6200; }
 
 /* V4.5.6: Allow operations to continue if an app update cannot activate. */
 #ntUpdateLater{display:block;margin:10px auto 0;padding:10px 16px;background:transparent;border:0;color:#42536a;font:inherit;font-size:13px;font-weight:600;text-decoration:underline;cursor:pointer}
+
+/* V4.5.10 — verified actual Time Out Oven and one session-level final check. */
+.hf-modal .hf-time-important{border:2px solid #dc902c;border-radius:10px;background:#fff4d9;color:#704008;padding:10px 13px;margin:6px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.hf-modal .hf-time-important label{font-size:13px;font-weight:800;color:#704008;display:flex;gap:7px;align-items:center}
+.hf-modal .hf-time-important input[type=time]{font-size:17px;font-weight:800;min-width:130px;border-color:#c78120}
+.hf-modal .hf-time-important small{flex:1 1 220px;line-height:1.35}
+.hf-modal .hf-time-agree{flex:1 1 100%;font-size:13px}
+.hf-modal .hf-time-agree input{min-width:18px;min-height:18px;width:18px;height:18px}
+.hf-modal .hf-no-cook-panel{border-top:1px solid #dce7ee;padding:8px 2px}
+.hf-modal .hf-no-cook-reason{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.hf-modal .hf-no-cook-reason[hidden],.hf-modal .hf-no-cook-other[hidden],.hf-modal .hf-time-important[hidden]{display:none!important}
+.hf-modal .hf-no-cook-reason small{grid-column:1/-1}
+.hf-modal .hf-session-info{padding:10px;border:1px solid #b4d5e6;border-radius:9px;background:#eaf5ff;color:#143d55;margin-bottom:10px}
+.hf-modal .hf-session-info p{margin:4px 0 0;font-size:13px}
+.hf-modal .hf-session-audit-time{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}
+.hf-modal .hf-session-audit-time input{max-width:170px}
+.hf-modal .hf-session-items{display:grid;gap:6px;max-height:51vh;overflow:auto}
+.hf-modal .hf-session-row{display:grid;grid-template-columns:minmax(145px,1.5fr) minmax(90px,1fr) minmax(105px,1fr) auto;align-items:center;gap:9px;padding:7px;border-radius:7px;border:1px solid #d8e4ec}
+.hf-modal .hf-session-row strong{grid-column:1}
+.hf-modal .hf-session-row>small{grid-column:1;font-size:11px}
+.hf-modal .hf-session-row label{grid-row:1/3;font-size:11px;display:flex;flex-direction:column;gap:3px}
+.hf-modal .hf-session-row label:nth-of-type(1){grid-column:2}
+.hf-modal .hf-session-row label:nth-of-type(2){grid-column:3}
+.hf-modal .hf-session-row .hf-session-outcome{grid-column:4;grid-row:1/3;font-size:12px;font-weight:700}
+.hf-modal .hf-session-row input{height:34px;min-height:34px;padding:4px 6px}
+.hf-modal .hf-session-dispose{display:flex;gap:8px;align-items:center;padding:10px;border:1px solid #dd9b78;border-radius:8px;background:#fff2e7}
+.hf-modal .hf-session-dispose input{min-width:20px;width:20px;min-height:20px;height:20px}
+.hf-modal .hf-confirm-line{display:flex;justify-content:space-between;gap:10px;padding:7px;border-bottom:1px solid #d7e2ec}
+@media(max-width:650px){
+ .hf-modal .hf-no-cook-reason{grid-template-columns:1fr}
+ .hf-modal .hf-session-row{grid-template-columns:1fr 1fr;gap:6px}
+ .hf-modal .hf-session-row strong{grid-column:1/-1;grid-row:auto}
+ .hf-modal .hf-session-row>small{grid-column:1/-1}
+ .hf-modal .hf-session-row label:nth-of-type(1),.hf-modal .hf-session-row label:nth-of-type(2){grid-column:auto;grid-row:auto}
+ .hf-modal .hf-session-row .hf-session-outcome{grid-column:1/-1;grid-row:auto}
+}
+
+
+/* V4.5.12 — responsive headers on PIN login and phone General View.
+   Header-only rules; do not modify operational/task styles. */
+@media (max-width:650px) {
+  body.nt-login-page .topbar {
+    display:grid;
+    grid-template-columns:minmax(0,1fr) max-content;
+    align-items:center;
+    gap:7px;
+    padding:9px 11px;
+    min-height:65px;
+  }
+  body.nt-login-page .login-shell {
+    min-height:calc(100dvh - 65px);display:flex;
+    justify-content:center;align-items:flex-start;
+    padding:28px 0 36px;
+  }
+  body.nt-login-page .brand {min-width:0;gap:7px;flex-wrap:nowrap}
+  body.nt-login-page .brand-mark {width:35px;height:35px;font-size:15px;border-radius:10px}
+  body.nt-login-page .brand-text {min-width:0}
+  body.nt-login-page .brand-kicker {
+    font-size:9px;line-height:1.15;letter-spacing:.085em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;
+  }
+  body.nt-login-page .topbar h1 {
+    font-size:15px;line-height:1.15;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;
+  }
+  body.nt-login-page .topbar .brand-text p {display:none}
+  body.nt-login-page .top-actions {display:flex;flex-wrap:nowrap;gap:6px;align-items:center;min-width:0}
+  body.nt-login-page .connection-pill {
+    flex:0 0 auto;white-space:nowrap;min-width:0;
+    gap:5px;padding:6px 7px;font-size:10px;
+  }
+  body.nt-login-page .connection-dot {width:7px;height:7px;flex:0 0 auto}
+  body.nt-login-page .login-back-btn {
+    flex:0 0 auto;white-space:nowrap;min-height:37px;
+    font-size:11px;padding:7px 9px;
+  }
+
+  body.general-page .topbar {gap:5px!important;padding:8px 9px!important}
+  body.general-page .brand {gap:6px;min-width:0;flex:1 1 auto}
+  body.general-page .brand-mark {width:33px;height:33px;flex:0 0 33px}
+  body.general-page .brand-kicker {
+    font-size:9px!important;letter-spacing:.085em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  body.general-page .brand-text h1 {font-size:14px!important;line-height:1.15}
+  body.general-page .top-actions {
+    flex:0 0 auto;display:flex;flex-wrap:nowrap;
+    justify-content:flex-end;align-items:center;gap:5px;min-width:0;
+  }
+  body.general-page .connection-pill {
+    font-size:10px!important;line-height:1.2;white-space:nowrap;
+    min-width:0!important;min-height:32px;padding:5px 7px!important;
+    width:auto!important;max-width:none!important;overflow:visible!important;
+    gap:5px;flex:0 0 auto!important;
+  }
+  body.general-page .connection-dot {width:7px;height:7px;flex:0 0 7px}
+  body.general-page .nt-header-bell {
+    flex:0 0 34px;min-width:34px!important;width:34px;
+    min-height:36px!important;padding:6px!important;
+  }
+  body.general-page .general-login-btn {
+    flex:0 0 auto;min-height:36px!important;padding:6px 9px!important;
+    font-size:11px!important;white-space:nowrap;
+  }
+}
+@media (max-width:359px) {
+  body.nt-login-page .topbar {padding-left:8px;padding-right:8px;gap:4px}
+  body.nt-login-page .top-actions {gap:4px}
+  body.nt-login-page .login-back-full {display:none}
+  body.nt-login-page .login-back-short {display:inline}
+  body.nt-login-page .brand-kicker {font-size:8px;letter-spacing:.06em}
+  body.nt-login-page .brand-mark {width:32px;height:32px}
+  body.general-page .topbar {padding-left:6px!important;padding-right:6px!important;gap:3px!important}
+  body.general-page .top-actions {gap:3px}
+  body.general-page .brand-kicker {font-size:8px!important;letter-spacing:.05em}
+  body.general-page .brand-text h1 {font-size:12px!important}
+  body.general-page .connection-pill {font-size:9px!important;padding:5px!important}
+  body.general-page .general-login-btn {padding:6px!important}
+}
+
+body.nt-login-page .login-back-short{display:none}
+@media(max-width:359px){body.nt-login-page .login-back-short{display:inline}}
+
+/* V4.5.13 — shared compact Operations branding for authenticated Manager page. */
+body.nt-manager-desktop .nt-manager-logout{white-space:nowrap;flex:0 0 auto}
+@media(max-width:650px){
+ body.nt-manager-desktop .topbar{display:grid;grid-template-columns:minmax(0,1fr) max-content;align-items:center;gap:7px;padding:9px 11px;min-height:65px}
+ body.nt-manager-desktop .brand{min-width:0;gap:7px;flex-wrap:nowrap}
+ body.nt-manager-desktop .brand-mark{width:35px;height:35px;flex:0 0 35px;font-size:15px;border-radius:10px}
+ body.nt-manager-desktop .brand-text{min-width:0}
+ body.nt-manager-desktop .brand-kicker{font-size:9px;line-height:1.15;letter-spacing:.085em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+ body.nt-manager-desktop .topbar h1{font-size:15px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ body.nt-manager-desktop .topbar .brand-text p{display:none}
+ body.nt-manager-desktop .top-actions{display:flex;flex-wrap:nowrap;align-items:center;gap:6px;min-width:0}
+ body.nt-manager-desktop .connection-pill{flex:0 0 auto;white-space:nowrap;min-width:0;gap:5px;padding:6px 7px;font-size:10px}
+ body.nt-manager-desktop .connection-dot{width:7px;height:7px;flex:0 0 auto}
+ body.nt-manager-desktop .nt-manager-logout{font-size:11px;padding:7px 9px;min-height:37px}
+}
+@media(max-width:359px){
+ body.nt-manager-desktop .topbar{padding-left:7px;padding-right:7px;gap:4px}
+ body.nt-manager-desktop .top-actions{gap:4px}
+ body.nt-manager-desktop .brand-kicker{font-size:8px;letter-spacing:.06em}
+ body.nt-manager-desktop .brand-mark{width:32px;height:32px;flex-basis:32px}
+ body.nt-manager-desktop .connection-pill{font-size:9px;padding:5px}
+}
+/* Single-session final check: Show editable sell-out time only for zero-stock items. */
+.hf-modal .hf-session-row .hf-session-selltime[hidden]{display:none!important}
+.hf-modal .hf-session-row .hf-session-selltime{grid-column:2 / 4;grid-row:3;display:flex;flex-direction:row;align-items:center;gap:8px;font-size:11px}
+.hf-modal .hf-session-row .hf-session-selltime input{width:136px;max-width:100%;min-height:34px}
+.hf-modal .hf-session-time-help{font-size:11px;color:#51677c;margin:-3px 0 5px}
+@media(max-width:650px){.hf-modal .hf-session-row .hf-session-selltime{grid-column:1/-1;grid-row:auto;justify-content:space-between}}
+/* Legible product and quantity rows in the combined fourth-hour check on all screens. */
+.hf-modal .hf-session-row{background:#fff;color:#1c3043;border-color:#c9d9e6}
+.hf-modal .hf-session-row strong{color:#142b41}
+.hf-modal .hf-session-row>small{color:#536d82}
+.hf-modal .hf-session-row .hf-session-outcome{color:#31576f}
+.hf-modal .hf-session-row label{color:#293f55}
